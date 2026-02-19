@@ -1,0 +1,1899 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aktieanalys for n00b's</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+:root {
+  --primary: #1a1a2e;
+  --accent: #4361ee;
+  --green: #1a7a3a;
+  --green-bg: #d4edda;
+  --lime: #4a7c1a;
+  --lime-bg: #e8f5d4;
+  --orange: #c06800;
+  --orange-bg: #fff3cd;
+  --red: #a01010;
+  --red-bg: #f8d7da;
+  --border: #e0e0e0;
+  --bg: #f4f6f8;
+  --card: #fff;
+  --text: #1a1a2e;
+  --muted: #6c757d;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+/* ── Header ── */
+header {
+  background: var(--primary); color: #fff;
+  display: flex; align-items: center; gap: 1.5rem;
+  padding: .85rem 1.5rem; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px #0004;
+}
+header h1 { font-size: 1.2rem; white-space: nowrap; }
+.search-wrap { position: relative; flex: 1; max-width: 420px; }
+.search-wrap input {
+  width: 100%; padding: .5rem .9rem; border-radius: 20px;
+  border: none; font-size: .9rem; outline: none; background: #fff2;
+  color: #fff;
+}
+.search-wrap input::placeholder { color: #aaa; }
+.search-wrap input:focus { background: #fff3; }
+.dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 4px 16px #0002; z-index: 200; overflow: hidden;
+}
+.dropdown.hidden { display: none; }
+.drop-item {
+  padding: .6rem 1rem; cursor: pointer; border-bottom: 1px solid #f5f5f5;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.drop-item:hover { background: #f0f4ff; }
+.drop-item .sym { font-weight: 700; color: var(--accent); font-size: .85rem; }
+.drop-item .exch { font-size: .75rem; color: var(--muted); }
+
+/* ── Tabs ── */
+nav {
+  background: var(--card); border-bottom: 2px solid var(--border);
+  display: flex; padding: 0 1.5rem; position: sticky; top: 83px; z-index: 90;
+}
+.tab-btn {
+  padding: .8rem 1.4rem; border: none; background: none; cursor: pointer;
+  font-size: .9rem; color: var(--muted); border-bottom: 3px solid transparent;
+  margin-bottom: -2px; transition: color .2s, border-color .2s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ── Layout ── */
+main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Toolbar ── */
+.toolbar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .75rem;
+  margin-bottom: 1.2rem;
+}
+.tab-search-wrap { position: relative; }
+.tab-search-wrap input {
+  padding: .45rem .9rem; border: 1px solid var(--border); border-radius: 20px;
+  font-size: .88rem; outline: none; min-width: 220px;
+}
+.tab-search-wrap input:focus { border-color: var(--accent); }
+.tab-search-wrap .dropdown { min-width: 320px; }
+
+/* ── Chips ── */
+.chip-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  background: #e8ecff; color: var(--accent); border-radius: 20px;
+  padding: .3rem .75rem; font-size: .82rem; font-weight: 600;
+}
+.chip button {
+  border: none; background: none; cursor: pointer; color: var(--accent);
+  font-size: .9rem; line-height: 1; padding: 0 .1rem;
+}
+.chip button:hover { color: var(--red); }
+
+/* ── Period selector ── */
+.period-btns { display: flex; gap: .3rem; }
+.period-btn {
+  padding: .35rem .7rem; border: 1px solid var(--border); border-radius: 6px;
+  background: none; cursor: pointer; font-size: .82rem; color: var(--muted);
+}
+.period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.period-btn[data-p="3mo"] { font-weight: 600; }
+
+/* ── Buttons ── */
+.btn-primary {
+  padding: .5rem 1.2rem; background: var(--accent); color: #fff;
+  border: none; border-radius: 8px; cursor: pointer; font-size: .88rem; font-weight: 600;
+}
+.btn-primary:hover { background: #2f50d8; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-sm {
+  padding: .25rem .65rem; border: 1px solid var(--border); border-radius: 6px;
+  background: none; cursor: pointer; font-size: .78rem; color: var(--muted);
+}
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Cards ── */
+.card {
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: 0 2px 8px #0001; margin-bottom: 1.5rem; overflow: hidden;
+}
+.card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1rem 1.2rem; border-bottom: 1px solid var(--border);
+}
+.card-header h2 { font-size: 1.1rem; }
+.card-header .meta { color: var(--muted); font-size: .85rem; }
+.card-body { padding: 1rem 1.2rem; }
+
+/* ── Badge ── */
+.badge {
+  display: inline-block; padding: .25em .75em; border-radius: 20px;
+  font-weight: 700; font-size: .8rem; white-space: nowrap;
+}
+.badge.lg { font-size: .95rem; padding: .4em 1em; }
+.badge.kop       { background: var(--green-bg);  color: var(--green); }
+.badge.kop-hall  { background: var(--lime-bg);   color: var(--lime); }
+.badge.hall-salj { background: var(--orange-bg); color: var(--orange); }
+.badge.salj      { background: var(--red-bg);    color: var(--red); }
+
+/* ── Indikatorer ── */
+.ind-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .6rem; margin: .8rem 0; }
+.ind-cell {
+  padding: .55rem .9rem; border-radius: 8px; font-size: .85rem;
+}
+.ind-cell.bull { background: var(--green-bg); }
+.ind-cell.bear { background: var(--red-bg); }
+.ind-cell strong { display: block; font-size: .75rem; margin-bottom: .15rem; opacity: .7; }
+
+/* ── Tabell ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--primary); color: #fff; padding: .65rem 1rem; text-align: left; font-size: .82rem; font-weight: 600; }
+td { padding: .65rem 1rem; border-bottom: 1px solid #f5f5f5; font-size: .88rem; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafbff; }
+.td-num { text-align: right; font-variant-numeric: tabular-nums; }
+.pl-pos { color: var(--green); font-weight: 600; }
+.pl-neg { color: var(--red); font-weight: 600; }
+
+/* ── Portfölj form ── */
+.add-form {
+  background: var(--card); border-radius: var(--radius);
+  padding: 1.2rem; margin-bottom: 1.2rem;
+  box-shadow: 0 2px 8px #0001; display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end;
+}
+.form-group { display: flex; flex-direction: column; gap: .3rem; }
+.form-group label { font-size: .78rem; color: var(--muted); font-weight: 600; }
+.form-group input {
+  padding: .45rem .8rem; border: 1px solid var(--border); border-radius: 8px;
+  font-size: .88rem; outline: none; min-width: 120px;
+}
+.form-group input:focus { border-color: var(--accent); }
+
+/* ── Bevakningslista ── */
+.watchlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.watch-card {
+  background: var(--card); border-radius: var(--radius); padding: 1rem 1.2rem;
+  box-shadow: 0 2px 8px #0001; display: flex; flex-direction: column; gap: .6rem;
+}
+.watch-card .name { font-weight: 700; font-size: 1rem; }
+.watch-card .sym  { color: var(--muted); font-size: .8rem; }
+.watch-card .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+
+/* ── Portfölj summary ── */
+.summary-bar {
+  background: var(--primary); color: #fff; border-radius: var(--radius);
+  padding: 1rem 1.5rem; display: flex; gap: 2.5rem; flex-wrap: wrap; margin-bottom: 1.2rem;
+}
+.sum-item .label { font-size: .75rem; opacity: .6; margin-bottom: .2rem; }
+.sum-item .value { font-size: 1.3rem; font-weight: 700; }
+
+/* ── Spinner / status ── */
+.spinner { text-align: center; padding: 2rem; color: var(--muted); font-size: .95rem; }
+.empty   { text-align: center; padding: 3rem; color: var(--muted); }
+
+/* ── Stop/Loss + Kursmål ── */
+.sltp-box {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: .75rem; margin: 1rem 0;
+}
+.sltp-item {
+  border-radius: 8px; padding: .75rem 1rem;
+}
+.sltp-item .label { font-size: .72rem; font-weight: 700; letter-spacing: .05em;
+                    text-transform: uppercase; opacity: .65; margin-bottom: .3rem; }
+.sltp-item .price { font-size: 1.15rem; font-weight: 700; display: block; }
+.sltp-item .pct   { font-size: .82rem; opacity: .8; }
+.sltp-item .hint  { font-size: .75rem; opacity: .6; margin-top: .25rem; }
+.sltp-sl   { background: #fdf4f4; border: 1px solid #f5c6c6; color: #7a0000; }
+.sltp-trail{ background: #fff8ee; border: 1px solid #ffd99e; color: #7a4800; }
+.sltp-tp1  { background: #f3fbf5; border: 1px solid #b8e4c6; color: #0a5c2a; }
+.sltp-tp2  { background: #e8f5d4; border: 1px solid #b5d98a; color: #2d5a00; }
+.sltp-atr  { background: #f0f4ff; border: 1px solid #c5d0f5; color: #1a2a6e; }
+
+/* ── Candlestick-mönster ── */
+.pattern-list { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0; }
+.pattern-badge {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .3rem .75rem; border-radius: 20px; font-size: .8rem; font-weight: 600;
+  cursor: help;
+}
+.pattern-badge.bull { background: #d4edda; color: #1a7a3a; }
+.pattern-badge.bear { background: #f8d7da; color: #a01010; }
+.pattern-badge.neut { background: #e8ecff; color: #4361ee; }
+
+/* ── Disclaimer ── */
+.disclaimer {
+  background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px;
+  padding: .75rem 1.2rem; font-size: .8rem; color: #7a5200; margin-top: 1.5rem;
+}
+
+/* ── Top 3 köprekommendationer ── */
+.top3-wrap { margin-bottom: 1.2rem; }
+.top3-header {
+  font-size: .78rem; font-weight: 700; color: var(--muted);
+  letter-spacing: .06em; text-transform: uppercase; margin-bottom: .65rem;
+}
+.top3-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .75rem; }
+.top3-card {
+  background: var(--card); border-radius: var(--radius);
+  padding: 1rem 1.1rem; box-shadow: 0 2px 8px #0001;
+  display: flex; flex-direction: column; gap: .35rem;
+}
+.top3-medal { font-size: 1.6rem; line-height: 1; }
+.top3-name  { font-weight: 700; font-size: .95rem; margin-top: .1rem; }
+.top3-sym   { font-size: .78rem; color: var(--muted); }
+.top3-score { font-size: .8rem; font-weight: 600; }
+.top3-price { font-size: 1.15rem; font-weight: 800; }
+.top3-reason {
+  font-size: .78rem; color: #444; background: #f4f6f8;
+  border-radius: 6px; padding: .35rem .6rem; line-height: 1.5;
+}
+.top3-levels {
+  display: flex; gap: .6rem; font-size: .78rem; color: var(--muted);
+  flex-wrap: wrap;
+}
+.top3-levels span { background: #f0f0f0; border-radius: 4px; padding: .15em .5em; }
+
+/* ── Screener ── */
+.filter-btns { display: flex; gap: .3rem; flex-wrap: wrap; }
+.filter-btn {
+  padding: .3rem .8rem; border: 1px solid var(--border); border-radius: 20px;
+  background: none; cursor: pointer; font-size: .82rem; color: var(--muted);
+}
+.filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.screener-table { width: 100%; border-collapse: collapse; background: var(--card);
+                  border-radius: var(--radius); overflow: hidden; box-shadow: 0 2px 8px #0001; }
+.screener-table th { background: var(--primary); color: #fff; padding: .6rem .8rem;
+                     font-size: .78rem; text-align: left; white-space: nowrap; }
+.screener-table td { padding: .6rem .8rem; border-bottom: 1px solid #f5f5f5;
+                     font-size: .83rem; vertical-align: middle; }
+.screener-table tr:last-child td { border-bottom: none; }
+.screener-table tr { cursor: pointer; transition: background .1s; }
+.screener-table tr:hover td { background: #f0f4ff; }
+.screener-table .td-r { text-align: right; font-variant-numeric: tabular-nums; }
+.bb-bar { width: 60px; height: 8px; background: #eee; border-radius: 4px; display: inline-block; position: relative; }
+.bb-dot  { width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+           position: absolute; top: 0; transform: translateX(-50%); }
+.rank-num { width: 24px; height: 24px; border-radius: 50%; background: var(--primary);
+            color: #fff; font-size: .72rem; font-weight: 700; display: inline-flex;
+            align-items: center; justify-content: center; }
+
+/* ── Tolkningsguide ── */
+.guide-card {
+  background: #f0f4ff; border: 1px solid #c5d0f5; border-radius: var(--radius);
+  padding: 0; margin-bottom: 1.5rem; overflow: hidden;
+}
+.guide-card summary {
+  padding: .9rem 1.2rem; cursor: pointer; font-weight: 700; font-size: .95rem;
+  color: var(--accent); user-select: none; list-style: none; display: flex;
+  align-items: center; gap: .5rem;
+}
+.guide-card summary::-webkit-details-marker { display: none; }
+.guide-card summary::before { content: '▶'; font-size: .65rem; transition: transform .2s; }
+.guide-card[open] summary::before { transform: rotate(90deg); }
+.guide-body { padding: 0 1.2rem 1.2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+.guide-section h4 { color: var(--primary); margin-bottom: .5rem; font-size: .9rem; }
+.guide-section p, .guide-section li { font-size: .83rem; line-height: 1.65; color: #444; }
+.guide-section ul { padding-left: 1.1rem; }
+.guide-section li { margin-bottom: .25rem; }
+.guide-section .level { display: flex; align-items: center; gap: .5rem; margin: .2rem 0; font-size: .82rem; }
+.guide-section .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Narrativ tolkning ── */
+.narrative { margin-top: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.narr-item {
+  background: #f8f9fa; border-left: 3px solid #dee2e6;
+  border-radius: 0 6px 6px 0; padding: .6rem .9rem; font-size: .85rem; line-height: 1.6;
+}
+.narr-item.pos { border-left-color: var(--green); background: #f3fbf5; }
+.narr-item.neg { border-left-color: var(--red); background: #fdf4f4; }
+.narr-item.warn { border-left-color: var(--orange); background: #fffbf0; }
+.narr-item.info { border-left-color: var(--accent); background: #f0f4ff; }
+.narr-item strong { display: block; margin-bottom: .2rem; }
+.action-box {
+  background: var(--primary); color: #fff; border-radius: 8px;
+  padding: .85rem 1.1rem; font-size: .88rem; line-height: 1.6; margin-top: .3rem;
+}
+.action-box strong { display: block; font-size: .75rem; opacity: .6; margin-bottom: .3rem; letter-spacing: .05em; text-transform: uppercase; }
+.freq-badge {
+  display: inline-block; background: #ffffff22; border-radius: 4px;
+  padding: .15em .5em; font-size: .75rem; margin-left: .4rem;
+}
+
+/* ── Explain mode ── */
+#btn-explain {
+  padding: .35rem .8rem; border: 1px solid #ffffff44; border-radius: 8px;
+  background: transparent; color: #fff; cursor: pointer; font-size: .82rem;
+  white-space: nowrap; transition: background .2s, border-color .2s;
+}
+#btn-explain:hover { background: #ffffff18; }
+#btn-explain.active { background: var(--accent); border-color: var(--accent); }
+.explain-mode [data-tip] { cursor: help; }
+#explain-panel {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #1a1a2e; color: #fff;
+  padding: 1rem 1.5rem; border-radius: 12px 12px 0 0;
+  transform: translateY(100%); transition: transform .25s;
+  z-index: 500; max-height: 40vh; overflow-y: auto;
+}
+#explain-panel.open { transform: translateY(0); }
+#explain-panel .ep-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: .5rem;
+}
+#explain-panel .ep-close {
+  background: none; border: none; color: #fff; cursor: pointer;
+  font-size: 1.2rem; line-height: 1; padding: 0 .25rem; opacity: .7;
+  flex-shrink: 0; margin-left: 1rem;
+}
+#explain-panel .ep-close:hover { opacity: 1; }
+#explain-panel .ep-text { font-size: .9rem; line-height: 1.65; white-space: pre-wrap; }
+
+/* ── Marknadspuls ── */
+.market-pulse {
+  background: #f4f6f8; border-bottom: 1px solid #e0e0e0;
+  padding: .35rem 1.5rem; font-size: .82rem;
+  display: flex; align-items: center; gap: .75rem;
+}
+.market-pulse.bull { background: #d4edda; }
+.market-pulse.bear { background: #f8d7da; }
+
+/* ── Swing Checklist ── */
+.checklist-card { border-radius: 10px; padding: 1rem; margin: .8rem 0; border: 2px solid; }
+.swing-prime  { background: #d4edda; border-color: #1a7a3a; }
+.swing-good   { background: #e8f5d4; border-color: #4a7c1a; }
+.swing-wait   { background: #fff3cd; border-color: #c06800; }
+.swing-avoid  { background: #f8d7da; border-color: #a01010; }
+.checklist-header { display: flex; align-items: center; gap: 1rem; margin-bottom: .75rem; }
+.swing-score { font-size: 2rem; font-weight: 800; line-height: 1; }
+.swing-score span { font-size: 1rem; opacity: .6; }
+.swing-label { font-size: 1.1rem; font-weight: 700; }
+.check-row { display: flex; gap: .6rem; padding: .35rem 0; border-bottom: 1px solid #0001; font-size: .85rem; }
+.check-row.ok .check-icon { color: var(--green); }
+.check-row.fail { opacity: .6; }
+.check-desc { font-size: .78rem; color: var(--muted); margin-top: .1rem; }
+.narrative-details { margin-top: .75rem; }
+.narrative-details summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: .4rem 0; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────── -->
+<header>
+  <h1>📈 Aktieanalys for n00b's</h1>
+  <div class="search-wrap">
+    <input id="hdr-search" type="text" placeholder="Sök aktie eller ange ticker…" autocomplete="off" data-tip="Sök med bolagsnamn (t.ex. 'Volvo') eller börskod (t.ex. 'VOLV-B.ST'). Börskoden hittar du på Avanza eller Google – det är det korta namnet som slutar på .ST för Stockholmsbörsen. Välj ett förslag i listan för att öppna analysen direkt.">
+    <div id="hdr-dropdown" class="dropdown hidden"></div>
+  </div>
+  <button id="btn-explain">❓ Förklara</button>
+</header>
+
+<!-- ── Marknadspuls ─────────────────────────────────────────────── -->
+<div id="market-pulse" class="market-pulse">
+  <span id="mp-status">Hämtar marknadsläge…</span>
+</div>
+
+<!-- ── Navigation ──────────────────────────────────────────────── -->
+<nav>
+  <button class="tab-btn active" data-tab="analys" data-tip="HÄR BÖRJAR DU. Sök en aktie, välj tidsperiod och klicka Analysera. Du får ett diagram + tre signallampor (MA-trend, RSI, MACD) som säger om det är köp, håll eller sälj. Klicka ❓ Förklara och sen en signal för att förstå vad den betyder.">Analys</button>
+  <button class="tab-btn" data-tab="jamforelse" data-tip="Lägg till 2–4 aktier och se vem som ökat mest i procent under samma tidsperiod. Alla startar på 100 i diagrammet – det gör det rättvist att jämföra en aktie på 10 kr mot en på 1000 kr.">Jämförelse</button>
+  <button class="tab-btn" data-tab="portfolj" data-tip="Din egna aktiebok. Skriv in vilka aktier du äger, hur många och vad du betalade. Appen räknar ut om du är på vinst (grön) eller förlust (röd) baserat på dagskursen.">Portfölj</button>
+  <button class="tab-btn" data-tab="bevakning" data-tip="En lista på aktier du vill hålla koll på utan att analysera dem just nu. Klicka 'Analysera alla' för att snabbt se om någon har fått köpsignal sedan sist du kollade.">Bevakning</button>
+  <button class="tab-btn" data-tab="screener" data-tip="Automatisk genomgång av Stockholmsbörsens aktier. Visar Top 3 köprekommendationer direkt + hela listan sorterad efter köpsignal. Klicka en rad för full analys.">📡 Screener</button>
+</nav>
+
+<main>
+
+<!-- ── Analys ───────────────────────────────────────────────────── -->
+<div id="tab-analys" class="tab-panel active">
+  <div class="toolbar">
+    <div class="tab-search-wrap">
+      <input id="a-search" type="text" placeholder="Sök och lägg till aktie…" autocomplete="off" data-tip="Sök med bolagsnamn eller börskod (t.ex. 'HM-B.ST'). Du kan lägga till flera aktier och analysera dem samtidigt – bra för att jämföra signaler sida vid sida.">
+      <div id="a-dropdown" class="dropdown hidden"></div>
+    </div>
+    <div class="chip-list" id="a-chips"></div>
+    <div class="period-btns" id="a-period">
+      <button class="period-btn active" data-p="3mo" data-tip="Visar 3 månaders kurshistorik. Rekommenderat för de flesta – tillräckligt lång för att se trender men inte för gammal data. Bra för swing trades (1–4 veckor).">3m ★</button>
+      <button class="period-btn" data-p="6mo" data-tip="Visar 6 månaders historik. Bra för att bekräfta att en trend håller i sig och inte bara är en kortvarig rörelse.">6m</button>
+      <button class="period-btn" data-p="1y" data-tip="Visar 1 år. Behövs för att se MA200 (200-dagarslinjen) som kräver minst 200 dagars data. Ger bäst bild av den långsiktiga trenden.">1å</button>
+    </div>
+    <button class="btn-primary" id="btn-analyze" data-tip="Hämtar färsk kursdata från Yahoo Finance och räknar ut alla tekniska signaler. Tar ~2 sekunder per aktie.">Analysera</button>
+  </div>
+  <div id="a-results">
+    <div class="empty">Lägg till aktier ovan och klicka <strong>Analysera</strong>.</div>
+  </div>
+</div>
+
+<!-- ── Jämförelse ──────────────────────────────────────────────── -->
+<div id="tab-jamforelse" class="tab-panel">
+  <div class="toolbar">
+    <div class="tab-search-wrap">
+      <input id="c-search" type="text" placeholder="Sök och lägg till aktie…" autocomplete="off" data-tip="Lägg till minst 2 aktier. I diagrammet startar alla på 100 – så du kan direkt se vem som gett bäst avkastning under samma period, oavsett om aktien kostar 10 kr eller 1000 kr.">
+      <div id="c-dropdown" class="dropdown hidden"></div>
+    </div>
+    <div class="chip-list" id="c-chips"></div>
+    <div class="period-btns" id="c-period">
+      <button class="period-btn active" data-p="3mo" data-tip="Jämför de senaste 3 månaderna. Bra standardval.">3m ★</button>
+      <button class="period-btn" data-p="6mo" data-tip="Jämför de senaste 6 månaderna.">6m</button>
+      <button class="period-btn" data-p="1y" data-tip="Jämför det senaste året. Bra för att se vilka aktier som haft starkast långsiktig trend.">1å</button>
+    </div>
+    <button class="btn-primary" id="btn-compare" data-tip="Hämtar kursdata för alla valda aktier och ritar dem i ett gemensamt diagram. Alla börjar på 100 så du direkt ser procentuell skillnad.">Jämför</button>
+  </div>
+  <div id="c-chart-wrap"></div>
+  <div id="c-table-wrap"></div>
+</div>
+
+<!-- ── Portfölj ─────────────────────────────────────────────────── -->
+<div id="tab-portfolj" class="tab-panel">
+  <div class="add-form">
+    <div class="form-group" style="position:relative">
+      <label data-tip="Sök fram aktien du köpt. Skriv bolagsnamn (t.ex. 'Investor') eller börskod (t.ex. 'INVE-B.ST'). Välj rätt aktie i listan som dyker upp.">AKTIE</label>
+      <input id="p-search" type="text" placeholder="Sök ticker…" autocomplete="off" style="min-width:200px">
+      <div id="p-dropdown" class="dropdown hidden"></div>
+      <input type="hidden" id="p-symbol">
+    </div>
+    <div class="form-group">
+      <label data-tip="Hur många aktier du äger totalt. Har du köpt vid flera tillfällen? Addera ihop dem och ange totalt antal.">ANTAL</label>
+      <input id="p-shares" type="number" min="0" step="1" placeholder="100" style="min-width:90px">
+    </div>
+    <div class="form-group">
+      <label data-tip="Vad du betalade per aktie i kronor. Köpte du 100 aktier för totalt 15 000 kr? Då är köpkursen 150 kr/aktie. Köpte du vid olika tillfällen till olika priser? Räkna ut snittet: (pris1+pris2)/2.">KÖPKURS (SEK)</label>
+      <input id="p-price" type="number" min="0" step="0.01" placeholder="150.00" style="min-width:120px">
+    </div>
+    <button class="btn-primary" id="btn-add-holding" data-tip="Sparar ditt innehav. Data lagras på servern och finns kvar nästa gång du öppnar appen.">+ Lägg till</button>
+  </div>
+  <div id="p-summary"></div>
+  <div id="p-table-wrap"></div>
+  <div class="disclaimer">⚠️ Kurser är fördröjda ~15 min. Inte finansiell rådgivning.</div>
+</div>
+
+<!-- ── Bevakning ────────────────────────────────────────────────── -->
+<div id="tab-bevakning" class="tab-panel">
+  <div class="toolbar">
+    <div class="tab-search-wrap">
+      <input id="w-search" type="text" placeholder="Sök och lägg till aktie…" autocomplete="off" data-tip="Lägg till aktier du vill hålla koll på – t.ex. sådana du funderar på att köpa. Du kan sedan klicka 'Analysera alla' för att snabbt se om någon har fått köpsignal.">
+      <div id="w-dropdown" class="dropdown hidden"></div>
+    </div>
+    <button class="btn-primary" id="btn-analyze-all" data-tip="Kör analys på ALLA aktier i bevakningslistan på en gång och öppnar dem i Analys-tabben. Smidigt för din dagliga genomgång – kolla bara om någon har fått köpsignal sedan sist.">Analysera alla</button>
+  </div>
+  <div id="w-list" class="watchlist-grid"></div>
+</div>
+
+<!-- ── Screener ──────────────────────────────────────────────────── -->
+<div id="tab-screener" class="tab-panel">
+  <div class="toolbar" style="flex-wrap:wrap;gap:1rem">
+    <button class="btn-primary" id="btn-screener" data-tip="Analyserar automatiskt Stockholmsbörsens aktier och visar Top 3 köprekommendationer + hela listan sorterad. Tar ~20 sekunder. Klicka en rad för full analys.">▶ Kör screener</button>
+    <button class="btn-sm"      id="btn-screener-refresh" style="display:none" data-tip="Hämtar ny färsk data och kör analysen på nytt. Annars visas sparade resultat från senaste körningen (visas med tidstämpel).">🔄 Uppdatera</button>
+    <div id="screener-status" style="color:var(--muted);font-size:.85rem"></div>
+    <div class="filter-btns" id="screener-filter" style="display:none">
+      <button class="filter-btn active" data-f="alla" data-tip="Visar alla analyserade aktier oavsett signal.">Alla</button>
+      <button class="filter-btn" data-f="prime" data-tip="PRIME SETUP – Swing-score 8 eller högre. Dessa aktier uppfyller de flesta kriterier för ett bra swing trade-tillfälle just nu: rätt marknadsläge, RSI i köpzon, färsk MACD-korsning, pris nära stöd och volym som bekräftar.">🎯 Prime Setup</button>
+      <button class="filter-btn" data-f="kop" data-tip="KÖP – Visar aktier där ALLA tre klassiska indikatorer (MA-trend, RSI, MACD) är positiva. Den starkaste traditionella köpsignalen.">Köp</button>
+      <button class="filter-btn" data-f="kop-hall" data-tip="KÖP/HÅLL – Två av tre indikatorer är positiva. Bra läge men en signal saknar bekräftelse ännu. Kan köpa lite nu och lägga till mer när alla tre väl lyser grönt.">Köp / Håll</button>
+      <button class="filter-btn" data-f="hall-salj" data-tip="HÅLL/SÄLJ – Bara en indikator är positiv. Majoriteten pekar nedåt. Avvakta om du funderar på att köpa. Om du äger – håll men öka inte.">Håll / Sälj</button>
+      <button class="filter-btn" data-f="salj" data-tip="SÄLJ – Alla tre indikatorer pekar nedåt. Undvik att köpa nu. Om du äger och är på vinst, fundera på att minska eller sätta stop-loss.">Sälj</button>
+    </div>
+  </div>
+  <div id="screener-top3"></div>
+  <div id="screener-results">
+    <div class="empty">
+      Klicka <strong>Kör screener</strong> för att analysera Stockholmsbörsens aktier och se Top 3 köprekommendationer.<br>
+      <small style="color:var(--muted)">Tar ~15–25 sekunder. Resultaten cachas tills du uppdaterar.</small>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ── Explain Panel ────────────────────────────────────────────── -->
+<div id="explain-panel">
+  <div class="ep-header">
+    <div id="ep-content" class="ep-text"></div>
+    <button class="ep-close" id="ep-close">✕</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// State
+// ════════════════════════════════════════════════════════════════
+const state = {
+  analys:    { stocks: [], period: "3mo" },
+  compare:   { stocks: [], period: "3mo" },
+  watchlist: [],
+  portfolio: [],
+};
+
+// ════════════════════════════════════════════════════════════════
+// Helpers
+// ════════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+
+function debounce(fn, ms) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+const REK_TIPS = {
+  'kop':      'KÖP ✅ – Alla tre mätare (trend, RSI, MACD) pekar uppåt! Det starkaste köpläget systemet kan visa. Inte en garanti, men statistiskt det bästa tillfället att öppna en position. Sätt alltid en stop-loss!',
+  'kop-hall': 'KÖP/HÅLL 🟡 – Två av tre mätare är positiva. Bra läge, men en signal saknar bekräftelse. Du kan antingen köpa lite nu och lägga till mer när alla tre är gröna, eller vänta på full bekräftelse.',
+  'hall-salj':'HÅLL/SÄLJ 🟠 – Bara en mätare är positiv, majoriteten pekar nedåt. Om du äger aktien – behåll men öka inte. Om du funderar på att köpa – vänta tills läget förbättras.',
+  'salj':     'SÄLJ 🔴 – Alla tre mätare pekar nedåt. Undvik att köpa nu. Om du äger aktien och har vinst, fundera på att sälja en del. Sätt åtminstone en stop-loss under senaste botten om du väljer att behålla.',
+};
+function rekBadge(klass, text, lg = false) {
+  const tip = REK_TIPS[klass] || '';
+  return `<span class="badge ${klass}${lg ? ' lg' : ''}" data-tip="${tip}">${text}</span>`;
+}
+
+function plClass(v) { return v >= 0 ? 'pl-pos' : 'pl-neg'; }
+function plSign(v) { return v >= 0 ? '+' : ''; }
+
+// ════════════════════════════════════════════════════════════════
+// API
+// ════════════════════════════════════════════════════════════════
+async function apiSearch(q) {
+  const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  return r.json();
+}
+
+async function apiAnalyze(symbols, period) {
+  const r = await fetch('/api/analyze', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ symbols, period }),
+  });
+  return r.json();
+}
+
+async function apiCompare(symbols, period) {
+  const r = await fetch('/api/compare', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ symbols, period }),
+  });
+  return r.json();
+}
+
+async function saveWatchlist() {
+  await fetch('/api/watchlist', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(state.watchlist),
+  });
+}
+
+async function loadWatchlist() {
+  const r = await fetch('/api/watchlist');
+  state.watchlist = await r.json();
+  renderWatchlist();
+}
+
+async function savePortfolio() {
+  await fetch('/api/portfolio', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(state.portfolio),
+  });
+}
+
+async function loadPortfolio() {
+  const r = await fetch('/api/portfolio');
+  state.portfolio = await r.json();
+}
+
+async function loadPortfolioValue() {
+  const r = await fetch('/api/portfolio/value');
+  return r.json();
+}
+
+// ════════════════════════════════════════════════════════════════
+// Search autocomplete
+// ════════════════════════════════════════════════════════════════
+function makeAutocomplete(inputId, dropdownId, onSelect) {
+  const inp = $(inputId);
+  const drop = $(dropdownId);
+
+  const doSearch = debounce(async (q) => {
+    if (q.length < 2) { drop.classList.add('hidden'); return; }
+    const results = await apiSearch(q);
+    if (!Array.isArray(results) || results.length === 0) { drop.classList.add('hidden'); return; }
+    drop.innerHTML = '';
+    results.forEach(item => {
+      const d = el('div', 'drop-item');
+      d.innerHTML = `<span>${item.name || item.symbol}</span><span><span class="sym">${item.symbol}</span> <span class="exch">${item.exchange}</span></span>`;
+      d.addEventListener('click', () => {
+        onSelect(item);
+        inp.value = '';
+        drop.classList.add('hidden');
+      });
+      drop.appendChild(d);
+    });
+    drop.classList.remove('hidden');
+  }, 300);
+
+  inp.addEventListener('input', e => doSearch(e.target.value));
+
+  // Enter = add first result or treat as ticker
+  inp.addEventListener('keydown', async e => {
+    if (e.key === 'Enter') {
+      const q = inp.value.trim();
+      if (!q) return;
+      // Try to add as-is (raw ticker)
+      onSelect({ symbol: q.toUpperCase(), name: q.toUpperCase(), exchange: '' });
+      inp.value = '';
+      drop.classList.add('hidden');
+    }
+    if (e.key === 'Escape') drop.classList.add('hidden');
+  });
+
+  document.addEventListener('click', e => {
+    if (!inp.contains(e.target) && !drop.contains(e.target)) drop.classList.add('hidden');
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// Tab switching
+// ════════════════════════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// Period buttons
+// ════════════════════════════════════════════════════════════════
+function setupPeriod(containerId, key) {
+  $(containerId).querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $(containerId).querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state[key].period = btn.dataset.p;
+    });
+  });
+}
+setupPeriod('a-period', 'analys');
+setupPeriod('c-period', 'compare');
+
+// ════════════════════════════════════════════════════════════════
+// Analys – chip list
+// ════════════════════════════════════════════════════════════════
+function renderChips(listId, stocks, removeCallback) {
+  const wrap = $(listId);
+  wrap.innerHTML = '';
+  stocks.forEach(s => {
+    const chip = el('div', 'chip');
+    chip.innerHTML = `${s.name || s.symbol} <button title="Ta bort">×</button>`;
+    chip.querySelector('button').addEventListener('click', () => removeCallback(s.symbol));
+    wrap.appendChild(chip);
+  });
+}
+
+function addToAnalysis(item) {
+  if (state.analys.stocks.find(s => s.symbol === item.symbol)) return;
+  state.analys.stocks.push(item);
+  rebuildAnalysChips();
+}
+
+function addToCompare(item) {
+  if (state.compare.stocks.find(s => s.symbol === item.symbol)) return;
+  state.compare.stocks.push(item);
+  rebuildCompareChips();
+}
+
+function rebuildAnalysChips() {
+  renderChips('a-chips', state.analys.stocks, sym => {
+    state.analys.stocks = state.analys.stocks.filter(s => s.symbol !== sym);
+    rebuildAnalysChips();
+  });
+}
+
+function rebuildCompareChips() {
+  renderChips('c-chips', state.compare.stocks, sym => {
+    state.compare.stocks = state.compare.stocks.filter(s => s.symbol !== sym);
+    rebuildCompareChips();
+  });
+}
+
+makeAutocomplete('a-search', 'a-dropdown', item => addToAnalysis(item));
+makeAutocomplete('c-search', 'c-dropdown', item => addToCompare(item));
+
+// Header search – adds to active tab
+makeAutocomplete('hdr-search', 'hdr-dropdown', item => {
+  const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+  if (activeTab === 'analys')     { addToAnalysis(item); rebuildAnalysChips(); }
+  if (activeTab === 'jamforelse') { addToCompare(item);  rebuildCompareChips(); }
+  if (activeTab === 'bevakning')  { addToWatchlist(item); }
+});
+
+// ════════════════════════════════════════════════════════════════
+// Plotly – Analysis chart
+// ════════════════════════════════════════════════════════════════
+function renderAnalysisChart(containerId, stock) {
+  const c = stock.chart;
+  const n = c.dates.length;
+  const d0 = c.dates[0], dn = c.dates[n - 1];
+
+  const traces = [
+    // ── Bollinger Bands (fyll mellan övre och nedre) ──────────────
+    { x: c.dates, y: c.bb_upper, type: 'scatter', mode: 'lines', name: 'BB övre',
+      line: { color: 'rgba(130,130,200,.35)', width: 1 }, yaxis: 'y', showlegend: false, hoverinfo: 'skip' },
+    { x: c.dates, y: c.bb_lower, type: 'scatter', mode: 'lines', name: 'Bollinger Bands',
+      fill: 'tonexty', fillcolor: 'rgba(130,130,200,.06)',
+      line: { color: 'rgba(130,130,200,.35)', width: 1 }, yaxis: 'y' },
+    { x: c.dates, y: c.bb_mid, type: 'scatter', mode: 'lines', name: 'BB mitten (MA20)',
+      line: { color: 'rgba(130,130,200,.5)', width: 1, dash: 'dot' }, yaxis: 'y', showlegend: false, hoverinfo: 'skip' },
+
+    // ── MA50 / MA200 ──────────────────────────────────────────────
+    { x: c.dates, y: c.ma50,  type: 'scatter', mode: 'lines', name: 'MA 50',
+      line: { color: '#4361ee', width: 1.2, dash: 'dash' }, yaxis: 'y' },
+    { x: c.dates, y: c.ma200, type: 'scatter', mode: 'lines', name: 'MA 200',
+      line: { color: '#c0392b', width: 1.2, dash: 'dash' }, yaxis: 'y' },
+
+    // ── Candlesticks ──────────────────────────────────────────────
+    { x: c.dates, open: c.open, high: c.high, low: c.low, close: c.close,
+      type: 'candlestick', name: 'Kurs',
+      increasing: { line: { color: '#1a7a3a', width: 1 }, fillcolor: '#2ecc71' },
+      decreasing: { line: { color: '#c0392b', width: 1 }, fillcolor: '#e74c3c' },
+      yaxis: 'y',
+      whiskerwidth: 0.3 },
+
+    // ── Golden / Death Cross ──────────────────────────────────────
+    { x: c.golden_x, y: c.golden_y, type: 'scatter', mode: 'markers', name: 'Golden Cross',
+      marker: { symbol: 'triangle-up', size: 13, color: '#1a7a3a' }, yaxis: 'y' },
+    { x: c.death_x,  y: c.death_y,  type: 'scatter', mode: 'markers', name: 'Death Cross',
+      marker: { symbol: 'triangle-down', size: 13, color: '#c0392b' }, yaxis: 'y' },
+
+    // ── Volym ─────────────────────────────────────────────────────
+    { x: c.dates, y: c.volume, type: 'bar', name: 'Volym',
+      marker: { color: c.close.map((cl, i) => cl >= (c.open[i] ?? cl) ? 'rgba(46,204,113,.45)' : 'rgba(231,76,60,.45)') },
+      yaxis: 'y2' },
+
+    // ── RSI ───────────────────────────────────────────────────────
+    { x: c.dates, y: c.rsi, type: 'scatter', mode: 'lines', name: 'RSI (14)',
+      line: { color: '#7b2f9e', width: 1.2 }, yaxis: 'y3' },
+    { x: [d0, dn], y: [70, 70], type: 'scatter', mode: 'lines',
+      line: { color: '#c0392b', width: 1, dash: 'dot' }, yaxis: 'y3', showlegend: false, hoverinfo: 'skip' },
+    { x: [d0, dn], y: [35, 35], type: 'scatter', mode: 'lines',
+      line: { color: '#1a7a3a', width: 1, dash: 'dot' }, yaxis: 'y3', showlegend: false, hoverinfo: 'skip' },
+
+    // ── MACD ──────────────────────────────────────────────────────
+    { x: c.dates, y: c.macd,     type: 'scatter', mode: 'lines', name: 'MACD',
+      line: { color: '#2980b9', width: 1.1 }, yaxis: 'y4' },
+    { x: c.dates, y: c.macd_sig, type: 'scatter', mode: 'lines', name: 'Signal',
+      line: { color: '#e67e22', width: 1.1 }, yaxis: 'y4' },
+    { x: c.dates, y: c.macd_hist, type: 'bar', name: 'Histogram',
+      marker: { color: c.macd_hist.map(v => v >= 0 ? 'rgba(26,122,58,.5)' : 'rgba(192,57,43,.5)') },
+      yaxis: 'y4' },
+  ];
+
+  const layout = {
+    height: 640,
+    margin: { t: 10, r: 20, b: 30, l: 70 },
+    legend: { orientation: 'h', y: 1.07, font: { size: 10 } },
+    xaxis:  { showgrid: true, gridcolor: '#f0f0f0', rangeslider: { visible: false } },
+    yaxis:  { domain: [0.48, 1.0],  title: 'SEK', showgrid: true, gridcolor: '#f0f0f0' },
+    yaxis2: { domain: [0.33, 0.46], title: 'Volym', showgrid: false },
+    yaxis3: { domain: [0.17, 0.31], title: 'RSI', range: [0, 100], showgrid: false },
+    yaxis4: { domain: [0.0,  0.15], title: 'MACD', showgrid: false },
+    plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+    bargap: 0.1,
+  };
+
+  Plotly.newPlot(containerId, traces, layout, { responsive: true, displayModeBar: false });
+}
+
+// ════════════════════════════════════════════════════════════════
+// Tolkningsguide (statisk HTML)
+// ════════════════════════════════════════════════════════════════
+const GUIDE_HTML = `
+<details class="guide-card">
+  <summary>📖 Hur tolkar jag indikatorerna? – Klicka för att expandera</summary>
+  <div class="guide-body">
+
+    <div class="guide-section">
+      <h4>📊 MA50 &amp; MA200 – Trendindikator</h4>
+      <p>Visar genomsnittskursen de senaste 50 resp. 200 handelsdagarna.
+         Används för att avgöra <strong>långsiktig trend</strong> (veckor–månader).</p>
+      <ul>
+        <li><strong>Golden Cross</strong> – MA50 korsar upp genom MA200.
+            Klassiskt köpsignal. Trenden har vänt uppåt. <em>Agera inom 1–5 dagar.</em></li>
+        <li><strong>Death Cross</strong> – MA50 korsar ned genom MA200.
+            Varningssignal. Risken för fortsatt fall är hög. <em>Undvik köp.</em></li>
+        <li><strong>MA50 &gt; MA200 (aktiv)</strong> – Etablerad upptrend.
+            Köp på dippar, inte toppar.</li>
+        <li><strong>MA50 &lt; MA200 (aktiv)</strong> – Etablerad nedtrend.
+            Vänta på trendskifte innan köp.</li>
+      </ul>
+      <p style="margin-top:.5rem;font-style:italic;color:#888">Kontrollfrekvens: Veckovis</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>📉 RSI (14 dagar) – Köp/sälj-momentum</h4>
+      <p>Relative Strength Index mäter hur snabbt och kraftigt aktien rört sig.
+         Skala 0–100. Används för att hitta <strong>bra ingångs- och utgångspunkter</strong>.</p>
+      <div class="level"><span class="dot" style="background:#6a0dad"></span><strong>&lt; 30</strong> – Extremt översåld. Sällsynt, hög rekylrisk uppåt. Köp i etapper.</div>
+      <div class="level"><span class="dot" style="background:#1a7a3a"></span><strong>30–40</strong> – Översåld. Klassiskt köpläge, speciellt i upptrend.</div>
+      <div class="level"><span class="dot" style="background:#4a7c1a"></span><strong>40–50</strong> – Svag. Bevaka om RSI vänder upp från denna nivå.</div>
+      <div class="level"><span class="dot" style="background:#888"></span><strong>50–60</strong> – Neutral. Inga extremsignaler. Titta på MA och MACD.</div>
+      <div class="level"><span class="dot" style="background:#c06800"></span><strong>60–70</strong> – Stark. Bra momentum men börja bevaka för överhettning.</div>
+      <div class="level"><span class="dot" style="background:#c0392b"></span><strong>70–80</strong> – Överköpt. Risk för rekyl. Undvik köp, ta hem vinst.</div>
+      <div class="level"><span class="dot" style="background:#7a0000"></span><strong>&gt; 80</strong> – Extremt överköpt. Hög risk för skarp nedgång. Sätt stop-loss.</div>
+      <p style="margin-top:.5rem;font-style:italic;color:#888">Kontrollfrekvens: Dagligen</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>📈 MACD – Momentumindikator</h4>
+      <p>Moving Average Convergence Divergence. Visar <strong>förändring i momentum</strong>
+         och fångar trendbyten tidigare än MA-korsningar.</p>
+      <ul>
+        <li><strong>MACD-linjen korsar upp signalinjen</strong> – Bullish korsning.
+            Köpsignal. Momentum vänder uppåt. <em>Agera inom 1–3 dagar.</em></li>
+        <li><strong>MACD-linjen korsar ned signalinjen</strong> – Bearish korsning.
+            Säljsignal. Momentum vänder nedåt.</li>
+        <li><strong>Histogrammet</strong> – Gröna staplar = köptryck ökar.
+            Röda staplar = säljktyck ökar. Storleken visar styrkan i momentumet.</li>
+        <li><strong>MACD nära noll</strong> – Svagt momentum. Vänta på tydligare signal.</li>
+      </ul>
+      <p style="margin-top:.5rem;font-style:italic;color:#888">Kontrollfrekvens: 2–3 ggr/vecka</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>🧮 Hur kombinerar jag signalerna?</h4>
+      <p>Används alla tre tillsammans minskar risken för falska signaler:</p>
+      <ul>
+        <li><strong>Köp</strong> – Alla tre positiva. Stark bekräftelse. Agera.</li>
+        <li><strong>Köp / Håll</strong> – Två positiva. Bra läge men vänta på att den tredje vänder, eller köp med mindre belopp.</li>
+        <li><strong>Håll / Sälj</strong> – En positiv. Avvakta. Minska inte position men öka heller inte.</li>
+        <li><strong>Sälj</strong> – Ingen positiv. Undvik köp. Utvärdera exit om du äger.</li>
+      </ul>
+      <p style="margin-top:.6rem"><strong>Bästa köpsignal:</strong> Golden Cross aktiv + RSI 35–55 + MACD bullish korsning</p>
+      <p><strong>Bästa säljsignal:</strong> Death Cross + RSI &gt; 70 + MACD bearish korsning</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>🗓️ Daglig vs. veckobaserad analys</h4>
+      <p>Beroende på din tidshorisont bör du prioritera olika indikatorer:</p>
+      <ul>
+        <li><strong>Daglig rutin:</strong> Kolla RSI – har det nått extremer (&lt;35 eller &gt;70)?
+            Kolla MACD – ny korsning idag?</li>
+        <li><strong>Veckorutin:</strong> Kolla MA-trend – lever Golden/Death Cross kvar?
+            Titta på om MACD-histogramet byter färg (riktningsskifte).</li>
+        <li><strong>Månadsvis:</strong> Omvärdera hela positionen mot fundamentala faktorer
+            (rapport, sektor, ränteläge).</li>
+      </ul>
+      <p style="margin-top:.5rem"><strong>Tips:</strong> Kör analysen på måndagar och torsdagar för veckobaserade beslut.
+         RSI-extremer kan uppstå vilken dag som helst – håll koll dagligen.</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>🕯️ Candlesticks – läsa enskilda ljus</h4>
+      <p>Varje candle visar <strong>öppning, topp, botten och stängning</strong> för en dag.
+         Grön = stängde högre, röd = stängde lägre. Vickarna visar dagens extremer.</p>
+      <ul>
+        <li><strong>Doji</strong> ◆ – Liten kropp, långa vikar. Osäkerhet. Vänta på bekräftelse nästa dag.</li>
+        <li><strong>Hammer</strong> ▲ – Lång nedre vick, liten kropp högt upp. Köparna tog tillbaka kontrollen. Bullish vändning.</li>
+        <li><strong>Shooting Star</strong> ▼ – Lång övre vick, liten kropp lågt ner. Säljarna slog tillbaka. Bearish vändning.</li>
+        <li><strong>Bullish Engulfing</strong> ▲ – Stor grön candle slukar hela föregående röda. Starkt köpsignal.</li>
+        <li><strong>Bearish Engulfing</strong> ▼ – Stor röd candle slukar hela föregående gröna. Starkt säljsignal.</li>
+        <li><strong>Morning Star</strong> ▲ – Tre ljus: röd → liten → stor grön. Klassisk bullish vändning efter nedgång.</li>
+      </ul>
+      <p style="margin-top:.5rem;font-style:italic;color:#888">Tips: Mönster är starkast vid MA-stöd eller RSI-extremer.</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>📉 Bollinger Bands – volatilitet &amp; läge</h4>
+      <p>Tre linjer: MA20 i mitten, övre/nedre band = 2 standardavvikelser ifrån.
+         Banden <em>andas</em> – smala = lugnt, breda = volatilt.</p>
+      <ul>
+        <li><strong>Pris nära nedre bandet</strong> – Potentiellt översåld. Kombinera med RSI &lt; 40 för köpsignal.</li>
+        <li><strong>Pris nära övre bandet</strong> – Potentiellt överköpt. Kombinera med RSI &gt; 70 för säljsignal.</li>
+        <li><strong>Squeeze</strong> (banden är ovanligt smala) – Big move på väg. Riktningen avgörs av MA-trend och MACD.</li>
+        <li><strong>Pris bryter ut ur övre bandet i upptrend</strong> – Kan fortsätta, inte alltid säljsignal.</li>
+      </ul>
+      <p style="margin-top:.5rem;font-style:italic;color:#888">Kontrollfrekvens: Veckovis</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>🛑 Stop-Loss &amp; Kursmål</h4>
+      <p><strong>Stop-loss</strong> är din försäkring. Sätt den <em>alltid</em> vid köp.</p>
+      <ul>
+        <li><strong>Fast stop-loss</strong> – Bestäms vid köp, rör sig inte. Enkel att hålla koll på.</li>
+        <li><strong>Trailing stop-loss</strong> – Rör sig uppåt med aktien (1–1.5× ATR). Skyddar vinst utan att du behöver agera manuellt. <strong>Rekommenderas för veckobaserade beslut.</strong></li>
+        <li><strong>Risk:Reward (R/R)</strong> – Sikta alltid på minst 1:2 (om du riskerar 3% ska du sikta på +6%).</li>
+        <li><strong>ATR</strong> (Average True Range) = genomsnittlig dagsrörelse. Ignorera rörelser under 1× ATR – det är normalt brus.</li>
+      </ul>
+      <p style="margin-top:.5rem"><strong>Exempel:</strong> Köp vid 184 SEK · Stop-loss 178 SEK (-3.3%) · Kursmål 196 SEK (+6.6%)</p>
+    </div>
+
+    <div class="guide-section">
+      <h4>⚠️ Vanliga misstag att undvika</h4>
+      <ul>
+        <li>Köp INTE bara för att RSI är låg – den kan fortsätta ned.</li>
+        <li>Sälj INTE enbart för att RSI är hög – i stark upptrend kan RSI hålla sig &gt;70 länge.</li>
+        <li>Agera på <em>korsningar</em>, inte på nivåer – det är rörelsen som betyder något.</li>
+        <li>En Death Cross i en nedtrend är inte köpläge – vänta på Golden Cross.</li>
+        <li>Inga indikatorer fungerar alltid – kombinera alltid med sunt förnuft.</li>
+      </ul>
+    </div>
+
+  </div>
+</details>`;
+
+// ════════════════════════════════════════════════════════════════
+// Candlestick-mönster
+// ════════════════════════════════════════════════════════════════
+const PATTERN_TIPS = {
+  'Hammer':
+    '🔨 HAMMER – Köpsignal! Dagen öppnade och stängde högt, men föll kraftigt under dagen innan köparna slog tillbaka. Den långa "skaftet" nedåt visar att säljarna försökte ta kontroll men misslyckades. Starkast när den dyker upp efter en nedgångsperiod. Agera helst nästa dag om diagrammet fortfarande pekar uppåt.',
+  'Shooting Star':
+    '⭐ SHOOTING STAR – Säljsignal! Aktien steg kraftigt under dagen men föll tillbaka och stängde nära botten. Den långa "stjärtstrimman" uppåt visar att köparna förlorade kontrollen. Kallas "shooting star" eftersom ljuset ser ut som en fallande stjärna med svansen uppåt. Ökar risken för nedgång nästa dag.',
+  'Doji':
+    '❓ DOJI – Osäkerhet! Aktien öppnade och stängde på nästan exakt samma kurs – det är lika kraftigt drag uppåt som nedåt under dagen. Köpare och säljare är helt oense om riktningen. Betyder INGENTING ensamt – du måste vänta och se vad nästa dag ger. Om nästa dag är kraftigt grön = sannolikt vändning uppåt. Röd = fortsatt nedgång.',
+  'Bullish Engulfing':
+    '💚 BULLISH ENGULFING – Stark köpsignal! En stor grön dag "slukar" helt den föregående röda dagen. Gårdagens säljare besegrades totalt av dagens köpare. Ju mer som slukades, desto starkare signal. En av de pålitligaste köpsignalerna – agera helst inom 1–2 handelsdagar.',
+  'Bearish Engulfing':
+    '🔴 BEARISH ENGULFING – Stark säljsignal! En stor röd dag "slukar" helt den föregående gröna dagen. Gårdagens köpare besegrades totalt av dagens säljare. Ökar risken för att nedgången fortsätter. Bra tillfälle att sätta eller flytta ner sin stop-loss.',
+  'Morning Star':
+    '🌟 MORNING STAR – Stark köpsignal (3-dagarsmönster)! Dag 1: stor röd nedgång. Dag 2: liten osäker dag (stjärnan). Dag 3: stor grön uppgång som bekräftar att vändningen är här. En av de starkaste bullish-mönstren som finns. Kallas "morning star" för att den lyser upp horisonten efter mörkret – köparna tog tillbaka kontrollen.',
+};
+
+function renderPatterns(patterns) {
+  if (!patterns || !patterns.length) return '';
+  const badges = patterns.map(p => {
+    const cls = p.bullish === true ? 'bull' : p.bullish === false ? 'bear' : 'neut';
+    const icon = p.bullish === true ? '▲' : p.bullish === false ? '▼' : '◆';
+    const tip = PATTERN_TIPS[p.pattern] || `${p.pattern}: ${p.desc}`;
+    return `<span class="pattern-badge ${cls}" data-tip="${tip}">${icon} ${p.pattern} <small style="opacity:.7">${p.date.slice(5)}</small></span>`;
+  }).join('');
+  return `
+    <div style="margin:.75rem 0">
+      <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.4rem">
+        🕯️ CANDLESTICK-MÖNSTER (klicka ❓ Förklara och klicka ett mönster för förklaring)
+      </div>
+      <div class="pattern-list">${badges}</div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Bollinger Bands-status
+// ════════════════════════════════════════════════════════════════
+function renderBBStatus(stock) {
+  const sl  = stock.sltp;
+  const kurs = stock.kurs;
+  const pct  = ((kurs - sl.bb_lower) / (sl.bb_upper - sl.bb_lower) * 100).toFixed(0);
+  let pos;
+  if (kurs >= sl.bb_upper * 0.99)     pos = 'Nära övre band – överköpt';
+  else if (kurs <= sl.bb_lower * 1.01) pos = 'Nära nedre band – översåld';
+  else if (pct > 60)                   pos = `Övre halva (${pct}% av bandet)`;
+  else if (pct < 40)                   pos = `Nedre halva (${pct}% av bandet)`;
+  else                                 pos = `Mitt i bandet (${pct}%)`;
+  return `${pos}<br><small>Övre: ${sl.bb_upper} · Nedre: ${sl.bb_lower} SEK</small>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Stop-Loss & Kursmål
+// ════════════════════════════════════════════════════════════════
+function renderSLTP(stock) {
+  const s = stock.sltp;
+  const sig = stock.signal;
+  if (sig.rek_klass === 'salj') return `
+    <div class="sltp-box" style="margin:.8rem 0">
+      <div class="sltp-item sltp-sl" style="grid-column:1/-1">
+        <div class="label">🛑 Säljsignal – inga köpnivåer föreslås</div>
+        <div class="hint">Alla indikatorer pekar nedåt. Vänta tills minst 2 indikatorer vänder positiva innan du köper. Om du äger: överväg exit vid nuvarande kurs ${stock.kurs} SEK.</div>
+      </div>
+    </div>`;
+
+  return `
+    <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin:.8rem 0 .4rem">
+      🛑 RISKNIVÅER &amp; KURSMÅL (baserat på ATR + MA50)
+    </div>
+    <div class="sltp-box">
+      <div class="sltp-item sltp-sl">
+        <div class="label">🛑 Stop-Loss</div>
+        <div class="price">${s.stop_loss} SEK</div>
+        <div class="pct">-${s.stop_loss_pct}% från nuv. kurs</div>
+        <div class="hint">Sälj om kursen faller hit. Satt strax under MA50 / senaste botten / 1.5× ATR.</div>
+      </div>
+      <div class="sltp-item sltp-trail">
+        <div class="label">🔄 Trailing Stop-Loss</div>
+        <div class="price">${s.trailing_stop} SEK <small style="font-size:.7rem">start</small></div>
+        <div class="pct">Rör sig uppåt med aktien</div>
+        <div class="hint">Höj med ${s.trailing_atr} SEK (1 ATR) varje gång aktien sätter ny topp. Skyddar vinsten automatiskt.</div>
+      </div>
+      <div class="sltp-item sltp-tp1">
+        <div class="label">🎯 Kursmål 1 <small>(1:2 R/R)</small></div>
+        <div class="price">${s.take_profit_2} SEK</div>
+        <div class="pct">+${s.take_profit_2_pct}% · dubbla risken i vinst</div>
+        <div class="hint">Minst acceptabelt kursmål. Sälj hälften här och flytta stop-loss till break-even.</div>
+      </div>
+      <div class="sltp-item sltp-tp2">
+        <div class="label">🎯 Kursmål 2 <small>(1:3 R/R)</small></div>
+        <div class="price">${s.take_profit_3} SEK</div>
+        <div class="pct">+${s.take_profit_3_pct}% · trippla risken i vinst</div>
+        <div class="hint">Bra mål om trenden är stark. Sälj resten här eller håll med trailing stop-loss.</div>
+      </div>
+      <div class="sltp-item sltp-atr">
+        <div class="label">📊 ATR (14 dagar)</div>
+        <div class="price">${s.atr} SEK</div>
+        <div class="pct">${s.atr_pct}% per dag</div>
+        <div class="hint">Genomsnittlig dagsrörelse. Normal variation – reagera inte på rörelser under denna nivå.</div>
+      </div>
+    </div>
+    <div class="pos-calc" style="margin-top:1rem">
+      <div style="font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:.5rem">
+        💰 POSITIONSSTORLEK
+      </div>
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:.75rem">PORTFÖLJSTORLEK (SEK)</label>
+          <input type="number" class="pos-portfolio" placeholder="200000" style="width:130px;padding:.35rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.88rem">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:.75rem">RISK PER TRADE</label>
+          <select class="pos-risk" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.88rem">
+            <option value="1">1% (konservativ)</option>
+            <option value="1.5">1.5%</option>
+            <option value="2">2% (aggressiv)</option>
+          </select>
+        </div>
+        <button onclick="calcPosition(this, ${stock.kurs}, ${s.stop_loss})" class="btn-sm">Beräkna</button>
+      </div>
+      <div class="pos-result" style="margin-top:.6rem;font-size:.9rem"></div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Narrativ tolkning per aktie
+// ════════════════════════════════════════════════════════════════
+function narrativItem(cls, title, text) {
+  return `<div class="narr-item ${cls}"><strong>${title}</strong>${text}</div>`;
+}
+
+function generateNarrative(stock) {
+  const sig = stock.signal;
+  const rsi = Math.round(sig.rsi);
+  const items = [];
+
+  // ── MA ────────────────────────────────────────────────────────
+  if (sig.ma_text.includes('ny!') && sig.ma_bull) {
+    items.push(narrativItem('pos', '⚡ Ny Golden Cross – agera snabbt',
+      'MA50 har precis korsat upp genom MA200. Detta är ett av de starkaste köpsignalerna i teknisk analys och brukar förebåda en uppgångsfas på veckor till månader. Historiskt sett ger denna signal en positiv avkastning 65–70% av gångerna på 3–6 månaders sikt. <strong>Agera helst inom 1–5 handelsdagar.</strong>'));
+  } else if (sig.ma_bull) {
+    items.push(narrativItem('pos', '📈 Etablerad upptrend (Golden Cross aktiv)',
+      `MA50 (${sig.ma_text.includes('aktiv') ? 'ovanför' : ''} MA200) bekräftar att den långsiktiga trenden är uppåt. I en upptrend är rätt strategi att <strong>köpa på dippar</strong> (när RSI faller mot 40–50) snarare än att jaga uppgångar. Håll positionen så länge MA50 > MA200.`));
+  } else if (sig.ma_text.includes('ny!')) {
+    items.push(narrativItem('neg', '⚡ Ny Death Cross – var försiktig',
+      'MA50 har precis korsat ned genom MA200. Varningssignal – historiskt innebär detta att nedtrenden kan hålla i sig veckor till månader. Om du äger aktien: sätt stop-loss eller minska position. <strong>Undvik att köpa förrän Death Cross är bekräftad som tillfällig eller en ny Golden Cross bildas.</strong>'));
+  } else {
+    items.push(narrativItem('neg', '📉 Etablerad nedtrend (Death Cross aktiv)',
+      'MA50 är under MA200 – den långsiktiga trenden är nedåt. Köp inte mot en etablerad nedtrend om du inte ser tydliga vändningssignaler (RSI < 35 + MACD bullish korsning). <strong>Vänta på Golden Cross innan du bygger position.</strong>'));
+  }
+
+  // ── RSI ───────────────────────────────────────────────────────
+  let rsiCls, rsiTitle, rsiText;
+  if (rsi < 30) {
+    rsiCls = 'pos'; rsiTitle = `🔵 RSI ${rsi} – Extremt översåld`;
+    rsiText = `Sällsynt lågt värde. Aktien har fallit kraftigt och snabbt. Statistiskt sett följs en RSI under 30 av rekyl uppåt i 70–75% av fallen inom 10 handelsdagar. <strong>Köp i etapper (inte allt på en gång)</strong> och sätt stop-loss under senaste botten. Vänta gärna på att RSI börjar stiga igen som bekräftelse.`;
+  } else if (rsi < 40) {
+    rsiCls = 'pos'; rsiTitle = `🟢 RSI ${rsi} – Översåld`;
+    rsiText = `Aktien har fallit snabbt och är nu intressant ur ett köpperspektiv. Om MA-trenden är positiv och MACD visar tecken på vändning är detta ett klassiskt köpläge. <strong>Bevaka om RSI börjar stiga mot 50 – det bekräftar vändningen.</strong> Köp med lite mer tryggt om Golden Cross är aktiv.`;
+  } else if (rsi < 50) {
+    rsiCls = 'warn'; rsiTitle = `🟡 RSI ${rsi} – Svag men inte extrem`;
+    rsiText = `Momentum är lite negativt men inga extremer. Kan vara en bra ingångspunkt om övriga signaler är positiva. <strong>Bevaka om RSI vänder uppåt från denna nivå</strong> – en vändning från 40–50 kombinerat med MACD-korsning är en stark signal.`;
+  } else if (rsi < 60) {
+    rsiCls = 'info'; rsiTitle = `🟡 RSI ${rsi} – Neutral`;
+    rsiText = `Aktien är varken överköpt eller översåld. RSI ger ingen extremsignal – titta på MA och MACD för vägledning. OK att köpa om de övriga signalerna är positiva och du inte jagar en topp.`;
+  } else if (rsi < 70) {
+    rsiCls = 'warn'; rsiTitle = `🟠 RSI ${rsi} – Stark, börjar bli ansträngd`;
+    rsiText = `Bra momentum men börjar röra sig mot överköpt-territoriet. Om RSI fortsätter mot 70+ ökar risken för en tillfällig rekyl. <strong>Avvakta med att köpa mer nu</strong> – vänta på att RSI faller till 50–60 för ett bättre läge. Bra nivå att bevaka sin befintliga stop-loss.`;
+  } else if (rsi < 80) {
+    rsiCls = 'neg'; rsiTitle = `🔴 RSI ${rsi} – Överköpt`;
+    rsiText = `Aktien har stigit snabbt och det finns risk för en kortare rekyl (1–2 veckor). <strong>Köp inte på dessa nivåer</strong> – vänta på att RSI faller tillbaka mot 50–60. Om du äger aktien och har god vinst: överväg att sälja en del och återköpa billigare. Sätt en tightare stop-loss.`;
+  } else {
+    rsiCls = 'neg'; rsiTitle = `🔴 RSI ${rsi} – Extremt överköpt`;
+    rsiText = `Sällsynt högt RSI. Aktien är kraftigt överköpt och risken för en skarp rekyl är påtaglig. <strong>Köp absolut inte nu.</strong> Om du äger: ta hem del av vinsten eller sätt mycket tight stop-loss. RSI på dessa nivåer brukar normaliseras inom 5–15 handelsdagar.`;
+  }
+  items.push(narrativItem(rsiCls, rsiTitle, rsiText));
+
+  // ── MACD ──────────────────────────────────────────────────────
+  if (sig.macd_text.includes('ny!') && sig.macd_bull) {
+    items.push(narrativItem('pos', '⚡ Ny MACD-korsning uppåt – färskt momentum',
+      'MACD-linjen har precis korsat upp genom signalinjen. Detta är en av de tydligaste kortsiktiga köpsignalerna och bekräftar att köptrycket ökar. <strong>Bekräftar andra positiva signaler och bör väga tungt i ett köpbeslut.</strong> Effekten är vanligtvis tydligast inom 1–4 veckor.'));
+  } else if (sig.macd_text.includes('ny!')) {
+    items.push(narrativItem('neg', '⚡ Ny MACD-korsning nedåt – momentum vänder',
+      'MACD-linjen har precis korsat ned genom signalinjen. Säljsignal – momentum vänder negativt. <strong>Vänta med köp</strong> tills MACD vänder upp igen. Om histogramstaplarna krymper (rör sig mot noll) kan det vara ett tidigt tecken på vändning.'));
+  } else if (sig.macd_bull) {
+    items.push(narrativItem('pos', '✅ MACD bullish – positivt momentum håller',
+      'MACD-linjen är ovanför signalinjen. Köptrycket håller i sig. Gröna histogramstaplar bekräftar detta. <strong>Positivt tecken</strong> – håll position om du äger och bevaka om staplarna börjar krympa (det kan signalera att momentumet avtar).'));
+  } else {
+    items.push(narrativItem('neg', '⚠️ MACD bearish – negativt momentum',
+      'MACD-linjen är under signalinjen och histogrammet är rött. Köptrycket saknas just nu. <strong>Vänta på att MACD korsar upp</strong> genom signalinjen innan du köper. Röda staplar som krymper mot noll är ett tidigt tecken på att vändning kan vara nära.'));
+  }
+
+  // ── Sammanlagd åtgärd ─────────────────────────────────────────
+  let actionText;
+  if (sig.rek_klass === 'kop') {
+    actionText = `Alla tre indikatorer pekar uppåt – starkt tekniskt köpläge. Köp nu eller på nästa lilla dipp (om RSI faller mot 50–55). Sätt stop-loss under MA50. <span class="freq-badge">Daglig bevakning rekommenderas</span>`;
+  } else if (sig.rek_klass === 'kop-hall') {
+    if (!sig.ma_bull)   actionText = `Trenden är fortfarande nedåt trots positiva kortsiktiga signaler. Vänta på Golden Cross innan du bygger position. Bevaka veckovis. <span class="freq-badge">Veckovis bevakning</span>`;
+    else if (!sig.rsi_bull) actionText = `Trenden är positiv men aktien är tillfälligt överköpt (RSI ${rsi}). Vänta på att RSI faller under 65 för ett bättre köpläge – troligtvis inom 1–2 veckor. <span class="freq-badge">Daglig bevakning av RSI</span>`;
+    else actionText = `Trenden och RSI är positiva men MACD saknar bekräftelse. Vänta på bullish MACD-korsning eller köp lite nu och fyll på vid korsning. <span class="freq-badge">Bevaka MACD dagligen</span>`;
+  } else if (sig.rek_klass === 'hall-salj') {
+    actionText = `Majoriteten av indikatorer är negativa. Håll om du äger men öka inte position. Sätt stop-loss under senaste botten. Återvärd om 1–2 veckor. <span class="freq-badge">Veckovis omvärdering</span>`;
+  } else {
+    actionText = `Alla tre indikatorer pekar nedåt. Köp inte. Om du äger aktien – utvärdera exit, speciellt om stop-loss är nådd. Återkom när Golden Cross bildas och RSI är under 60. <span class="freq-badge">Bevaka månadsvis</span>`;
+  }
+
+  const narrativeHtml = `<div class="narrative">${items.join('')}
+    <div class="action-box"><strong>Rekommenderad åtgärd</strong>${actionText}</div>
+  </div>`;
+
+  return `${renderChecklist(stock)}
+    <details class="narrative-details">
+      <summary>📖 Detaljerad analys – klicka för att expandera</summary>
+      ${narrativeHtml}
+    </details>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Swing-score Checklist
+// ════════════════════════════════════════════════════════════════
+function renderChecklist(stock) {
+  const sw = stock.swing;
+  if (!sw) return '';
+  const checks = [
+    ["market", "OMXS30 i upptrend"],
+    ["rsi",    "RSI i köpzon (32–52)"],
+    ["macd",   "Färsk MACD-korsning (≤5 dagar)"],
+    ["support","Kurs vid MA50 eller nedre BB"],
+    ["volume", "Volym bekräftar (> 20-dagarssnitt)"],
+  ];
+  const rows = checks.map(([key, label]) => {
+    const [pts, desc] = sw.details[key];
+    const ok = pts > 0;
+    return `<div class="check-row ${ok ? 'ok' : 'fail'}">
+      <span class="check-icon">${ok ? '✅' : '⬜'}</span>
+      <div><strong>${label}</strong><div class="check-desc">${desc}</div></div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="checklist-card swing-${sw.css}">
+      <div class="checklist-header">
+        <div class="swing-score">${sw.score}<span>/10</span></div>
+        <div class="swing-label">${sw.label}</div>
+      </div>
+      <div class="checklist-rows">${rows}</div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Positionsstorlek
+// ════════════════════════════════════════════════════════════════
+function calcPosition(btn, kurs, stopLoss) {
+  const wrap = btn.closest('.pos-calc');
+  const portfolio = parseFloat(wrap.querySelector('.pos-portfolio').value);
+  const riskPct   = parseFloat(wrap.querySelector('.pos-risk').value) / 100;
+  if (!portfolio || portfolio <= 0) { alert('Ange portföljstorlek'); return; }
+
+  const maxRisk   = portfolio * riskPct;
+  const slDist    = kurs - stopLoss;
+  if (slDist <= 0) {
+    wrap.querySelector('.pos-result').innerHTML = '<small style="color:var(--red)">Stop-loss är högre än kursen – kontrollera data.</small>';
+    return;
+  }
+  const slPct     = (slDist / kurs * 100).toFixed(1);
+  const maxShares = Math.floor(maxRisk / slDist);
+  const totalCost = maxShares * kurs;
+  const pctOfPort = (totalCost / portfolio * 100).toFixed(1);
+
+  wrap.querySelector('.pos-result').innerHTML = `
+    <div style="background:#f0f4ff;border-radius:8px;padding:.75rem 1rem;line-height:1.8">
+      <strong>Max förlust:</strong> ${maxRisk.toLocaleString('sv-SE', {maximumFractionDigits:0})} SEK (${(riskPct*100)}% av portfölj)<br>
+      <strong>Stop-loss avstånd:</strong> ${slDist.toFixed(2)} SEK per aktie (${slPct}%)<br>
+      <strong style="font-size:1.1rem">→ Köp max ${maxShares} aktier</strong> för ${totalCost.toLocaleString('sv-SE', {maximumFractionDigits:0})} SEK (${pctOfPort}% av portfölj)
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// Analys – render results
+// ════════════════════════════════════════════════════════════════
+function renderAnalysisResults(stocks) {
+  const wrap = $('a-results');
+  wrap.innerHTML = GUIDE_HTML;
+
+  stocks.forEach((stock, i) => {
+    const sig = stock.signal;
+    const chartId = `chart-${i}`;
+
+    const card = el('div', 'card');
+    card.innerHTML = `
+      <div class="card-header">
+        <div>
+          <h2>${stock.name}</h2>
+          <span class="meta">${stock.symbol} &nbsp;·&nbsp; ${stock.kurs.toFixed(2)} SEK</span>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <button class="btn-sm" onclick="addAndSwitch('${stock.symbol}','${stock.name}')" data-tip="Lägger till denna aktie i Jämförelse-tabben. Gå sedan till Jämförelse och lägg till fler aktier för att se vem som presterat bäst under samma period.">+ Jämför</button>
+          <button class="btn-sm" onclick="addToWatchlistFromResult('${stock.symbol}','${stock.name}')" data-tip="Sparar aktien i din bevakningslista. Nästa gång du öppnar appen behöver du bara klicka 'Analysera alla' i Bevakning-tabben för att snabbt kolla upp alla dina bevakade aktier.">+ Bevakning</button>
+          ${rekBadge(sig.rek_klass, sig.rek, true)}
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="${chartId}" style="min-height:640px"></div>
+
+        ${renderPatterns(stock.patterns)}
+
+        <div class="ind-grid" style="margin-top:.8rem">
+          <div class="ind-cell ${sig.ma_bull ? 'bull' : 'bear'}" data-tip="TRENDINDIKATOR (MA50 vs MA200). MA50 = genomsnittspriset de senaste 50 dagarna. MA200 = senaste 200 dagarna. När MA50 (blå linje i diagrammet) ligger OVANFÖR MA200 (röd linje) = aktien är i upptrend = GOLDEN CROSS = grön signal. Tvärtom = DEATH CROSS = nedtrend = röd signal. Titta i diagrammet efter de triangelmarkeringar som visar när korsningen skedde.">
+            <strong>MA50 / MA200</strong>${sig.ma_text}
+          </div>
+          <div class="ind-cell ${sig.rsi_bull ? 'bull' : 'bear'}" data-tip="RSI – KÖP/SÄLJ-TERMOMETER (skala 0–100). Mäter hur snabbt aktien rört sig. Under 35: aktien har fallit snabbt och är relativt 'billig' = potentiellt bra köpläge. Över 70: aktien har stigit snabbt och kan vara 'dyr' = risk för att den faller tillbaka. 35–70: neutralt, inget extremläge. Tips: bästa köpen sker ofta när RSI är 35–50 och börjar stiga.">
+            <strong>RSI (14)</strong>${sig.rsi_text}
+          </div>
+          <div class="ind-cell ${sig.macd_bull ? 'bull' : 'bear'}" data-tip="MACD – MOMENTUMSIGNAL. Visar om köptrycket ökar eller minskar. Se på histogramstaplarna i nedre diagrammet: gröna staplar = köpare tar över, röda = säljare tar över. När den blå MACD-linjen korsar upp ÖVER den orangea signallinjen = köpsignal. Ned = säljsignal. 'Bullish korsning (ny!)' = korsningen skedde precis – agera snabbt.">
+            <strong>MACD</strong>${sig.macd_text}
+          </div>
+          <div class="ind-cell" style="background:#f0f4ff" data-tip="BOLLINGER BANDS – PRISGOLV &amp; PRISTAK. De tre linjerna runt priset i diagrammet visar 'normal rörelsevariation'. Kurs nära nedre linjen = aktien är relativt billig just nu = potentiellt köpläge (kombinera med RSI under 40). Kurs nära övre linjen = relativt dyr = sälj/avvakta. Smala band = lugnt nu men stor rörelse kan vara på väg – riktningen avgörs av MA-trend och MACD.">
+            <strong>Bollinger Bands</strong>${renderBBStatus(stock)}
+          </div>
+        </div>
+
+        ${renderSLTP(stock)}
+        ${generateNarrative(stock)}
+      </div>`;
+    wrap.appendChild(card);
+
+    requestAnimationFrame(() => renderAnalysisChart(chartId, stock));
+  });
+
+  wrap.insertAdjacentHTML('beforeend', '<div class="disclaimer">⚠️ Teknisk analys är ett beslutsunderlag, inte finansiell rådgivning. Kombinera alltid med din egen bedömning av bolagets fundamenta.</div>');
+}
+
+$('btn-analyze').addEventListener('click', async () => {
+  const symbols = state.analys.stocks.map(s => s.symbol);
+  if (!symbols.length) {
+    $('a-results').innerHTML = '<div class="empty">Lägg till minst en aktie i listan ovan.</div>';
+    return;
+  }
+  $('a-results').innerHTML = '<div class="spinner">Hämtar data och beräknar indikatorer…</div>';
+  const btn = $('btn-analyze');
+  btn.disabled = true;
+  try {
+    const data = await apiAnalyze(symbols, state.analys.period);
+    if (!data.length) {
+      $('a-results').innerHTML = '<div class="empty">Inga resultat – kontrollera att tickersymbolerna är korrekta (t.ex. <strong>HM-B.ST</strong>).</div>';
+    } else {
+      renderAnalysisResults(data);
+    }
+  } catch (err) {
+    $('a-results').innerHTML = `<div class="empty" style="color:red">Fel: ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function addAndSwitch(symbol, name) {
+  addToCompare({ symbol, name });
+  rebuildCompareChips();
+  document.querySelector('[data-tab="jamforelse"]').click();
+}
+
+function addToWatchlistFromResult(symbol, name) {
+  addToWatchlist({ symbol, name });
+}
+
+// ════════════════════════════════════════════════════════════════
+// Jämförelse
+// ════════════════════════════════════════════════════════════════
+function renderComparisonChart(series) {
+  const wrap = $('c-chart-wrap');
+  wrap.innerHTML = '<div id="c-chart" style="min-height:400px"></div>';
+
+  const traces = series.map(s => ({
+    x: s.dates, y: s.values,
+    type: 'scatter', mode: 'lines',
+    name: `${s.name} (${s.return})`,
+    line: { width: 1.8 },
+  }));
+
+  const allDates = series.flatMap(s => s.dates);
+  const minDate = allDates.reduce((a, b) => a < b ? a : b);
+  const maxDate = allDates.reduce((a, b) => a > b ? a : b);
+
+  const layout = {
+    height: 400,
+    margin: { t: 30, r: 20, b: 40, l: 60 },
+    yaxis: { title: 'Indexerat (bas = 100)', showgrid: true, gridcolor: '#f0f0f0' },
+    shapes: [{ type: 'line', x0: minDate, x1: maxDate, y0: 100, y1: 100,
+                line: { color: '#ccc', dash: 'dash', width: 1 } }],
+    legend: { orientation: 'h', y: 1.1 },
+    plot_bgcolor: '#fff', paper_bgcolor: '#fff',
+  };
+
+  requestAnimationFrame(() => Plotly.newPlot('c-chart', traces, layout, { responsive: true, displayModeBar: false }));
+}
+
+function renderComparisonTable(series) {
+  const wrap = $('c-table-wrap');
+  const sorted = [...series].sort((a, b) => b.return_val - a.return_val);
+  wrap.innerHTML = `
+    <div class="card" style="margin-top:1rem">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Aktie</th><th>Ticker</th><th class="td-num">Avkastning (period)</th></tr></thead>
+          <tbody>${sorted.map(s => `
+            <tr>
+              <td>${s.name}</td>
+              <td>${s.symbol}</td>
+              <td class="td-num ${plClass(s.return_val)}">${s.return}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+$('btn-compare').addEventListener('click', async () => {
+  const symbols = state.compare.stocks.map(s => s.symbol);
+  if (symbols.length < 2) { alert('Lägg till minst 2 aktier.'); return; }
+  $('c-chart-wrap').innerHTML = '<div class="spinner">Hämtar data…</div>';
+  $('c-table-wrap').innerHTML = '';
+  const btn = $('btn-compare');
+  btn.disabled = true;
+  const data = await apiCompare(symbols, state.compare.period);
+  btn.disabled = false;
+  renderComparisonChart(data);
+  renderComparisonTable(data);
+});
+
+// ════════════════════════════════════════════════════════════════
+// Bevakningslista
+// ════════════════════════════════════════════════════════════════
+function addToWatchlist(item) {
+  if (state.watchlist.find(s => s.symbol === item.symbol)) return;
+  state.watchlist.push(item);
+  saveWatchlist();
+  renderWatchlist();
+}
+
+function removeFromWatchlist(symbol) {
+  state.watchlist = state.watchlist.filter(s => s.symbol !== symbol);
+  saveWatchlist();
+  renderWatchlist();
+}
+
+function renderWatchlist() {
+  const wrap = $('w-list');
+  if (!state.watchlist.length) {
+    wrap.innerHTML = '<div class="empty">Bevakningslistan är tom. Sök och lägg till aktier ovan.</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  state.watchlist.forEach(s => {
+    const card = el('div', 'watch-card');
+    card.innerHTML = `
+      <div>
+        <div class="name">${s.name || s.symbol}</div>
+        <div class="sym">${s.symbol}</div>
+      </div>
+      <div class="actions">
+        <button class="btn-sm" onclick="analyzeFromWatchlist('${s.symbol}','${s.name || s.symbol}')" data-tip="Öppnar full teknisk analys för denna aktie i Analys-tabben – diagram, signaler, Swing-score och rekommendation.">Analysera</button>
+        <button class="btn-sm" onclick="addAndSwitch('${s.symbol}','${s.name || s.symbol}')" data-tip="Lägger till aktien i Jämförelse-tabben så du kan se hur den presterat mot andra aktier.">Jämför</button>
+        <button class="btn-sm" style="color:var(--red)" onclick="removeFromWatchlist('${s.symbol}')" data-tip="Tar bort aktien från bevakningslistan. Aktien och dess historik påverkas inte – du kan alltid söka upp den igen.">Ta bort</button>
+      </div>`;
+    wrap.appendChild(card);
+  });
+}
+
+function analyzeFromWatchlist(symbol, name) {
+  addToAnalysis({ symbol, name });
+  rebuildAnalysChips();
+  document.querySelector('[data-tab="analys"]').click();
+}
+
+makeAutocomplete('w-search', 'w-dropdown', item => addToWatchlist(item));
+
+$('btn-analyze-all').addEventListener('click', async () => {
+  if (!state.watchlist.length) return;
+  state.watchlist.forEach(s => addToAnalysis(s));
+  rebuildAnalysChips();
+  document.querySelector('[data-tab="analys"]').click();
+  $('a-results').innerHTML = '<div class="spinner">Hämtar data och beräknar indikatorer…</div>';
+  const data = await apiAnalyze(state.watchlist.map(s => s.symbol), state.analys.period);
+  renderAnalysisResults(data);
+});
+
+// ════════════════════════════════════════════════════════════════
+// Portfölj
+// ════════════════════════════════════════════════════════════════
+makeAutocomplete('p-search', 'p-dropdown', item => {
+  $('p-search').value = item.name || item.symbol;
+  $('p-symbol').value = item.symbol;
+});
+
+$('btn-add-holding').addEventListener('click', async () => {
+  const symbol = $('p-symbol').value || $('p-search').value.trim().toUpperCase();
+  const shares = parseFloat($('p-shares').value);
+  const price  = parseFloat($('p-price').value);
+  const name   = $('p-search').value.trim();
+
+  if (!symbol || isNaN(shares) || shares <= 0 || isNaN(price) || price <= 0) {
+    alert('Fyll i alla fält korrekt.'); return;
+  }
+
+  state.portfolio.push({ symbol, name: name || symbol, shares, buy_price: price });
+  await savePortfolio();
+  $('p-search').value = ''; $('p-symbol').value = '';
+  $('p-shares').value = ''; $('p-price').value = '';
+  refreshPortfolio();
+});
+
+async function refreshPortfolio() {
+  $('p-table-wrap').innerHTML = '<div class="spinner">Hämtar kurser och beräknar…</div>';
+  const data = await loadPortfolioValue();
+  renderPortfolioSummary(data.summary);
+  renderPortfolioTable(data.holdings);
+}
+
+function renderPortfolioSummary(sum) {
+  const pct = sum.total_pl_pct;
+  $('p-summary').innerHTML = `
+    <div class="summary-bar">
+      <div class="sum-item">
+        <div class="label" data-tip="Summan du lagt ut för alla dina aktier. Räknas som: antal × köpkurs för varje innehav, ihopsummerat.">INVESTERAT</div>
+        <div class="value">${sum.total_invested.toLocaleString('sv-SE', {minimumFractionDigits:2})} SEK</div>
+      </div>
+      <div class="sum-item">
+        <div class="label" data-tip="Vad dina aktier är värda just nu om du skulle sälja allt. Baserat på börskursen, men kan vara ~15 minuter efter realtid.">NUVARANDE VÄRDE</div>
+        <div class="value">${sum.total_current.toLocaleString('sv-SE', {minimumFractionDigits:2})} SEK</div>
+      </div>
+      <div class="sum-item">
+        <div class="label" data-tip="P/L = Profit &amp; Loss = din totala vinst eller förlust hittills. Grön siffra = du har tjänat pengar sedan du köpte. Röd siffra = du är på minus. Visas i både kronor och procent.">TOTAL P/L</div>
+        <div class="value ${plClass(pct)}">${plSign(pct)}${sum.total_pl.toLocaleString('sv-SE', {minimumFractionDigits:2})} SEK (${plSign(pct)}${pct.toFixed(1)}%)</div>
+      </div>
+    </div>`;
+}
+
+function renderPortfolioTable(holdings) {
+  if (!holdings.length) {
+    $('p-table-wrap').innerHTML = '<div class="empty">Inga innehav ännu.</div>';
+    return;
+  }
+  $('p-table-wrap').innerHTML = `
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Aktie</th>
+              <th class="td-num" data-tip="Hur många aktier du äger i bolaget.">Antal</th>
+              <th class="td-num" data-tip="Priset du betalade per aktie (i SEK) när du köpte.">Köpkurs</th>
+              <th class="td-num" data-tip="Vad aktien kostar just nu på börsen. Kan vara ~15 minuter efter realtid.">Kurs nu</th>
+              <th class="td-num" data-tip="Vad du betalat totalt: antal × köpkurs.">Investerat</th>
+              <th class="td-num" data-tip="Vad innehavet är värt nu: antal × dagskurs.">Värde</th>
+              <th class="td-num" data-tip="Din vinst eller förlust i SEK och procent. Grön = du har tjänat pengar. Röd = du är på minus jämfört med vad du betalade.">P/L</th>
+              <th data-tip="Köp/sälj-signal baserad på de tre tekniska indikatorerna (MA-trend, RSI, MACD). Klicka Analysera i Bevakning-tabben för att se varför.">Signal</th><th></th>
+            </tr>
+          </thead>
+          <tbody>${holdings.map((h, i) => `
+            <tr>
+              <td><strong>${h.name || h.symbol}</strong><br><small style="color:var(--muted)">${h.symbol}</small></td>
+              <td class="td-num">${h.shares}</td>
+              <td class="td-num">${h.buy_price.toFixed(2)}</td>
+              <td class="td-num">${h.current_price.toFixed(2)}</td>
+              <td class="td-num">${h.invested.toLocaleString('sv-SE', {minimumFractionDigits:2})}</td>
+              <td class="td-num">${h.current_value.toLocaleString('sv-SE', {minimumFractionDigits:2})}</td>
+              <td class="td-num ${plClass(h.pl_pct)}">${plSign(h.pl_pct)}${h.pl.toFixed(2)} (${plSign(h.pl_pct)}${h.pl_pct.toFixed(1)}%)</td>
+              <td>${rekBadge(h.rek_klass, h.rek)}</td>
+              <td><button class="btn-sm" style="color:var(--red)" onclick="removeHolding(${i})" data-tip="Tar bort innehavet från portföljen. Aktien tas inte bort från börsen – bara från din lista här.">×</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function removeHolding(i) {
+  state.portfolio.splice(i, 1);
+  await savePortfolio();
+  refreshPortfolio();
+}
+
+// ════════════════════════════════════════════════════════════════
+// Screener
+// ════════════════════════════════════════════════════════════════
+let _screenerData = [];
+
+// ════════════════════════════════════════════════════════════════
+// Top 3 köprekommendationer
+// ════════════════════════════════════════════════════════════════
+function calcBuyScore(it) {
+  // Hårda uteslutningar – dessa visas aldrig i Top 3
+  if (it.ma_text.includes('Death Cross')) return -999;   // Long-term bear – handla inte mot trenden
+  if (it.rek_klass === 'salj')            return -999;   // Alla 3 indikatorer negativa
+  if (it.rek_klass === 'hall-salj')       return -999;   // Bara 1 indikator positiv – för svagt
+  if ((it.swing_score || 0) < 6)         return -999;   // AVVAKTA/UNDVIK = dålig timing just nu
+
+  // Primär: Swing-score styr (6-10 → 90-150 poäng)
+  let s = (it.swing_score || 0) * 15;
+
+  // Trendkvalitet: färsk Golden Cross är starkast
+  if (it.ma_text.includes('(ny!)')) s += 25;
+
+  // MACD-momentum: färsk korsning är bäst
+  if (it.macd_text.includes('Bullish korsning (ny!)')) s += 15;
+  else if (it.macd_text.includes('Bullish'))           s += 5;
+
+  // Signalstyrka: full KÖP = liten bonus
+  if (it.rek_klass === 'kop')      s += 10;
+  else if (it.rek_klass === 'kop-hall') s += 4;
+
+  return s;
+}
+
+function buyReason(it) {
+  const parts = [];
+  // Trend
+  if (it.ma_text.includes('Golden Cross (ny!)'))       parts.push('Nytt Golden Cross 🚀');
+  else if (it.ma_text.includes('Golden Cross (aktiv)')) parts.push('Golden Cross aktiv');
+  // MACD
+  if (it.macd_text.includes('Bullish korsning (ny!)')) parts.push('Färsk MACD-korsning ⚡');
+  else if (it.macd_text.includes('Bullish'))           parts.push('MACD bullish');
+  // RSI
+  const rsi = it.rsi;
+  if (rsi < 32)       parts.push(`RSI ${rsi.toFixed(0)} – extremt översåld`);
+  else if (rsi <= 52) parts.push(`RSI ${rsi.toFixed(0)} – perfekt köpzon`);
+  else if (rsi <= 58) parts.push(`RSI ${rsi.toFixed(0)} – godkänd zon`);
+  // Swing quality
+  if ((it.swing_score || 0) >= 8) parts.push('Prime Setup 🎯');
+  else if ((it.swing_score || 0) >= 6) parts.push('Bra setup');
+  return parts.join(' · ') || 'Golden Cross + godkänd timing';
+}
+
+function renderTop3(items) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const borderColors = ['#c9a227', '#8c9eb0', '#b06830'];
+
+  // calcBuyScore hanterar all filtrering via -999
+  const scored = items
+    .map(it => ({ _score: calcBuyScore(it), _sym: it.symbol }))
+    .filter(s => s._score > 0)
+    .sort((a, b) => b._score - a._score)
+    .slice(0, 3)
+    .map(s => items.find(it => it.symbol === s._sym))
+    .filter(Boolean);
+
+  // Inga kvalificerade setups just nu
+  if (!scored.length) {
+    return `
+      <div class="top3-wrap">
+        <div class="top3-header">🏆 Top 3 köprekommendationer just nu</div>
+        <div style="padding:.75rem 0;color:var(--muted);font-size:.88rem">
+          ⏳ Inga BRA SETUP eller bättre hittades just nu bland aktier i Golden Cross.<br>
+          Det betyder att marknaden inte erbjuder klara swing-ingångar idag – vänta på en dipp mot MA50 och RSI under 52.
+        </div>
+      </div>`;
+  }
+
+  const cards = scored.map((it, i) => {
+    const risk   = it.kurs - it.stop_loss;
+    const reward = it.tp1  - it.kurs;
+    const rr     = risk > 0 ? (reward / risk).toFixed(1) : '?';
+    const swCss  = { prime:'var(--green)', good:'var(--lime)', wait:'var(--orange)', avoid:'var(--red)' }[it.swing_css] || '#555';
+
+    return `
+      <div class="top3-card" style="border-top:3px solid ${borderColors[i]}">
+        <div class="top3-medal">${medals[i]}</div>
+        <div class="top3-name">${it.name}</div>
+        <div class="top3-sym">${it.symbol}</div>
+        <div class="top3-score" style="color:${swCss}">Swing ${it.swing_score}/10 · ${it.swing_label || ''}</div>
+        <div class="top3-price">${it.kurs.toFixed(2)} SEK</div>
+        <div class="top3-reason">${buyReason(it)}</div>
+        <div class="top3-levels">
+          <span title="Stop-loss">🛑 ${it.stop_loss.toFixed(2)}</span>
+          <span title="Kursmål 1">🎯 ${it.tp1.toFixed(2)}</span>
+          <span title="Risk/Reward">R/R 1:${rr}</span>
+        </div>
+        <button class="btn-sm" style="margin-top:.35rem" onclick="top3Analyze('${it.symbol}','${it.name.replace(/'/g,"\\'")}')">📊 Öppna analys</button>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="top3-wrap">
+      <div class="top3-header">🏆 Top 3 köprekommendationer just nu</div>
+      <div class="top3-grid">${cards}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.4rem">
+        Krav: Golden Cross + Swing-score ≥ 6 (BRA SETUP) + minst 2 positiva indikatorer.
+        ⚠️ Ej finansiell rådgivning – sätt alltid stop-loss.
+      </div>
+    </div>`;
+}
+
+function top3Analyze(symbol, name) {
+  addToAnalysis({ symbol, name });
+  rebuildAnalysChips();
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="analys"]').classList.add('active');
+  $('tab-analys').classList.add('active');
+}
+
+function bbBar(pos) {
+  // pos: 0–100 (0=undre BB, 50=mitt, 100=övre BB)
+  const pct = Math.max(0, Math.min(100, pos));
+  const color = pct < 35 ? 'var(--green)' : pct > 65 ? 'var(--red)' : 'var(--accent)';
+  const tip = pct < 35
+    ? `NÄRA NEDRE BANDET (${pct}% av spann) = relativt billig just nu. Bollinger-banden visar 'normal rörelsevariation'. Kurs nära underkanten = aktien har fallit mer än normalt = potentiell köpzon. Kombinera med RSI under 40 och grön MA-trend för starkare signal.`
+    : pct > 65
+    ? `NÄRA ÖVRE BANDET (${pct}% av spann) = relativt dyr just nu. Kurs nära överkanten = aktien har stigit mer än normalt = risk att den faller tillbaka. Kombinera med RSI över 70 för säljsignal. I stark upptrend kan kursen dock hålla sig nära övre bandet länge.`
+    : `MITT I BANDET (${pct}% av spann) = neutralt läge. Aktien rör sig inom sin normala variation. Titta på MA-trend och MACD för nästa steg – Bollinger ger ingen extrem signal just nu.`;
+  return `<div class="bb-bar" data-tip="${tip}"><div class="bb-dot" style="left:${pct.toFixed(0)}%;background:${color}"></div></div>`;
+}
+
+function rsiColor(rsi) {
+  if (rsi >= 70) return 'var(--red)';
+  if (rsi <= 30) return 'var(--green)';
+  return 'var(--text)';
+}
+
+function renderScreenerResults(items) {
+  _screenerData = items;
+  $('screener-top3').innerHTML = renderTop3(items);
+  applyScreenerFilter();
+}
+
+function swingBadge(css, label, score) {
+  const colors = { prime: '#1a7a3a', good: '#4a7c1a', wait: '#c06800', avoid: '#a01010' };
+  const bgs    = { prime: '#d4edda', good: '#e8f5d4', wait: '#fff3cd', avoid: '#f8d7da' };
+  const color = colors[css] || '#555';
+  const bg    = bgs[css] || '#eee';
+  return `<span style="background:${bg};color:${color};border-radius:20px;padding:.2em .6em;font-size:.78rem;font-weight:700;white-space:nowrap">${score}/10 ${label}</span>`;
+}
+
+function applyScreenerFilter() {
+  const activeBtn = document.querySelector('#screener-filter .filter-btn.active');
+  const f = activeBtn ? activeBtn.dataset.f : 'alla';
+  let items;
+  if (f === 'alla') {
+    items = _screenerData;
+  } else if (f === 'prime') {
+    items = _screenerData.filter(it => (it.swing_score || 0) >= 8);
+  } else {
+    items = _screenerData.filter(it => it.rek_klass === f);
+  }
+
+  if (!items.length) {
+    $('screener-results').innerHTML = '<div class="empty">Inga aktier matchar filtret.</div>';
+    return;
+  }
+
+  const rows = items.map((it, i) => {
+    const hasPat = it.pattern && it.pattern !== '–';
+    const patternHtml = hasPat
+      ? `<span class="badge ${it.pattern_bull ? 'badge-buy' : 'badge-sell'}" data-tip="${(PATTERN_TIPS[it.pattern] || it.pattern).replace(/"/g, '&#34;')}">${it.pattern_bull ? '▲' : '▼'} ${it.pattern}</span>`
+      : '<span style="color:var(--muted)">–</span>';
+
+    const maHtml = it.ma_text
+      ? `<small style="color:var(--muted)">${it.ma_text}</small>`
+      : '';
+
+    const swingHtml = it.swing_score != null
+      ? swingBadge(it.swing_css, it.swing_label, it.swing_score)
+      : '–';
+
+    return `<tr data-idx="${_screenerData.indexOf(it)}" onclick="screenerRowClick(this)">
+      <td class="td-r"><span class="rank-num">${i + 1}</span></td>
+      <td>
+        <strong>${it.name}</strong>
+        <div style="color:var(--muted);font-size:.8rem">${it.symbol}</div>
+        ${maHtml}
+      </td>
+      <td class="td-r">${it.kurs.toFixed(2)}</td>
+      <td>${rekBadge(it.rek_klass, it.rek)}</td>
+      <td>${swingHtml}</td>
+      <td class="td-r" style="color:${rsiColor(it.rsi)};font-weight:600">${it.rsi.toFixed(0)}</td>
+      <td style="min-width:80px">${bbBar(it.bb_pos)}</td>
+      <td class="td-r">${it.atr != null ? it.atr.toFixed(2) : '–'}</td>
+      <td class="td-r">${it.stop_loss != null ? it.stop_loss.toFixed(2) : '–'}</td>
+      <td class="td-r">${it.tp1 != null ? it.tp1.toFixed(2) : '–'}</td>
+      <td>${patternHtml}</td>
+    </tr>`;
+  }).join('');
+
+  $('screener-results').innerHTML = `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="table-wrap">
+        <table class="screener-table">
+          <thead>
+            <tr>
+              <th class="td-r" data-tip="Rangordning – starkaste köpsignal överst. Nr 1 är bäst just nu.">#</th>
+              <th data-tip="Bolagsnamn och börskod (.ST = Stockholmsbörsen). Klicka på raden för att öppna full analys med diagram och Swing-score.">Aktie</th>
+              <th class="td-r" data-tip="Aktiens nuvarande pris i SEK. Kan vara ~15 minuter efter realtid.">Kurs</th>
+              <th data-tip="Sammanfattad köp/sälj-rekommendation baserad på tre klassiska indikatorer: MA-trend, RSI och MACD. KÖP = alla tre positiva. Klicka på raden för att se varför.">Signal</th>
+              <th data-tip="SWING-SCORE 0–10. Mäter hur bra aktien är som kortsiktigt köp (swing trade, 1–4 veckor) baserat på 5 kriterier: (1) OMXS30 i upptrend, (2) RSI i köpzon 32–52, (3) färsk MACD-korsning ≤5 dagar, (4) kurs nära MA50 eller nedre Bollinger-bandet, (5) volym bekräftar. 8–10 = PRIME SETUP 🎯">Swing</th>
+              <th class="td-r" data-tip="RSI 0–100. Grön (under 40) = aktien har fallit snabbt = potentiellt köpläge. Röd (över 70) = aktien har stigit snabbt = kan vara tillfälligt dyr.">RSI</th>
+              <th data-tip="Visar var aktiekursen befinner sig i sin 'normala rörelsevariation'. Punkt till vänster (grön) = relativt billig just nu. Punkt till höger (röd) = relativt dyr. Mitt = neutralt.">BB-position</th>
+              <th class="td-r" data-tip="ATR = genomsnittlig daglig rörelse i SEK. En aktie med ATR 5 kr rör sig normalt ~5 kr per dag. Svängningar under ATR är normalt brus – reagera inte på dem.">ATR</th>
+              <th class="td-r" data-tip="STOP-LOSS – föreslagen nivå att sälja om aktien faller. Sätt ALLTID en stop-loss när du köper! Det begränsar din maxförlust. Nivån är beräknad strax under MA50 och/eller senaste bottennivå.">Stop-loss</th>
+              <th class="td-r" data-tip="KURSMÅL 1 – föreslagen vinstnivå (1:2 risk/reward). Om stop-loss är 3% nedåt är kursmål 1 beräknat till +6% uppåt. Grundregeln: sikta alltid på minst dubbla risken i vinst. Sälj hälften här och flytta stop-loss till köpkursen.">Kursmål 1</th>
+              <th data-tip="Senaste candlestick-mönster bland de 10 senaste dagarna. ▲ = bullish (köpsignal). ▼ = bearish (säljsignal). Klicka ❓ Förklara och klicka på mönstret för att förstå vad det betyder.">Mönster</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div style="padding:.5rem 1rem;font-size:.8rem;color:var(--muted)">
+        Klicka på en rad för att öppna full analys. ${items.length} aktier visas.
+      </div>
+    </div>`;
+}
+
+function screenerRowClick(tr) {
+  const idx = parseInt(tr.dataset.idx);
+  const it = _screenerData[idx];
+  if (!it) return;
+  addToAnalysis({ symbol: it.symbol, name: it.name });
+  // Switch to Analys tab
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('[data-tab="analys"]').classList.add('active');
+  $('tab-analys').classList.add('active');
+}
+
+async function runScreener(force = false) {
+  $('btn-screener').disabled = true;
+  $('screener-status').textContent = 'Hämtar data för 50 aktier… (5–15 sek)';
+  $('screener-results').innerHTML = '<div class="spinner" style="margin:2rem auto"></div>';
+
+  try {
+    const url = '/api/screener' + (force ? '?force=1' : '');
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const items = data.data || data.items || [];
+    const ts = data.ts ? new Date(data.ts * 1000).toLocaleTimeString('sv-SE') : '';
+    const cached = data.cached ? ' (cachad)' : '';
+    $('screener-status').textContent = `Uppdaterad ${ts}${cached} · ${items.length} aktier analyserade`;
+    $('btn-screener-refresh').style.display = '';
+    $('screener-filter').style.display = '';
+
+    renderScreenerResults(items);
+  } catch (e) {
+    $('screener-status').textContent = '';
+    $('screener-results').innerHTML = `<div class="empty" style="color:var(--red)">Fel: ${e.message}</div>`;
+  } finally {
+    $('btn-screener').disabled = false;
+  }
+}
+
+$('btn-screener').addEventListener('click', () => runScreener(false));
+$('btn-screener-refresh').addEventListener('click', () => runScreener(true));
+
+document.querySelectorAll('#screener-filter .filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#screener-filter .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyScreenerFilter();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// Förklara-läge
+// ════════════════════════════════════════════════════════════════
+(function() {
+  const btn   = $('btn-explain');
+  const panel = $('explain-panel');
+  const cont  = $('ep-content');
+  const close = $('ep-close');
+
+  function openPanel(text) {
+    cont.textContent = text;
+    panel.classList.add('open');
+  }
+  function closePanel() {
+    panel.classList.remove('open');
+  }
+
+  btn.addEventListener('click', () => {
+    const active = document.body.classList.toggle('explain-mode');
+    btn.classList.toggle('active', active);
+    if (!active) closePanel();
+  });
+
+  document.addEventListener('click', e => {
+    if (!document.body.classList.contains('explain-mode')) return;
+    // Close if clicking outside panel and not on a [data-tip] element
+    if (panel.contains(e.target)) return;
+    const target = e.target.closest('[data-tip]');
+    if (target) {
+      e.preventDefault();
+      e.stopPropagation();
+      openPanel(target.dataset.tip);
+    } else {
+      closePanel();
+    }
+  }, true);
+
+  close.addEventListener('click', closePanel);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.body.classList.remove('explain-mode');
+      btn.classList.remove('active');
+      closePanel();
+    }
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════
+// Marknadspuls
+// ════════════════════════════════════════════════════════════════
+(async function() {
+  try {
+    const r = await fetch('/api/market');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    const pulse = $('market-pulse');
+    const since = d.cross_date ? ` sedan ${d.cross_date}` : '';
+    if (d.bull) {
+      pulse.classList.add('bull');
+      $('mp-status').innerHTML = `✅ <strong>OMXS30: Upptrend</strong> (${d.trend}${since}) · ${d.kurs} · Gynnsamt att köpa`;
+    } else {
+      pulse.classList.add('bear');
+      $('mp-status').innerHTML = `⚠️ <strong>OMXS30: Nedtrend</strong> (${d.trend}${since}) · ${d.kurs} · Var försiktig med nya positioner`;
+    }
+  } catch(e) {
+    $('mp-status').textContent = 'Kunde inte hämta marknadsdata.';
+  }
+})();
+
+// ════════════════════════════════════════════════════════════════
+// Init
+// ════════════════════════════════════════════════════════════════
+(async () => {
+  await loadWatchlist();
+  await loadPortfolio();
+  if (state.portfolio.length) refreshPortfolio();
+  else {
+    $('p-summary').innerHTML = '';
+    $('p-table-wrap').innerHTML = '<div class="empty">Lägg till innehav ovan.</div>';
+  }
+})();
+</script>
+</body>
+</html>
