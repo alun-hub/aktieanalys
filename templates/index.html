@@ -290,6 +290,75 @@ tr:hover td { background: #fafbff; }
             color: #fff; font-size: .72rem; font-weight: 700; display: inline-flex;
             align-items: center; justify-content: center; }
 
+/* ── Screener Cards ── */
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: .85rem;
+  padding: .6rem 0 1rem;
+}
+.sc-card {
+  background: #0d1b2a;
+  border: 1px solid #1a2d42;
+  border-top: 3px solid var(--sc-clr, #4361ee);
+  border-radius: 12px;
+  padding: .9rem 1rem;
+  cursor: pointer;
+  color: #c8daea;
+  transition: transform .18s, box-shadow .18s;
+  position: relative;
+}
+.sc-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 32px rgba(0,0,0,.5), 0 0 0 1px var(--sc-clr, #4361ee);
+}
+.sc-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
+.sc-rank-pill {
+  font-size: .7rem; font-weight: 800; letter-spacing: .04em;
+  color: #4a7a9e; background: #112033; border-radius: 20px;
+  padding: .15em .6em; font-family: 'Courier New', monospace;
+}
+.sc-setup-tag {
+  font-size: .68rem; font-weight: 700; border-radius: 4px;
+  padding: .15em .5em; background: rgba(255,255,255,.07);
+  color: var(--sc-clr, #4361ee); letter-spacing: .04em;
+}
+.sc-name {
+  font-size: .9rem; font-weight: 700; color: #e2edf7;
+  line-height: 1.25; margin: .15rem 0 .05rem;
+}
+.sc-sym {
+  font-size: .7rem; color: #3d6880; letter-spacing: .07em;
+  text-transform: uppercase; font-family: 'Courier New', monospace; margin-bottom: .4rem;
+}
+.sc-price {
+  font-size: 1.4rem; font-weight: 800; color: #f0f6ff;
+  font-family: 'Courier New', monospace; letter-spacing: -.01em;
+  line-height: 1; margin-bottom: .2rem;
+}
+.sc-price-cur { font-size: .65rem; color: #3d6880; font-weight: 400; font-family: system-ui; }
+.sc-ma-note { font-size: .7rem; color: #3d6880; margin-bottom: .5rem; }
+.sc-score-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: .5rem 0 .2rem;
+}
+.sc-score-num {
+  font-size: .8rem; font-weight: 800; font-family: 'Courier New', monospace;
+  color: var(--sc-clr, #4361ee);
+}
+.sc-score-label { font-size: .65rem; color: #3d6880; text-transform: uppercase; letter-spacing: .04em; }
+.sc-bar-track { height: 4px; background: #112033; border-radius: 2px; overflow: hidden; margin-bottom: .55rem; }
+.sc-bar-fill { height: 100%; border-radius: 2px; background: var(--sc-clr, #4361ee); }
+.sc-hr { height: 1px; background: #112033; margin: .45rem 0; }
+.sc-grid-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem .5rem; margin-bottom: .35rem; }
+.sc-mitem { display: flex; flex-direction: column; margin-bottom: .1rem; }
+.sc-mlabel { font-size: .62rem; color: #2d5470; text-transform: uppercase; letter-spacing: .05em; margin-bottom: .08rem; }
+.sc-mval { font-size: .76rem; font-weight: 600; font-family: 'Courier New', monospace; color: #aac5d8; }
+.sc-pattern-row { margin-top: .35rem; }
+.sc-card .bb-bar { background: #112033; width: 52px; height: 6px; }
+.sc-card .bb-dot  { width: 6px; height: 6px; }
+.sc-card-footer { margin-top: .5rem; font-size: .63rem; color: #1e3a50; text-align: center; letter-spacing: .05em; }
+
 /* ── Tolkningsguide ── */
 .guide-card {
   background: #f0f4ff; border: 1px solid #c5d0f5; border-radius: var(--radius);
@@ -1783,65 +1852,44 @@ function applyScreenerFilter() {
     return;
   }
 
-  const rows = items.map((it, i) => {
+  const SWING_COLORS = { prime: '#16a34a', good: '#84cc16', wait: '#f59e0b', avoid: '#ef4444' };
+  const SWING_TAGS   = { prime: '🎯 Prime', good: '✓ Bra', wait: '⏳ Vänta', avoid: '✗ Undvik' };
+
+  const cards = items.map((it, i) => {
     const hasPat = it.pattern && it.pattern !== '–';
-    const patternHtml = hasPat
+    const patHtml = hasPat
       ? `<span class="badge ${it.pattern_bull ? 'badge-buy' : 'badge-sell'}" data-tip="${(PATTERN_TIPS[it.pattern] || it.pattern).replace(/"/g, '&#34;')}">${it.pattern_bull ? '▲' : '▼'} ${it.pattern}</span>`
-      : '<span style="color:var(--muted)">–</span>';
-
-    const maHtml = it.ma_text
-      ? `<small style="color:var(--muted)">${it.ma_text}</small>`
       : '';
+    const scClr  = SWING_COLORS[it.swing_css] || '#4361ee';
+    const scTag  = SWING_TAGS[it.swing_css]   || '';
+    const scPct  = it.swing_score != null ? (it.swing_score / 10 * 100).toFixed(0) : 0;
+    const rsiCol = rsiColor(it.rsi);
+    return [
+      `<div class="sc-card" style="--sc-clr:${scClr}" data-idx="${_screenerData.indexOf(it)}" onclick="screenerRowClick(this)">`,
+      `<div class="sc-card-head"><span class="sc-rank-pill">#${i + 1}</span>${scTag ? `<span class="sc-setup-tag">${scTag}</span>` : ''}</div>`,
+      `<div class="sc-name">${it.name}</div>`,
+      `<div class="sc-sym">${it.symbol}</div>`,
+      `<div class="sc-price">${it.kurs.toFixed(2)} <span class="sc-price-cur">SEK</span></div>`,
+      it.ma_text ? `<div class="sc-ma-note">${it.ma_text}</div>` : '',
+      `<div class="sc-score-row"><div><span class="sc-score-label">Swing </span><span class="sc-score-num">${it.swing_score ?? '–'}/10</span></div>${rekBadge(it.rek_klass, it.rek)}</div>`,
+      `<div class="sc-bar-track"><div class="sc-bar-fill" style="width:${scPct}%"></div></div>`,
+      `<div class="sc-hr"></div>`,
+      `<div class="sc-grid-metrics">`,
+      `<div class="sc-mitem"><span class="sc-mlabel">RSI</span><span class="sc-mval" style="color:${rsiCol}">${it.rsi.toFixed(0)}</span></div>`,
+      `<div class="sc-mitem"><span class="sc-mlabel">ATR</span><span class="sc-mval">${it.atr != null ? it.atr.toFixed(2) : '–'}</span></div>`,
+      `<div class="sc-mitem"><span class="sc-mlabel">Stop-loss</span><span class="sc-mval">${it.stop_loss != null ? it.stop_loss.toFixed(2) : '–'}</span></div>`,
+      `<div class="sc-mitem"><span class="sc-mlabel">Kursmål</span><span class="sc-mval">${it.tp1 != null ? it.tp1.toFixed(2) : '–'}</span></div>`,
+      `</div>`,
+      `<div class="sc-mitem"><span class="sc-mlabel">Bollinger-position</span>${bbBar(it.bb_pos)}</div>`,
+      hasPat ? `<div class="sc-pattern-row">${patHtml}</div>` : '',
+      `<div class="sc-card-footer">klicka för full analys →</div>`,
+      `</div>`
+    ].join('');
+  });
 
-    const swingHtml = it.swing_score != null
-      ? swingBadge(it.swing_css, it.swing_label, it.swing_score)
-      : '–';
-
-    return `<tr data-idx="${_screenerData.indexOf(it)}" onclick="screenerRowClick(this)">
-      <td class="td-r"><span class="rank-num">${i + 1}</span></td>
-      <td>
-        <strong>${it.name}</strong>
-        <div style="color:var(--muted);font-size:.8rem">${it.symbol}</div>
-        ${maHtml}
-      </td>
-      <td class="td-r">${it.kurs.toFixed(2)}</td>
-      <td>${rekBadge(it.rek_klass, it.rek)}</td>
-      <td>${swingHtml}</td>
-      <td class="td-r" style="color:${rsiColor(it.rsi)};font-weight:600">${it.rsi.toFixed(0)}</td>
-      <td style="min-width:80px">${bbBar(it.bb_pos)}</td>
-      <td class="td-r">${it.atr != null ? it.atr.toFixed(2) : '–'}</td>
-      <td class="td-r">${it.stop_loss != null ? it.stop_loss.toFixed(2) : '–'}</td>
-      <td class="td-r">${it.tp1 != null ? it.tp1.toFixed(2) : '–'}</td>
-      <td>${patternHtml}</td>
-    </tr>`;
-  }).join('');
-
-  $('screener-results').innerHTML = `
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="table-wrap">
-        <table class="screener-table">
-          <thead>
-            <tr>
-              <th class="td-r" data-tip="Rangordning – starkaste köpsignal överst. Nr 1 är bäst just nu.">#</th>
-              <th data-tip="Bolagsnamn och börskod (.ST = Stockholmsbörsen). Klicka på raden för att öppna full analys med diagram och Swing-score.">Aktie</th>
-              <th class="td-r" data-tip="Aktiens nuvarande pris i SEK. Kan vara ~15 minuter efter realtid.">Kurs</th>
-              <th data-tip="Sammanfattad köp/sälj-rekommendation baserad på tre klassiska indikatorer: MA-trend, RSI och MACD. KÖP = alla tre positiva. Klicka på raden för att se varför.">Signal</th>
-              <th data-tip="SWING-SCORE 0–10. Mäter hur bra aktien är som kortsiktigt köp (swing trade, 1–4 veckor) baserat på 5 kriterier: (1) OMXS30 i upptrend, (2) RSI i köpzon 32–52, (3) färsk MACD-korsning ≤5 dagar, (4) kurs nära MA50 eller nedre Bollinger-bandet, (5) volym bekräftar. 8–10 = PRIME SETUP 🎯">Swing</th>
-              <th class="td-r" data-tip="RSI 0–100. Grön (under 40) = aktien har fallit snabbt = potentiellt köpläge. Röd (över 70) = aktien har stigit snabbt = kan vara tillfälligt dyr.">RSI</th>
-              <th data-tip="Visar var aktiekursen befinner sig i sin 'normala rörelsevariation'. Punkt till vänster (grön) = relativt billig just nu. Punkt till höger (röd) = relativt dyr. Mitt = neutralt.">BB-position</th>
-              <th class="td-r" data-tip="ATR = genomsnittlig daglig rörelse i SEK. En aktie med ATR 5 kr rör sig normalt ~5 kr per dag. Svängningar under ATR är normalt brus – reagera inte på dem.">ATR</th>
-              <th class="td-r" data-tip="STOP-LOSS – föreslagen nivå att sälja om aktien faller. Sätt ALLTID en stop-loss när du köper! Det begränsar din maxförlust. Nivån är beräknad strax under MA50 och/eller senaste bottennivå.">Stop-loss</th>
-              <th class="td-r" data-tip="KURSMÅL 1 – föreslagen vinstnivå (1:2 risk/reward). Om stop-loss är 3% nedåt är kursmål 1 beräknat till +6% uppåt. Grundregeln: sikta alltid på minst dubbla risken i vinst. Sälj hälften här och flytta stop-loss till köpkursen.">Kursmål 1</th>
-              <th data-tip="Senaste candlestick-mönster bland de 10 senaste dagarna. ▲ = bullish (köpsignal). ▼ = bearish (säljsignal). Klicka ❓ Förklara och klicka på mönstret för att förstå vad det betyder.">Mönster</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      <div style="padding:.5rem 1rem;font-size:.8rem;color:var(--muted)">
-        Klicka på en rad för att öppna full analys. ${items.length} aktier visas.
-      </div>
-    </div>`;
+  $('screener-results').innerHTML =
+    '<div class="sc-grid">' + cards.join('') + '</div>' +
+    '<div style="padding:.25rem 0;font-size:.78rem;color:var(--muted)">' + items.length + ' aktier visas · Klicka ett kort för full analys</div>';
 }
 
 function screenerRowClick(tr) {

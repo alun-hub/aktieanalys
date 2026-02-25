@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: aktieanalys
-        image: aktieanalys:latest
+        image: localhost/aktieanalys:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 4000
