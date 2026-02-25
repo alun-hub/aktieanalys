@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aktieanalys
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aktieanalys
+  template:
+    metadata:
+      labels:
+        app: aktieanalys
+    spec:
+      containers:
+      - name: aktieanalys
+        image: aktieanalys:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 4000
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: aktieanalys-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aktieanalys
+spec:
+  selector:
+    app: aktieanalys
+  ports:
+  - port: 80
+    targetPort: 4000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aktieanalys
+spec:
+  rules:
+  - host: aktieanalys.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: aktieanalys
+            port:
+              number: 80
+

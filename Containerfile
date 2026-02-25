@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+# Trust UniFi SSL inspection certificate
+COPY unifi-ca.crt /usr/local/share/ca-certificates/unifi-ca.crt
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install dependencies first (separate layer for cache efficiency)
@@ -16,8 +21,8 @@ RUN chmod +x /entrypoint.sh
 RUN mkdir -p /app/data
 
 VOLUME /app/data
-EXPOSE 5000
+EXPOSE 4000
 
 ENTRYPOINT ["/entrypoint.sh"]
 # gunicorn: 2 workers, 120s timeout (yfinance calls can be slow)
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:4000", "--workers", "2", "--timeout", "120", "app:app"]

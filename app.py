@@ -476,6 +476,116 @@ def run_screener():
     return results
 
 
+# ── Backtesting ───────────────────────────────────────────────────────────────
+
+def compute_backtest_stats(trades):
+    """Beräknar aggregerad statistik från en lista av trades."""
+    if not trades:
+        return None
+    wins   = [t for t in trades if t["win"]]
+    losses = [t for t in trades if not t["win"]]
+    avg_win  = sum(t["pl_pct"] for t in wins)   / len(wins)   if wins   else 0
+    avg_loss = sum(t["pl_pct"] for t in losses) / len(losses) if losses else 0
+    return {
+        "total":         len(trades),
+        "wins":          len(wins),
+        "losses":        len(losses),
+        "win_rate":      round(len(wins) / len(trades) * 100, 1),
+        "avg_return":    round(sum(t["pl_pct"] for t in trades) / len(trades), 2),
+        "avg_win":       round(avg_win, 2),
+        "avg_loss":      round(avg_loss, 2),
+        "profit_factor": round(abs(avg_win / avg_loss) if avg_loss else 0, 2),
+        "avg_days":      round(sum(t["days_held"] for t in trades) / len(trades), 1),
+    }
+
+
+def run_backtest_symbol(symbol, period="2y", min_score=6, max_days=30):
+    """Backtesta swing-signaler för ett symbol på historisk data (inga lookahead-problem)."""
+    FETCH = {"1y": "1y", "2y": "2y", "3y": "5y"}
+    tk = yf.Ticker(symbol)
+    df = tk.history(period=FETCH.get(period, "2y"))[["Open", "High", "Low", "Close", "Volume"]].copy()
+    if df.empty or len(df) < 250:
+        return []
+
+    # Beräkna alla indikatorer en gång med rolling windows (= noll lookahead)
+    df["MA50"]     = df.Close.rolling(50).mean()
+    df["MA200"]    = df.Close.rolling(200).mean()
+    df["RSI"]      = calc_rsi(df.Close)
+    df["MACD"], df["MACD_sig"], df["MACD_hist"] = calc_macd(df.Close)
+    df["BB_upper"], df["BB_mid"], df["BB_lower"] = calc_bb(df.Close)
+    df["ATR"]      = calc_atr(df)
+    df.dropna(inplace=True)
+    if len(df) < 40:
+        return []
+
+    trades      = []
+    in_trade    = False
+    entry_price = trade_sl = trade_tp = entry_date = None
+    entry_idx   = 0
+    # Starta efter 35 rader så volym-rullande snitt (20d) och MACD-historik är stabila
+    start_i = 35
+
+    for i in range(start_i, len(df) - 1):
+        row = df.iloc[i]
+
+        if in_trade:
+            days_held = i - entry_idx
+            exit_price = exit_reason = None
+
+            if float(row["Low"]) <= trade_sl:
+                exit_price  = trade_sl
+                exit_reason = "Stop-loss"
+            elif float(row["High"]) >= trade_tp:
+                exit_price  = trade_tp
+                exit_reason = "Take-profit"
+            elif days_held >= max_days:
+                exit_price  = float(row["Close"])
+                exit_reason = f"Timeout ({days_held}d)"
+
+            if exit_price is not None:
+                pl_pct = (exit_price - entry_price) / entry_price * 100
+                trades.append({
+                    "entry_date":  entry_date,
+                    "exit_date":   df.index[i].strftime("%Y-%m-%d"),
+                    "entry_price": round(entry_price, 2),
+                    "exit_price":  round(exit_price, 2),
+                    "sl":          round(trade_sl, 2),
+                    "tp":          round(trade_tp, 2),
+                    "pl_pct":      round(pl_pct, 2),
+                    "days_held":   days_held,
+                    "exit_reason": exit_reason,
+                    "win":         pl_pct > 0,
+                })
+                in_trade = False
+
+        if not in_trade:
+            # Slice med precomputed indikatorer – inga re-beräkningar, konstant tid
+            sub = df.iloc[max(0, i - 34):i + 1]  # 35 rader räcker för alla indikatorer
+            try:
+                sig         = gen_signal(sub)
+                kurs        = float(row["Close"])
+                sltp        = calc_sltp(sub, kurs)
+                market_bull = bool(float(row["MA50"]) > float(row["MA200"]))
+                swing       = calc_swing_score(sub, sig, market_bull)
+            except Exception:
+                continue
+
+            if swing["score"] >= min_score:
+                next_open   = float(df.iloc[i + 1]["Open"])
+                entry_price = next_open
+                entry_date  = df.index[i].strftime("%Y-%m-%d")
+                entry_idx   = i + 1
+
+                risk = entry_price - sltp["stop_loss"]
+                if risk <= 0:
+                    continue
+                trade_sl = sltp["stop_loss"]
+                trade_tp = entry_price + 2 * risk  # 2:1 R/R
+                in_trade = True
+
+    return trades
+
+
 # ── Persistens ────────────────────────────────────────────────────────────────
 
 def load_json(fname, default):
@@ -595,6 +705,30 @@ def screener_route():
     _screener_cache["ts"]   = time.time()
     return jsonify({"data": data, "cached": False,
                     "age_min": 0, "ts": _screener_cache["ts"]})
+
+
+@app.route("/api/backtest", methods=["POST"])
+def backtest_route():
+    data      = request.json or {}
+    period    = data.get("period", "2y")
+    min_score = int(data.get("min_score", 6))
+    max_days  = int(data.get("max_days", 30))
+    symbols   = data.get("symbols") or list(OMXS_50.keys())
+
+    def run_one(sym):
+        trades = run_backtest_symbol(sym, period, min_score, max_days)
+        return {"symbol": sym, "name": OMXS_50.get(sym, sym),
+                "trades": trades, "stats": compute_backtest_stats(trades)}
+
+    results = []
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        futures = {ex.submit(run_one, sym): sym for sym in symbols}
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    results.sort(key=lambda x: -(x["stats"]["total"] if x["stats"] else 0))
+    all_trades = [t for r in results for t in r["trades"]]
+    return jsonify({"results": results, "overall": compute_backtest_stats(all_trades)})
 
 
 @app.route("/api/watchlist", methods=["GET", "POST"])
