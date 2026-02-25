@@ -386,6 +386,26 @@ tr:hover td { background: #fafbff; }
 .check-desc { font-size: .78rem; color: var(--muted); margin-top: .1rem; }
 .narrative-details { margin-top: .75rem; }
 .narrative-details summary { cursor: pointer; color: var(--muted); font-size: .85rem; padding: .4rem 0; }
+
+/* ── Backtest ── */
+.bt-form {
+  background: var(--card); border-radius: var(--radius);
+  padding: 1.2rem; margin-bottom: 1.2rem;
+  box-shadow: 0 2px 8px #0001; display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;
+}
+.bt-summary {
+  background: var(--primary); color: #fff; border-radius: var(--radius);
+  padding: 1.2rem 1.5rem; margin-bottom: 1.2rem;
+}
+.bt-summary h3 { font-size: .78rem; opacity: .5; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .9rem; }
+.bt-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 1rem; }
+.bt-stat { text-align: center; }
+.bt-stat-val { font-size: 1.6rem; font-weight: 800; line-height: 1.2; }
+.bt-stat-label { font-size: .72rem; opacity: .6; margin-top: .2rem; text-transform: uppercase; letter-spacing: .04em; }
+.bt-disclaimer {
+  background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px;
+  padding: .6rem 1rem; font-size: .8rem; color: #7a5200; margin-bottom: 1rem;
+}
 </style>
 </head>
 <body>
@@ -412,6 +432,7 @@ tr:hover td { background: #fafbff; }
   <button class="tab-btn" data-tab="portfolj" data-tip="Din egna aktiebok. Skriv in vilka aktier du äger, hur många och vad du betalade. Appen räknar ut om du är på vinst (grön) eller förlust (röd) baserat på dagskursen.">Portfölj</button>
   <button class="tab-btn" data-tab="bevakning" data-tip="En lista på aktier du vill hålla koll på utan att analysera dem just nu. Klicka 'Analysera alla' för att snabbt se om någon har fått köpsignal sedan sist du kollade.">Bevakning</button>
   <button class="tab-btn" data-tab="screener" data-tip="Automatisk genomgång av Stockholmsbörsens aktier. Visar Top 3 köprekommendationer direkt + hela listan sorterad efter köpsignal. Klicka en rad för full analys.">📡 Screener</button>
+  <button class="tab-btn" data-tab="backtest" data-tip="Testa om signalerna fungerat historiskt. Simulerar köp när swing-score uppnår tröskeln och mäter utfall mot stop-loss och take-profit på verklig historisk kursdata.">🧪 Backtest</button>
 </nav>
 
 <main>
@@ -512,6 +533,67 @@ tr:hover td { background: #fafbff; }
       Klicka <strong>Kör screener</strong> för att analysera Stockholmsbörsens aktier och se Top 3 köprekommendationer.<br>
       <small style="color:var(--muted)">Tar ~15–25 sekunder. Resultaten cachas tills du uppdaterar.</small>
     </div>
+  </div>
+</div>
+
+<!-- ── Backtest ──────────────────────────────────────────────────── -->
+<div id="tab-backtest" class="tab-panel">
+
+  <details class="guide-card" style="margin-bottom:1.2rem">
+    <summary>📖 Vad är backtesting och hur läser jag resultaten?</summary>
+    <div class="guide-body">
+      <div class="guide-section">
+        <h4>Hur simuleringen fungerar</h4>
+        <p>Appen går igenom historisk kursdata dag för dag och "köper" varje gång swing-signalen når din valda tröskel – precis som du hade gjort manuellt. Köpet sker vid nästa dags öppningskurs. Positionen hålls sedan tills priset når stop-loss (förlust), take-profit (vinst), eller maxinnehavstiden.</p>
+      </div>
+      <div class="guide-section">
+        <h4>Vad är ett bra resultat?</h4>
+        <ul>
+          <li><strong>Träffsäkerhet &gt;50 %</strong> – fler vinnare än förlorare</li>
+          <li><strong>Profit Factor &gt;1,3</strong> – för varje 100 kr som förloras tjänas 130+ kr</li>
+          <li><strong>Snitt vinst &gt; Snitt förlust</strong> – varje vinnande affär väger tyngre än en förlorare</li>
+        </ul>
+      </div>
+      <div class="guide-section">
+        <h4>Viktiga begränsningar</h4>
+        <p>Courtage och köp/sälj-spread ingår inte. Historiska resultat garanterar inte framtida avkastning. Backtesting visar om logiken <em>har fungerat</em> – men marknadsförhållanden förändras.</p>
+      </div>
+    </div>
+  </details>
+
+  <div class="bt-form">
+    <div class="form-group">
+      <label data-tip="Hur lång historik som används för testet. Längre historik = fler simulerade affärer = mer tillförlitlig statistik. Kortare historik är snabbare men ger färre datapunkter att dra slutsatser från.">HISTORIK</label>
+      <div class="period-btns" id="bt-period">
+        <button class="period-btn" data-p="1y" data-tip="Använder 1 års kursdata. Snabbast att köra men ger relativt få affärer per aktie – statistiken är mindre tillförlitlig.">1 år</button>
+        <button class="period-btn active" data-p="2y" data-tip="Rekommenderat. 2 års historik ger tillräckligt många affärer för att statistiken ska vara meningsfull, utan att vara för gammal.">2 år ★</button>
+        <button class="period-btn" data-p="3y" data-tip="3 års historik. Flest affärer och starkast statistik, men tar längst tid att köra (~60–90 sek).">3 år</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label data-tip="Swing-score är ett poängsystem (0–10) som bedömer hur bra ingångstillfället är baserat på 5 kriterier: marknadsriktning, RSI-nivå, MACD-korsning, prisstöd och volym. Här väljer du hur högt score som krävs för att en simulerad affär ska utlösas.">MIN SWING-SCORE</label>
+      <div class="period-btns" id="bt-score">
+        <button class="period-btn active" data-s="6" data-tip="Köp simuleras när score är 6 eller högre (kallas 'Bra Setup'). Ger fler affärer och bredare statistik, men inkluderar även lite svagare signaler.">≥6 Bra Setup ★</button>
+        <button class="period-btn" data-s="8" data-tip="Köp simuleras bara vid de allra starkaste signalerna (score 8–10, 'Prime Setup'). Ger färre affärer men de är de mest övertygande köptillfällena.">≥8 Prime Setup</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label data-tip="Om varken stop-loss eller take-profit nåtts efter detta antal dagar avslutas affären ändå – vid stängningskursen den dagen. Detta hindrar kapitalet från att sitta låst i en aktie som varken stiger eller faller.">MAX INNEHAVSTID</label>
+      <div class="period-btns" id="bt-days">
+        <button class="period-btn" data-d="20" data-tip="Affären stängs senast efter 20 handelsdagar (ca 4 veckor). Passar kortare swing trades.">20 dagar</button>
+        <button class="period-btn active" data-d="30" data-tip="Rekommenderat. 30 handelsdagar (ca 6 veckor) matchar den typiska swing trade-horisonten.">30 dagar ★</button>
+        <button class="period-btn" data-d="40" data-tip="Affären stängs senast efter 40 handelsdagar (ca 8 veckor). Passar aktier som rör sig långsammare.">40 dagar</button>
+      </div>
+    </div>
+    <button class="btn-primary" id="btn-backtest" data-tip="Startar backtestet. Appen analyserar alla ~70 OMXS-aktier och simulerar affärer baserat på dina valda parametrar. Tar 30–60 sekunder.">▶ Kör backtest</button>
+  </div>
+  <div class="bt-disclaimer">
+    ⚠️ <strong>Backtesting visar historisk träffsäkerhet – inte garanterad framtida avkastning.</strong>
+    Simuleringen köper vid nästa dags öppningskurs och avslutar vid stop-loss, take-profit (2:1 R/R) eller timeout. Courtage och spread ingår inte.
+  </div>
+  <div id="bt-results">
+    <div class="empty">Välj parametrar ovan och klicka <strong>Kör backtest</strong>.<br>
+    <small style="color:var(--muted)">Testar alla ~70 OMXS-aktier på historisk data. Tar ~30–60 sekunder.</small></div>
   </div>
 </div>
 
@@ -1858,6 +1940,176 @@ document.querySelectorAll('#screener-filter .filter-btn').forEach(btn => {
       closePanel();
     }
   });
+})();
+
+// ════════════════════════════════════════════════════════════════
+// Backtest
+// ════════════════════════════════════════════════════════════════
+(function () {
+  let btPeriod = '2y', btScore = 6, btDays = 30;
+
+  document.getElementById('bt-period').addEventListener('click', e => {
+    const btn = e.target.closest('[data-p]'); if (!btn) return;
+    btPeriod = btn.dataset.p;
+    document.querySelectorAll('#bt-period .period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  document.getElementById('bt-score').addEventListener('click', e => {
+    const btn = e.target.closest('[data-s]'); if (!btn) return;
+    btScore = parseInt(btn.dataset.s);
+    document.querySelectorAll('#bt-score .period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  document.getElementById('bt-days').addEventListener('click', e => {
+    const btn = e.target.closest('[data-d]'); if (!btn) return;
+    btDays = parseInt(btn.dataset.d);
+    document.querySelectorAll('#bt-days .period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+
+  document.getElementById('btn-backtest').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-backtest');
+    const res = document.getElementById('bt-results');
+    btn.disabled = true; btn.textContent = '⏳ Analyserar…';
+    res.innerHTML = '<div class="spinner">Kör backtest på alla OMXS-aktier… kan ta 30–60 sekunder.</div>';
+    try {
+      const r = await fetch('/api/backtest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period: btPeriod, min_score: btScore, max_days: btDays }),
+      });
+      renderBacktest(await r.json());
+    } catch (e) {
+      res.innerHTML = `<div class="empty">Fel: ${e.message}</div>`;
+    } finally {
+      btn.disabled = false; btn.textContent = '▶ Kör backtest';
+    }
+  });
+
+  function renderBacktest(data) {
+    const res = document.getElementById('bt-results');
+    const o = data.overall;
+    if (!o) { res.innerHTML = '<div class="empty">Inga trades hittades. Prova en längre historik eller lägre score-tröskel.</div>'; return; }
+
+    const wColor  = o.win_rate >= 50 ? 'var(--green)' : '#e04040';
+    const pfColor = o.profit_factor >= 1 ? 'var(--green)' : '#e04040';
+
+    const stat = (val, label, tip) => `
+      <div class="bt-stat" data-tip="${tip}">
+        <div class="bt-stat-val">${val}</div>
+        <div class="bt-stat-label">${label}</div>
+      </div>`;
+
+    let html = `
+    <div class="bt-summary">
+      <h3>Aggregerat resultat – alla aktier</h3>
+      <div class="bt-stat-grid">
+        ${stat(`<span style="color:${wColor}">${o.win_rate}%</span>`, 'Träffsäkerhet',
+          'Andelen affärer som slutade med vinst. 50% = varannan affär vann. Över 50% är bra, men en strategi kan ändå vara lönsam med lägre träffsäkerhet om vinsterna är tillräckligt mycket större än förlusterna – se Profit Factor.')}
+        ${stat(o.total, 'Totalt trades',
+          'Totalt antal simulerade köp- och säljaffärer under hela testperioden. Fler affärer ger mer tillförlitlig statistik. Färre än 20 affärer gör resultaten svårare att lita på.')}
+        ${stat(`<span style="color:var(--green)">${o.wins}</span>`, 'Vinnare',
+          'Antal affärer som avslutades med vinst – dvs. priset nådde take-profit-nivån (TP) innan stop-loss eller timeout.')}
+        ${stat(`<span style="color:#e04040">${o.losses}</span>`, 'Förlorare',
+          'Antal affärer som avslutades med förlust – priset nådde stop-loss-nivån (SL). Räknas även affärer som stängdes vid timeout med negativt resultat.')}
+        ${stat(`<span style="color:${pfColor}">${o.profit_factor}</span>`, 'Profit Factor',
+          'Total vinst delat med total förlust. Exempel: 1,5 betyder att för varje 100 kr som förlorades tjänades 150 kr. Under 1,0 = strategin förlorar pengar totalt. Mål: minst 1,3. Över 2,0 är utmärkt.')}
+        ${stat(`<span style="color:var(--green)">+${o.avg_win}%</span>`, 'Snitt vinst',
+          'Genomsnittlig procentuell uppgång per vinnande affär. Jämför med Snitt förlust – om Snitt vinst är dubbelt så stor som Snitt förlust är strategin lönsam även med bara 35% träffsäkerhet.')}
+        ${stat(`<span style="color:#e04040">${o.avg_loss}%</span>`, 'Snitt förlust',
+          'Genomsnittlig procentuell nedgång per förlorande affär. Håll detta lågt – stop-loss-nivån är satt till max ~3–5% under ingångspriset baserat på ATR och MA50-stöd.')}
+        ${stat(`${o.avg_days}d`, 'Snitt innehavstid',
+          'Genomsnittligt antal handelsdagar som positionerna hölls öppna. En lägre siffra betyder att strategin hittar snabba rörelser. Nära maxgränsen (timeout) kan tyda på att affärerna "fastnar" utan tydlig rörelse.')}
+      </div>
+    </div>`;
+
+    const withTrades = data.results.filter(r => r.stats);
+    html += `
+    <div class="card">
+      <div class="card-header">
+        <h2>Resultat per aktie</h2>
+        <span class="meta">${withTrades.length} aktier med trades</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Aktie</th>
+            <th class="td-num" data-tip="Totalt antal simulerade affärer för den här aktien under testperioden. Färre än 5 affärer gör statistiken osäker.">Trades</th>
+            <th class="td-num" data-tip="Vinnare / Förlorare – antal affärer som slutade med vinst respektive förlust för den här aktien.">V / F</th>
+            <th class="td-num" data-tip="Andelen vinnande affärer i procent för den här aktien. Över 50% betyder att fler affärer gick på plus än på minus.">Träffsäkerhet</th>
+            <th class="td-num" data-tip="Genomsnittlig vinst eller förlust per affär i procent. Positivt tal = strategin har i snitt tjänat pengar på den här aktien. Negativt = tappat.">Snitt P/L</th>
+            <th class="td-num" data-tip="Total vinst delat med total förlust för den här aktien. Över 1,0 = lönsamt. Under 1,0 = strategin har förlorat mer än den vunnit på den här aktien.">Profit Factor</th>
+            <th class="td-num" data-tip="Hur länge positionerna i snitt hölls öppna för den här aktien, räknat i handelsdagar.">Snitt dagar</th>
+            <th></th>
+          </tr></thead>
+          <tbody>`;
+
+    for (const r of withTrades) {
+      const s = r.stats;
+      const wCls  = s.win_rate >= 50 ? 'pl-pos' : 'pl-neg';
+      const avgCls = s.avg_return >= 0 ? 'pl-pos' : 'pl-neg';
+      const avgSign = s.avg_return > 0 ? '+' : '';
+      html += `
+        <tr>
+          <td><strong>${r.name}</strong><br><span style="color:var(--muted);font-size:.78rem">${r.symbol}</span></td>
+          <td class="td-num">${s.total}</td>
+          <td class="td-num">${s.wins} / ${s.losses}</td>
+          <td class="td-num"><span class="${wCls}">${s.win_rate}%</span></td>
+          <td class="td-num"><span class="${avgCls}">${avgSign}${s.avg_return}%</span></td>
+          <td class="td-num">${s.profit_factor}</td>
+          <td class="td-num">${s.avg_days}d</td>
+          <td><button class="btn-sm bt-toggle" data-sym="${r.symbol}">▼ Trades</button></td>
+        </tr>
+        <tr id="bt-detail-${r.symbol.replace(/\./g,'-')}" style="display:none">
+          <td colspan="8">${renderTradesTable(r.trades)}</td>
+        </tr>`;
+    }
+
+    html += `</tbody></table></div></div>`;
+    res.innerHTML = html;
+
+    res.querySelectorAll('.bt-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id  = 'bt-detail-' + btn.dataset.sym.replace(/\./g, '-');
+        const det = document.getElementById(id);
+        const shown = det.style.display !== 'none';
+        det.style.display = shown ? 'none' : 'table-row';
+        btn.textContent = shown ? '▼ Trades' : '▲ Dölj';
+      });
+    });
+  }
+
+  function renderTradesTable(trades) {
+    if (!trades.length) return '<em style="color:var(--muted);padding:.5rem;display:block">Inga trades.</em>';
+    let h = `<div class="table-wrap" style="margin:.5rem 0">
+      <table><thead><tr>
+        <th data-tip="Dagen köpsignalen genererades. Köpet skedde dagen efter vid öppningskursen.">Köpdag</th>
+        <th data-tip="Dagen positionen stängdes – antingen vid stop-loss, take-profit eller timeout.">Säljdag</th>
+        <th class="td-num" data-tip="Ingångspris – kursen simuleringen köpte aktien för. Det är öppningskursen dagen efter att signalen genererades.">Ingång</th>
+        <th class="td-num" data-tip="Utgångspris – kursen simuleringen sålde aktien för. Vid stop-loss är det SL-priset, vid take-profit är det TP-priset, vid timeout är det stängningskursen.">Utgång</th>
+        <th class="td-num" data-tip="Stop-Loss (SL) – prisnivån där simuleringen automatiskt säljer om kursen faller dit, för att begränsa förlusten. Beräknas baserat på ATR (genomsnittlig rörelsevidd) och MA50-stöd, max 5% under ingångspriset.">SL</th>
+        <th class="td-num" data-tip="Take-Profit (TP) – prisnivån där simuleringen automatiskt säljer med vinst. Satt till 2× risken (2:1-förhållande), dvs. om SL är 3% under ingång är TP 6% ovanför. Detta kallas 'risk/reward-ratio'.">TP</th>
+        <th class="td-num" data-tip="Profit/Loss – hur mycket affären gick upp (+) eller ner (-) i procent från ingångspriset till utgångspriset.">P/L</th>
+        <th data-tip="Antal handelsdagar positionen hölls öppen (börsen är stängd på helger och helgdagar).">Dagar</th>
+        <th data-tip="Orsaken till att affären stängdes: 'Stop-loss' = priset föll till SL-nivån, 'Take-profit' = priset steg till TP-nivån, 'Timeout' = maxinnehavstiden nåddes utan att SL eller TP träffades.">Orsak</th>
+      </tr></thead><tbody>`;
+    for (const t of trades) {
+      const cls  = t.win ? 'pl-pos' : 'pl-neg';
+      const sign = t.pl_pct > 0 ? '+' : '';
+      h += `<tr>
+        <td>${t.entry_date}</td><td>${t.exit_date}</td>
+        <td class="td-num">${t.entry_price}</td>
+        <td class="td-num">${t.exit_price}</td>
+        <td class="td-num" style="color:#c0392b">${t.sl}</td>
+        <td class="td-num" style="color:#27ae60">${t.tp}</td>
+        <td class="td-num"><strong class="${cls}">${sign}${t.pl_pct}%</strong></td>
+        <td>${t.days_held}d</td>
+        <td style="color:var(--muted)">${t.exit_reason}</td>
+      </tr>`;
+    }
+    h += '</tbody></table></div>';
+    return h;
+  }
 })();
 
 // ════════════════════════════════════════════════════════════════
