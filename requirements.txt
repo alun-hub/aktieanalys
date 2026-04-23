@@ -1,5 +1,10 @@
 flask==3.1.2
 yfinance==1.2.0
 pandas==3.0.1
+numpy==2.2.0
 requests==2.31.0
 gunicorn==23.0.0
+vaderSentiment==3.3.2
+pytrends==4.9.2
+APScheduler==3.10.4
+google-generativeai==0.8.3

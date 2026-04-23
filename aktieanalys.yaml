@@ -12,12 +12,29 @@ spec:
       labels:
         app: aktieanalys
     spec:
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 10.43.0.10
+        searches:
+          - aktieanalys.svc.cluster.local
+          - svc.cluster.local
+          - cluster.local
+        options:
+          - name: ndots
+            value: "2"
       containers:
       - name: aktieanalys
-        image: localhost/aktieanalys:latest
+        image: localhost/aktieanalys:v24.0-fullpath-1776970232
         imagePullPolicy: Never
         ports:
         - containerPort: 4000
+        env:
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-api
+              key: GEMINI_API_KEY
         volumeMounts:
         - name: data
           mountPath: /app/data
@@ -43,7 +60,7 @@ metadata:
   name: aktieanalys
 spec:
   rules:
-  - host: aktieanalys.local
+  - host: aktieanalys.192.168.1.176.nip.io
     http:
       paths:
       - path: /

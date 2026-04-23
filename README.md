@@ -100,6 +100,23 @@ podman build -t aktieanalys . && podman run -d --name aktieanalys -p 5000:5000 -
 
 ---
 
+## Deployment (k3s / Kubernetes)
+
+Eftersom projektet körs i ett k3s-kluster med containerd krävs en specifik process för att Kubernetes ska se de lokalt byggda bilderna:
+
+1.  **Bygg bilden:** `podman build -t localhost/aktieanalys:latest -f Containerfile .`
+2.  **Exportera:** `podman save localhost/aktieanalys:latest -o aktieanalys.tar`
+3.  **Importera till k3s:** `sudo k3s ctr -n k8s.io images import aktieanalys.tar` (Viktigt: `-n k8s.io` krävs för att k3s ska hitta bilden).
+4.  **Omstart:** `kubectl rollout restart deployment aktieanalys`
+
+Eller använd det färdiga skriptet:
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+---
+
 ## Teknisk stack
 
 | Komponent | Teknologi |
