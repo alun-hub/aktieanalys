@@ -7,4 +7,4 @@ gunicorn==23.0.0
 vaderSentiment==3.3.2
 pytrends==4.9.2
 APScheduler==3.10.4
-google-generativeai==0.8.3
+google-genai

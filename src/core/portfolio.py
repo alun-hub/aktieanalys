@@ -28,7 +28,9 @@ def update_holdings_days():
     conn.execute("UPDATE holdings SET days_held = days_held + 1")
     conn.commit()
 
-def execute_buy(symbol, price, qty):
+from datetime import datetime
+
+def execute_buy(symbol, price, qty, sl=None):
     conn = get_db()
     p = conn.execute("SELECT * FROM portfolio WHERE id = 1").fetchone()
     cost = price * qty
@@ -38,14 +40,21 @@ def execute_buy(symbol, price, qty):
     if p['cash'] < total_cost:
         return False, f"Otillräckligt saldo."
         
+    final_sl = sl if sl is not None else (price * 0.90)
+    now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    
+    conn.execute("""
+        INSERT INTO holdings (symbol, qty, entry_price, entry_date, stop_loss, days_held, buy_fee) 
+        VALUES (?, ?, ?, ?, ?, 0, ?)
+    """, (symbol, qty, price, now, final_sl, comm))
+    
     conn.execute("UPDATE portfolio SET cash = cash - ? WHERE id = 1", (total_cost,))
-    conn.execute("INSERT INTO holdings (symbol, qty, entry_price, stop_loss, days_held) VALUES (?, ?, ?, ?, 0)", 
-                 (symbol, qty, price, price * 0.90))
     conn.commit()
     return True, f"Köpt {qty} st {symbol}"
 
 def execute_sell(symbol, price, reason):
     conn = get_db()
+    conn.row_factory = sqlite3.Row
     h = conn.execute("SELECT * FROM holdings WHERE symbol = ?", (symbol,)).fetchone()
     if not h: return False, "Innehav hittades inte."
     
@@ -54,10 +63,19 @@ def execute_sell(symbol, price, reason):
     comm = p['comm_val'] if p['comm_type'] == 'fixed' else (val * (p['comm_val']/100))
     net_val = val - comm
     
+    # Beräkna vinst/förlust
+    pl = (price - h['entry_price']) * h['qty'] - (h['buy_fee'] + comm)
+    pl_pct = ((price * h['qty'] - comm) / (h['entry_price'] * h['qty'] + h['buy_fee']) - 1) * 100
+    
+    now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    
+    conn.execute("""
+        INSERT INTO trades (symbol, entry_date, exit_date, entry_price, exit_price, qty, pl, pl_pct, reason) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (h['entry_date'], now, h['entry_price'], price, h['qty'], pl, pl_pct, reason))
+    
     conn.execute("UPDATE portfolio SET cash = cash + ? WHERE id = 1", (net_val,))
     conn.execute("DELETE FROM holdings WHERE symbol = ?", (symbol,))
-    conn.execute("INSERT INTO trades (symbol, entry_price, exit_price, qty, reason) VALUES (?, ?, ?, ?, ?)",
-                 (symbol, h['entry_price'], price, h['qty'], reason))
     conn.commit()
     return True, f"Sålt {symbol}"
 

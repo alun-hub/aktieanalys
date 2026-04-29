@@ -1,246 +1,922 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Trading Portal v22.2</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8;
-            --accent: #3b82f6; --green: #22c55e; --red: #ef4444; --border: #334155; --purple: #a78bfa;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; padding-bottom: 2rem; }
-        .app-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
-        @media (min-width: 768px) { .app-container { padding: 2rem; } }
-        header { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
-        @media (min-width: 768px) { header { flex-direction: row; justify-content: space-between; align-items: center; } }
-        h1 { font-size: 1.1rem; color: var(--accent); font-weight: 800; }
-        .btn-group { display: flex; gap: 0.4rem; }
-        .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); overflow-x: auto; }
-        .tab-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0.75rem 1rem; font-weight: 600; font-size: 0.85rem; white-space: nowrap; }
-        .tab-btn.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AKTIEANALYS // TERMINAL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Sans+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:    #04040a;
+  --bg2:   #09090f;
+  --bg3:   #0e0e18;
+  --bg4:   #131320;
+  --am:    #f59e0b;
+  --am2:   #d97706;
+  --am-d:  rgba(245,158,11,0.07);
+  --am-l:  rgba(245,158,11,0.18);
+  --am-ll: rgba(245,158,11,0.04);
+  --grn:   #4ade80;
+  --red:   #f87171;
+  --txt:   #e2e2f0;
+  --dim:   #8888a8;
+  --dim2:  #3a3a52;
+  --brt:   #f8f8ff;
+  --mono:  'IBM Plex Mono', 'Courier New', monospace;
+  --cond:  'IBM Plex Sans Condensed', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--dim2); }
 
-        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 2rem; }
-        @media (min-width: 768px) { .stats-grid { grid-template-columns: repeat(5, 1fr); gap: 1rem; } }
-        .stat-card { background: var(--card); padding: 1rem; border-radius: 12px; border: 1px solid var(--border); cursor: pointer; }
-        .stat-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
-        .stat-value { font-size: 0.95rem; font-weight: 800; margin-top: 0.25rem; white-space: nowrap; }
+body {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--bg);
+  color: var(--txt);
+  min-height: 100vh;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(245,158,11,0.006) 2px, rgba(245,158,11,0.006) 4px);
+  -webkit-font-smoothing: antialiased;
+}
 
-        .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 2rem; }
-        @media (min-width: 1024px) { .dashboard-grid { grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; } }
-        .panel { background: var(--card); border-radius: 16px; padding: 1.25rem; border: 1px solid var(--border); }
-        .panel-header { display: flex; align-items: center; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 0.85rem; text-transform: uppercase; }
+/* ── HEADER ─────────────────────────────────────────────── */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--am-l);
+  padding: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 44px;
+  padding: 0 1rem;
+}
+.logo {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.12em;
+  color: var(--am);
+  text-transform: uppercase;
+  margin-right: 1rem;
+  flex-shrink: 0;
+}
+.logo span { color: var(--brt); }
+.header-sep { width: 1px; height: 24px; background: var(--dim2); margin: 0 1rem; flex-shrink: 0; }
+#sys-clock {
+  font-size: 0.72rem;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.cursor {
+  display: inline-block; width: 7px; height: 11px;
+  background: var(--am); vertical-align: middle;
+  animation: blink 1.1s step-end infinite;
+  margin-left: 4px;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.header-flex { flex: 1; }
+.header-actions { display: flex; gap: 0.5rem; }
 
-        .order-item { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 0.75rem; border: 1px solid rgba(255,255,255,0.05); }
-        .btn-action { padding: 0.6rem 1rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 700; font-size: 0.8rem; text-align: center; }
-        .btn-buy { background: var(--green); color: white; width: 100%; margin-top: 0.5rem; }
-        .btn-sell { background: var(--red); color: white; width: 100%; margin-top: 0.5rem; }
-        .btn-primary { background: var(--accent); color: white; padding: 1.1rem; border-radius: 14px; border: none; cursor: pointer; width: 100%; font-weight: 800; text-transform: uppercase; }
+.btn {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 1px solid transparent;
+  padding: 0.45rem 1rem;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+.btn-am {
+  background: var(--am);
+  color: #050508;
+  border-color: var(--am);
+}
+.btn-am:hover { background: var(--brt); border-color: var(--brt); }
+.btn-ghost {
+  background: transparent;
+  color: var(--dim);
+  border-color: var(--dim2);
+}
+.btn-ghost:hover { border-color: var(--am); color: var(--am); }
 
-        .table-responsive { width: 100%; overflow-x: auto; border-radius: 12px; }
-        table { width: 100%; border-collapse: collapse; min-width: 800px; }
-        th { text-align: left; padding: 1rem; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; background: rgba(0,0,0,0.1); }
-        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+/* ── TABS ────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  border-top: 1px solid var(--dim2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--dim);
+  cursor: pointer;
+  padding: 0.45rem 1.25rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.tab-btn:hover { color: var(--txt); }
+.tab-btn.active { color: var(--am); border-bottom-color: var(--am); }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
 
-        /* MODAL STYLING FIX */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); justify-content: center; align-items: center; z-index: 10000; padding: 1rem; }
-        .modal-content { background: var(--card); padding: 2rem; border-radius: 24px; width: 100%; max-width: 480px; border: 1px solid var(--border); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); max-height: 95vh; overflow-y: auto; }
-        
-        .avanza-step { background: var(--bg); padding: 1.25rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid var(--border); }
-        .avanza-step-header { font-size: 0.65rem; color: var(--accent); font-weight: 800; letter-spacing: 0.1em; margin-bottom: 0.75rem; text-transform: uppercase; display: flex; align-items: center; gap: 0.5rem; }
-        .avanza-row { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 0.5rem 0; }
-        .avanza-row label { color: var(--muted); font-size: 0.75rem; }
-        .avanza-row span { font-weight: 700; color: var(--text); font-size: 0.85rem; }
+/* ── WRAP ────────────────────────────────────────────────── */
+.wrap { max-width: 1200px; margin: 0 auto; padding: 1rem 1rem 4rem; }
 
-        .form-group { margin-bottom: 1.5rem; }
-        .form-group label { display: block; margin-bottom: 0.4rem; color: var(--muted); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; text-align: center; }
-        .form-group input, .form-group select { width: 100%; padding: 0.85rem; border-radius: 10px; border: 1.5px solid var(--accent); background: var(--bg); color: white; font-size: 1.1rem; font-weight: 800; text-align: center; outline: none; }
-        
-        .badge-positive { color: var(--green); font-weight: 800; }
-        .badge-negative { color: var(--red); font-weight: 800; }
-        .loading-spinner { animation: spin 1s linear infinite; display: inline-block; }
-        @keyframes spin { from {transform: rotate(0deg);} to {transform: rotate(360deg);} }
-    </style>
+/* ── STATS STRIP ─────────────────────────────────────────── */
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--dim2);
+  border: 1px solid var(--dim2);
+  margin-bottom: 1rem;
+}
+@media(min-width:600px) { .stats-strip { grid-template-columns: repeat(5, 1fr); } }
+.stat-cell {
+  background: var(--bg2);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.stat-cell:hover { background: var(--bg3); }
+.stat-cell.clickable::after {
+  content: '✎';
+  position: absolute; top: 0.5rem; right: 0.6rem;
+  font-size: 0.6rem; color: var(--dim);
+}
+.stat-lbl {
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  color: var(--dim);
+  text-transform: uppercase;
+  margin-bottom: 0.3rem;
+}
+.stat-val {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pos { color: var(--grn); }
+.neg { color: var(--red); }
+
+/* ── SECTION HEADER ──────────────────────────────────────── */
+.sec-hdr {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--am);
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--am-d);
+}
+.sec-hdr::before { content: '▸ '; }
+
+/* ── MAIN GRID ───────────────────────────────────────────── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+@media(min-width:900px) {
+  .main-grid { grid-template-columns: 1fr 1fr 0.8fr; }
+}
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--dim2);
+  padding: 1rem;
+}
+.panel-am { border-top: 2px solid var(--am); }
+.panel-grn { border-top: 2px solid var(--grn); }
+.panel-red { border-top: 2px solid var(--red); }
+
+/* AI Panel */
+#ai-thought {
+  font-style: italic;
+  color: var(--txt);
+  line-height: 1.7;
+  font-size: 0.82rem;
+}
+
+/* ── ORDER CARDS ─────────────────────────────────────────── */
+.order-card {
+  border: 1px solid var(--am-l);
+  background: var(--am-ll);
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.order-card:last-child { margin-bottom: 0; }
+.sell-card { border-color: rgba(248,113,113,0.2); background: rgba(248,113,113,0.04); }
+.order-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.3rem;
+}
+.order-sym {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--brt);
+  letter-spacing: 0.05em;
+}
+.order-score {
+  font-size: 0.7rem;
+  color: var(--am);
+  opacity: 0.6;
+}
+.sell-card .order-score { color: var(--red); }
+.order-reason { font-size: 0.72rem; color: var(--dim); margin-bottom: 0.5rem; }
+.order-meta { font-size: 0.72rem; color: var(--txt); margin-bottom: 0.65rem; }
+.order-meta strong { color: var(--am); }
+.empty { font-style: italic; color: var(--dim); font-size: 0.82rem; }
+
+.btn-order {
+  width: 100%; padding: 0.55rem;
+  cursor: pointer; border: none;
+  font-family: var(--mono); font-size: 0.65rem;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  font-weight: 500; transition: opacity 0.15s;
+}
+.btn-order:hover { opacity: 0.85; }
+.btn-buy-o { background: var(--am); color: #050508; }
+.btn-sell-o { background: var(--red); color: #fff; }
+
+/* ── HOLDINGS TABLE ──────────────────────────────────────── */
+.panel-full {
+  background: var(--bg2);
+  border: 1px solid var(--dim2);
+  border-top: 2px solid var(--am);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 680px; }
+thead th {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--dim2);
+  white-space: nowrap;
+}
+thead th.r { text-align: right; }
+tbody td {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+tbody td.r { text-align: right; }
+tbody tr:hover td { background: var(--bg3); }
+.td-sym { font-weight: 600; font-size: 0.88rem; color: var(--brt); letter-spacing: 0.04em; }
+.tbl-acts { display: flex; gap: 0.35rem; justify-content: flex-end; }
+.btn-sm {
+  padding: 0.3rem 0.6rem;
+  cursor: pointer; border: 1px solid var(--dim2);
+  font-family: var(--mono); font-size: 0.58rem;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  transition: all 0.15s; background: transparent;
+}
+.btn-edit { color: var(--dim); }
+.btn-edit:hover { border-color: var(--am); color: var(--am); }
+.btn-sell-s { color: var(--red); border-color: rgba(248,113,113,0.25); }
+.btn-sell-s:hover { background: var(--red); color: #fff; }
+
+/* ── BACKTEST ────────────────────────────────────────────── */
+.bt-wrap { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+@media(min-width:860px) { .bt-wrap { grid-template-columns: 340px 1fr; } }
+
+.form-field { margin-bottom: 0.85rem; }
+.form-lbl {
+  display: block; margin-bottom: 0.3rem;
+  font-size: 0.6rem; letter-spacing: 0.16em; color: var(--dim); text-transform: uppercase;
+}
+.form-ctrl {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--dim2);
+  color: var(--txt);
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  padding: 0.65rem 0.85rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.form-ctrl:focus { border-color: var(--am); }
+.form-ctrl option { background: var(--bg); }
+.btn-full { width: 100%; margin-top: 0.25rem; padding: 0.7rem; }
+
+.bt-result { display: none; margin-top: 1rem; }
+.bt-result.show { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--dim2); border: 1px solid var(--dim2); }
+.bt-cell { background: var(--bg3); padding: 0.9rem 1rem; }
+.bt-lbl { font-size: 0.58rem; letter-spacing: 0.15em; color: var(--dim); text-transform: uppercase; margin-bottom: 0.35rem; }
+.bt-v { font-size: 1.35rem; font-weight: 600; }
+
+/* Optimizer table */
+.opt-tbl { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 0.75rem; }
+.opt-tbl th {
+  font-size: 0.58rem; letter-spacing: 0.14em; color: var(--dim);
+  text-transform: uppercase; text-align: left; padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--dim2);
+}
+.opt-tbl td { padding: 0.55rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.025); font-variant-numeric: tabular-nums; }
+.opt-tbl tr:hover td { background: var(--bg3); }
+.opt-tbl tr:first-child td { background: rgba(245,158,11,0.06); }
+.opt-rank { color: var(--am); font-weight: 600; }
+
+/* ── MODAL ───────────────────────────────────────────────── */
+.modal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(2,2,6,0.88); z-index: 1000;
+  justify-content: center; align-items: center;
+  padding: 1rem; backdrop-filter: blur(3px);
+}
+.modal.open { display: flex; }
+.modal-box {
+  background: var(--bg2);
+  border: 1px solid var(--am-l);
+  width: 100%; max-width: 440px;
+  max-height: 92vh; overflow-y: auto;
+}
+.modal-hdr {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--dim2);
+  background: var(--bg3);
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.modal-tag {
+  font-size: 0.58rem; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase;
+}
+.modal-title { font-size: 0.95rem; font-weight: 600; color: var(--brt); }
+.modal-body { padding: 1.25rem; }
+
+.step-blk {
+  background: var(--bg);
+  border: 1px solid var(--dim2);
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+.step-tag {
+  font-size: 0.58rem; letter-spacing: 0.18em; color: var(--am);
+  text-transform: uppercase; margin-bottom: 0.65rem;
+}
+.step-tag.red { color: var(--red); }
+.step-row {
+  display: flex; justify-content: space-between;
+  padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+  font-size: 0.8rem;
+}
+.step-row:last-child { border-bottom: none; }
+.step-row label { color: var(--dim); }
+.step-row span { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.m-group { margin-bottom: 1rem; }
+.m-lbl { display: block; margin-bottom: 0.3rem; font-size: 0.6rem; letter-spacing: 0.16em; color: var(--dim); text-transform: uppercase; }
+.m-input {
+  width: 100%; padding: 0.8rem 1rem;
+  background: var(--bg); border: 1px solid var(--dim2);
+  color: var(--brt); font-family: var(--mono); font-size: 1.15rem;
+  font-weight: 600; text-align: center; outline: none; transition: border-color 0.15s;
+}
+.m-input:focus { border-color: var(--am); }
+.btn-cancel {
+  width: 100%; padding: 0.6rem;
+  cursor: pointer; border: none; background: transparent;
+  color: var(--dim); font-family: var(--mono); font-size: 0.65rem;
+  letter-spacing: 0.14em; text-transform: uppercase; margin-top: 0.5rem;
+}
+.btn-cancel:hover { color: var(--txt); }
+
+/* Staggered reveal */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stats-strip { animation: fadeUp 0.35s ease both; }
+.main-grid   { animation: fadeUp 0.35s 0.08s ease both; }
+.panel-full  { animation: fadeUp 0.35s 0.16s ease both; }
+</style>
 </head>
 <body>
-    <div class="app-container">
-        <header>
-            <h1><i class="fas fa-chart-line"></i> PORTAL v24.0 — GEMINI 3.1 PREVIEW</h1>
 
-            <div class="btn-group">
-                <button class="btn-action" style="background:var(--accent); color:white; width:auto;" onclick="window.scanMarket()">SKANNA</button>
-                <button class="btn-action" style="background:var(--card); color:var(--muted); width:auto;" onclick="window.syncData()">SYNKA</button>
-            </div>
-        </header>
+<div class="header">
+  <div class="header-top">
+    <div class="logo">AKTIE<span>ANALYS</span></div>
+    <div class="header-sep"></div>
+    <div id="sys-clock">——:——:——<span class="cursor"></span></div>
+    <div class="header-flex"></div>
+    <div class="header-actions">
+      <button class="btn btn-am" onclick="window.scanMarket()">▶ SKANNA</button>
+      <button class="btn btn-ghost" onclick="window.syncData()">⟳ SYNKA</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-btn-dashboard" onclick="showTab('dashboard')">// ÖVERSIKT</button>
+    <button class="tab-btn" id="tab-btn-backtest" onclick="showTab('backtest')">// BACKTEST</button>
+  </div>
+</div>
 
-        <div class="tabs">
-            <button class="tab-btn active" id="tab-btn-dashboard" onclick="window.showTab('dashboard')">ÖVERSIKT</button>
-            <button class="tab-btn" id="tab-btn-backtest" onclick="window.showTab('backtest')">BACKTEST</button>
-            <button class="tab-btn" id="tab-btn-readme" onclick="window.showTab('readme')">README</button>
-        </div>
+<div class="wrap">
 
-        <div id="tab-dashboard" class="tab-content active">
-            <div class="stats-grid">
-                <div class="stat-card" onclick="window.openBudgetModal()"><div class="stat-label">CASH <i class="fas fa-edit"></i></div><div id="stat-cash" class="stat-value">0 kr</div></div>
-                <div class="stat-card"><div class="stat-label">INNEHAV</div><div id="stat-holdings" class="stat-value">0 kr</div></div>
-                <div class="stat-card"><div class="stat-label">TOTALT</div><div id="stat-total" class="stat-value">0 kr</div></div>
-                <div class="stat-card"><div class="stat-label">START</div><div id="stat-initial" class="stat-value">0 kr</div></div>
-                <div class="stat-card" style="border-color: var(--accent);"><div class="stat-label">V/F TOTALT</div><div id="stat-pl" class="stat-value">0 kr</div></div>
-            </div>
-            <div class="dashboard-grid">
-                <div class="panel" style="border-left: 4px solid var(--purple);"><div class="panel-header">AI ANALYS</div><div id="ai-thought" style="font-size:0.8rem; color:var(--muted); font-style:italic;">Laddar...</div></div>
-                <div class="panel" style="border-left: 4px solid var(--green);"><div class="panel-header">KÖP IDAG</div><div id="buy-list"></div></div>
-                <div class="panel" style="border-left: 4px solid var(--red);"><div class="panel-header">SÄLJ IDAG</div><div id="sell-list"></div></div>
-            </div>
-            <div class="panel">
-                <div class="panel-header">AKTUELL PORTFÖLJ</div>
-                <div class="table-responsive"><table><thead><tr><th>Papper</th><th>Antal</th><th>Inköp</th><th>Senaste</th><th>Värde</th><th>Stop loss</th><th>V/F %</th><th>Åtgärd</th></tr></thead><tbody id="holdings-table"></tbody></table></div>
-            </div>
-        </div>
+  <!-- STATS STRIP -->
+  <div class="stats-strip">
+    <div class="stat-cell clickable" onclick="window.openBudgetModal()">
+      <div class="stat-lbl">LIKVIDITET</div>
+      <div id="stat-cash" class="stat-val">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-lbl">INNEHAV</div>
+      <div id="stat-holdings" class="stat-val">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-lbl">TOTALVÄRDE</div>
+      <div id="stat-total" class="stat-val">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-lbl">STARTKAPITAL</div>
+      <div id="stat-initial" class="stat-val">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-lbl">AVKASTNING</div>
+      <div id="stat-pl" class="stat-val">—</div>
+    </div>
+  </div>
 
-        <div id="tab-backtest" class="tab-content">
-            <div class="panel">
-                <div class="panel-header">HISTORISK SIMULERING</div>
-                <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.5rem;">
-                    <div class="form-group"><label>Marknad</label><select id="bt-market"><option value="omxs">Stockholm</option><option value="nasdaq">USA</option></select></div>
-                    <div class="form-group"><label>Antal år</label><input type="number" id="bt-years" value="5"></div>
-                    <button class="btn-primary" onclick="window.runBacktest()">STARTA SIMULERING</button>
-                </div>
-                <div id="bt-results"></div>
-            </div>
-        </div>
+  <!-- DASHBOARD TAB -->
+  <div id="tab-dashboard" class="tab-pane active">
 
-        <div id="tab-readme" class="tab-content">
-            <div class="panel">
-                <h2>Ekonomisk Modell & Analys</h2>
-                <p>Se README-fliken för fullständig dokumentation av systemet.</p>
-            </div>
-        </div>
+    <div class="main-grid">
+      <div class="panel panel-am">
+        <div class="sec-hdr">AI ANALYS</div>
+        <div id="ai-thought" class="empty">Laddar analys…</div>
+      </div>
+      <div class="panel panel-grn">
+        <div class="sec-hdr">KÖP IDAG</div>
+        <div id="buy-list"><p class="empty">Skanna marknaden för signaler.</p></div>
+      </div>
+      <div class="panel panel-red">
+        <div class="sec-hdr">SÄLJ IDAG</div>
+        <div id="sell-list"><p class="empty">Inga säljsignaler.</p></div>
+      </div>
     </div>
 
-    <!-- MODALS -->
-    <div id="order-modal" class="modal"><div class="modal-content"><h2 id="order-title" style="text-align:center; margin-bottom:1.25rem;">ORDER</h2><div class="avanza-step"><div class="avanza-step-header"><i class="fas fa-1"></i> STEG 1: KÖP HOS AVANZA</div><div class="avanza-row"><label>Ordertyp</label><span id="ot-type">-</span></div><div class="avanza-row"><label>Antal</label><span id="ot-qty" style="color:var(--green);">-</span></div><div class="avanza-row"><label>Trigger</label><span id="ot-trigger">-</span></div><div class="avanza-row"><label>Limit</label><span id="ot-limit">-</span></div><div class="avanza-row"><label>Giltighet</label><span id="ot-validity">I dag</span></div></div><div id="step-sl" class="avanza-step" style="border-color:var(--red); background:rgba(239, 68, 68, 0.05);"><div class="avanza-step-header" style="color:var(--red);"><i class="fas fa-shield-alt"></i> STEG 2: STOP LOSS DIREKT</div><div class="avanza-row"><label>Triggerkurs</label><span id="sl-trigger" style="color:var(--red);">-</span></div><div class="avanza-row"><label>Limitpris</label><span id="sl-limit">-</span></div></div><div class="form-group"><label>VILKEN KURS FICK DU?</label><input type="number" id="final-price" step="0.01"></div><button class="btn-primary" onclick="window.confirmOrder()">GENOMFÖR I PORTALEN</button><button class="btn-action" style="width:100%; margin-top:1rem; background:none; color:var(--muted);" onclick="window.closeModals()">AVBRYT</button></div></div>
-    <div id="budget-modal" class="modal"><div class="modal-content"><h2 style="text-align:center; margin-bottom: 1.5rem;">INSTÄLLNINGAR</h2><div class="form-group"><label>Likviditet (Cash)</label><input type="number" id="input-cash"></div><div class="form-group"><label>Startkapital</label><input type="number" id="input-initial"></div><div class="form-group"><label>Courtage Värde</label><input type="number" id="input-comm-val" step="0.01"></div><button class="btn-primary" onclick="window.saveBudget()">SPARA ÄNDRINGAR</button><button class="btn-action" style="width:100%; margin-top: 1rem; background: none; color: var(--muted);" onclick="window.closeModals()">AVBRYT</button></div></div>
-    <div id="edit-modal" class="modal"><div class="modal-content"><h2 id="edit-title" style="text-align:center; margin-bottom: 1.5rem;">EDITERA INNEHAV</h2><input type="hidden" id="edit-symbol"><div class="form-group"><label>Antal</label><input type="number" id="edit-qty"></div><div class="form-group"><label>Inköpspris</label><input type="number" id="edit-entry" step="0.01"></div><div class="form-group"><label>Stop loss</label><input type="number" id="edit-sl" step="0.01"></div><button class="btn-primary" onclick="window.saveEdit()">SPARA</button><button class="btn-action" style="width:100%; margin-top:1rem; background:none; color:var(--muted);" onclick="window.closeModals()">AVBRYT</button></div></div>
+    <div class="panel-full">
+      <div class="sec-hdr">AKTUELL PORTFÖLJ</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>PAPPER</th>
+            <th class="r">ANTAL</th>
+            <th class="r">INKÖP</th>
+            <th class="r">SENASTE</th>
+            <th class="r">VÄRDE</th>
+            <th class="r">STOP LOSS</th>
+            <th class="r">V/F %</th>
+            <th class="r">ÅTGÄRD</th>
+          </tr></thead>
+          <tbody id="holdings-table">
+            <tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;font-style:italic;">Laddar…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-    <script>
-        window.currentOrders = { buy: [], sell: [] };
-        window.activeOrder = null;
+  </div>
 
-        const fmt = (val, d=0) => (val !== null && val !== undefined) ? Number(val).toLocaleString('sv-SE', {minimumFractionDigits: d, maximumFractionDigits: d}) : '-';
-        const num = (val) => (val !== null && val !== undefined) ? Number(val) : 0;
+  <!-- BACKTEST TAB -->
+  <div id="tab-backtest" class="tab-pane">
+    <div class="bt-wrap">
 
-        window.showTab = function(tabId) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('tab-' + tabId).classList.add('active');
-            document.getElementById('tab-btn-' + tabId).classList.add('active');
-        };
+      <div class="panel panel-am" style="align-self:start;">
+        <div class="sec-hdr">HISTORISK SIMULERING</div>
+        <div class="form-field">
+          <label class="form-lbl">MARKNAD</label>
+          <select id="bt-market" class="form-ctrl">
+            <option value="omxs">Stockholm (OMXS)</option>
+            <option value="nasdaq">USA (Nasdaq)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-lbl">ANTAL ÅR</label>
+          <input type="number" id="bt-years" class="form-ctrl" value="5">
+        </div>
+        <button class="btn btn-am btn-full" onclick="window.runBacktest()">▶ STARTA SIMULERING</button>
+        <div class="bt-result" id="bt-results">
+          <div class="bt-cell">
+            <div class="bt-lbl">AVKASTNING</div>
+            <div id="bt-return" class="bt-v">—</div>
+          </div>
+          <div class="bt-cell">
+            <div class="bt-lbl">WIN RATE</div>
+            <div id="bt-winrate" class="bt-v">—</div>
+          </div>
+          <div class="bt-cell">
+            <div class="bt-lbl">AFFÄRER</div>
+            <div id="bt-trades" class="bt-v">—</div>
+          </div>
+        </div>
+      </div>
 
-        window.refreshPortal = async function() {
-            try {
-                const pRes = await fetch('/api/portal/portfolio');
-                const p = await pRes.json();
-                document.getElementById('stat-cash').innerText = fmt(p.cash) + ' kr';
-                document.getElementById('stat-holdings').innerText = fmt(p.holdings_value) + ' kr';
-                document.getElementById('stat-total').innerText = fmt(p.total_value) + ' kr';
-                document.getElementById('stat-initial').innerText = fmt(p.initial) + ' kr';
+      <div class="panel panel-am" style="align-self:start;">
+        <div class="sec-hdr">STRATEGIOPTIMERING — OMX</div>
+        <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
+          Testar 10 konfigurationer mot historisk data. Tar 1–3 minuter.
+        </p>
+        <div class="form-field" style="max-width:200px;">
+          <label class="form-lbl">ANTAL ÅR</label>
+          <input type="number" id="opt-years" class="form-ctrl" value="5">
+        </div>
+        <button class="btn btn-am" id="opt-btn" onclick="window.runOptimize()" style="padding:0.7rem 1.5rem;">
+          ▶ OPTIMERA
+        </button>
+        <div id="opt-results" style="display:none;margin-top:1rem;overflow-x:auto;">
+          <table class="opt-tbl">
+            <thead><tr>
+              <th>#</th><th>STRATEGI</th><th>WIN%</th>
+              <th>RET%</th><th>AFFÄRER</th><th>UTBR</th><th>ATR</th><th>DGMAX</th>
+            </tr></thead>
+            <tbody id="opt-table-body"></tbody>
+          </table>
+        </div>
+      </div>
 
-                const pl_val = p.total_value - p.initial;
-                const pl_pct = ((p.total_value / p.initial) - 1) * 100;
-                const pl_elem = document.getElementById('stat-pl');
-                pl_elem.innerText = fmt(pl_val) + ' kr (' + fmt(pl_pct, 2) + '%)';
-                pl_elem.className = 'stat-value ' + (pl_val >= 0 ? 'badge-positive' : 'badge-negative');
+    </div>
+  </div>
 
-                const oRes = await fetch('/api/portal/orders');
-                window.currentOrders = await oRes.json();
-                const bList = document.getElementById('buy-list');
-                const sList = document.getElementById('sell-list');
-                bList.innerHTML = window.currentOrders.buy.map(o => `<div class="order-item"><div class="order-info"><div><strong>${o.symbol}</strong> <span class="tech-pill" style="background:rgba(167, 139, 250, 0.1); color:var(--purple);">AI Score: ${o.ai_score || '-'}%</span><br><small>${o.reason}</small></div><div style="text-align: right;"><span style="color:var(--green); font-weight:800;">${fmt(o.suggested_amount)} kr</span><br><small>${o.suggested_qty || 0} st</small></div></div><button class="btn-action btn-buy" onclick="window.openOrderModal('buy', '${o.symbol}')">KÖP ENLIGT RECEPT</button></div>`).join('') || 'Inga köp.';
-                sList.innerHTML = window.currentOrders.sell.map(o => `<div class="order-item"><div class="order-info"><strong>${o.symbol}</strong><br><small>${o.reason}</small></div><button class="btn-action btn-sell" onclick="window.openOrderModal('sell', '${o.symbol}')">SÄLJ ENLIGT RECEPT</button></div>`).join('') || 'Inga sälj.';
+</div>
 
-                const hRes = await fetch('/api/portal/holdings');
-                const hData = await hRes.json();
-                document.getElementById('holdings-table').innerHTML = hData.map(h => `<tr><td><strong>${h.symbol}</strong></td><td>${fmt(h.qty)}</td><td>${fmt(h.entry, 2)}</td><td>${fmt(h.current, 2)}</td><td><strong>${fmt(h.market_value)} kr</strong></td><td>${fmt(h.sl, 2)}</td><td class="${h.pl_pct >= 0 ? 'badge-positive' : 'badge-negative'}">${h.pl_pct}%</td><td><div style="display:flex; gap:0.3rem;"><button class="btn-action" style="background:var(--border); width:auto;" onclick="window.openEditModal('${h.symbol}', ${h.qty}, ${h.entry}, ${h.sl})"><i class="fas fa-pen"></i></button><button class="btn-action btn-sell" style="width:auto;" onclick="window.openManualSell('${h.symbol}', ${h.current})">SÄLJ</button></div></td></tr>`).join('');
+<!-- MODAL: ORDER -->
+<div id="order-modal" class="modal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-tag">ORDERLÄGGNING</div>
+        <div id="order-title" class="modal-title">—</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="step-blk">
+        <div class="step-tag">// STEG 1 — AVANZA</div>
+        <div class="step-row"><label>ORDERTYP</label><span id="ot-type">—</span></div>
+        <div class="step-row"><label>ANTAL</label><span id="ot-qty">—</span></div>
+        <div class="step-row"><label>TRIGGER</label><span id="ot-trigger">—</span></div>
+        <div class="step-row"><label>LIMIT</label><span id="ot-limit">—</span></div>
+        <div class="step-row"><label>GILTIGHET</label><span>I DAG</span></div>
+      </div>
+      <div id="step-sl" class="step-blk" style="border-color:rgba(248,113,113,0.2);">
+        <div class="step-tag red">// STEG 2 — STOP LOSS</div>
+        <div class="step-row"><label>TRIGGER</label><span id="sl-trigger" style="color:var(--red)">—</span></div>
+        <div class="step-row"><label>LIMIT</label><span id="sl-limit">—</span></div>
+      </div>
+      <div class="m-group">
+        <label class="m-lbl">VILKEN KURS FICK DU?</label>
+        <input type="number" id="final-price" class="m-input" step="0.01">
+      </div>
+      <button class="btn btn-am btn-full" onclick="window.confirmOrder()">▶ GENOMFÖR I PORTALEN</button>
+      <button class="btn-cancel" onclick="closeModals()">AVBRYT</button>
+    </div>
+  </div>
+</div>
 
-                const tRes = await fetch('/api/portal/thought');
-                const tData = await tRes.json();
-                document.getElementById('ai-thought').innerText = tData.thought || 'Ingen analys.';
-            } catch(e) { console.error("Refresh error", e); }
-        };
+<!-- MODAL: BUDGET -->
+<div id="budget-modal" class="modal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-tag">KONFIGURATION</div>
+        <div class="modal-title">PORTFÖLJINSTÄLLNINGAR</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="m-group"><label class="m-lbl">LIKVIDITET (CASH)</label><input type="number" id="input-cash" class="m-input"></div>
+      <div class="m-group"><label class="m-lbl">STARTKAPITAL</label><input type="number" id="input-initial" class="m-input"></div>
+      <div class="m-group"><label class="m-lbl">COURTAGE</label><input type="number" id="input-comm-val" class="m-input" step="0.01"></div>
+      <button class="btn btn-am btn-full" onclick="window.saveBudget()">▶ SPARA</button>
+      <button class="btn-cancel" onclick="closeModals()">AVBRYT</button>
+    </div>
+  </div>
+</div>
 
-        window.openOrderModal = function(action, symbol) {
-            const list = action === 'buy' ? window.currentOrders.buy : window.currentOrders.sell;
-            const order = list.find(o => o.symbol === symbol);
-            if(!order) return;
-            window.activeOrder = { action, symbol };
-            document.getElementById('order-title').innerText = action.toUpperCase() + ' ' + symbol;
-            document.getElementById('order-title').style.color = action === 'buy' ? 'var(--green)' : 'var(--red)';
-            const r = order.recipe || { type: 'Standard', trigger: 0, limit: order.price };
-            document.getElementById('ot-type').innerText = r.type;
-            document.getElementById('ot-qty').innerText = order.suggested_qty ? order.suggested_qty.toLocaleString() + ' st' : '-';
-            document.getElementById('ot-trigger').innerText = r.trigger ? fmt(r.trigger, 2) + ' kr' : '-';
-            document.getElementById('ot-limit').innerText = typeof r.limit === 'number' ? fmt(r.limit, 2) + ' kr' : r.limit;
-            document.getElementById('final-price').value = num(order.price).toFixed(2);
-            const slBox = document.getElementById('step-sl');
-            if (action === 'buy' && order.sl) {
-                slBox.style.display = 'block';
-                document.getElementById('sl-trigger').innerText = fmt(order.sl, 2) + ' kr';
-                document.getElementById('sl-limit').innerText = fmt(order.sl * 0.995, 2) + ' kr';
-            } else { slBox.style.display = 'none'; }
-            document.getElementById('order-modal').style.display = 'flex';
-        };
+<!-- MODAL: EDIT -->
+<div id="edit-modal" class="modal">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-tag">REDIGERA POSITION</div>
+        <div id="edit-title" class="modal-title">—</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-symbol">
+      <div class="m-group"><label class="m-lbl">ANTAL</label><input type="number" id="edit-qty" class="m-input"></div>
+      <div class="m-group"><label class="m-lbl">INKÖPSPRIS</label><input type="number" id="edit-entry" class="m-input" step="0.01"></div>
+      <div class="m-group"><label class="m-lbl">STOP LOSS</label><input type="number" id="edit-sl" class="m-input" step="0.01"></div>
+      <button class="btn btn-am btn-full" onclick="window.saveEdit()">▶ SPARA</button>
+      <button class="btn-cancel" onclick="closeModals()">AVBRYT</button>
+    </div>
+  </div>
+</div>
 
-        window.openManualSell = function(symbol, price) {
-            window.activeOrder = { action: 'sell', symbol };
-            document.getElementById('order-title').innerText = 'SÄLJ ' + symbol;
-            document.getElementById('order-title').style.color = 'var(--red)';
-            document.getElementById('final-price').value = num(price).toFixed(2);
-            document.getElementById('ot-type').innerText = 'Manuell';
-            document.getElementById('step-sl').style.display = 'none';
-            document.getElementById('order-modal').style.display = 'flex';
-        };
+<script>
+// Clock
+(function tick() {
+  const d = new Date();
+  const p = n => String(n).padStart(2,'0');
+  document.getElementById('sys-clock').innerHTML =
+    `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}<span class="cursor"></span>`;
+  setTimeout(tick, 1000);
+})();
 
-        window.confirmOrder = async function() {
-            const price = parseFloat(document.getElementById('final-price').value);
-            await fetch('/api/portal/execute', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: window.activeOrder.action, symbol: window.activeOrder.symbol, price }) });
-            window.closeModals(); window.refreshPortal();
-        };
+window.currentOrders = { buy: [], sell: [] };
+window.activeOrder   = null;
 
-        window.runBacktest = async function() {
-            const div = document.getElementById('bt-results'); div.innerHTML = 'Beräknar...';
-            const res = await fetch('/api/portal/backtest', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ market: document.getElementById('bt-market').value, years: document.getElementById('bt-years').value }) });
-            const d = await res.json();
-            div.innerHTML = `<div class="stat-card" style="margin-top:1rem; border-color:var(--accent);"><div class="stat-label">TOTAL RESULTAT</div><div class="stat-value ${d.return>=0?'badge-positive':'badge-negative'}">${d.return}%</div><div style="font-size:0.8rem; margin-top:0.5rem; color:var(--muted);">Win Rate: ${d.win_rate}% | Affärer: ${d.trades} st</div></div>`;
-        };
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s ?? '—');
+  return d.innerHTML;
+}
+const fmt = (v, dec=0) => v != null
+  ? Number(v).toLocaleString('sv-SE', {minimumFractionDigits:dec, maximumFractionDigits:dec})
+  : '—';
+const num = v => v != null ? Number(v) : 0;
 
-        window.openBudgetModal = async function() {
-            const res = await fetch('/api/portal/portfolio'); const data = await res.json();
-            document.getElementById('input-cash').value = data.cash; document.getElementById('input-initial').value = data.initial;
-            document.getElementById('input-comm-val').value = data.comm_val; document.getElementById('budget-modal').style.display = 'flex';
-        };
-        window.openEditModal = function(symbol, qty, entry, sl) {
-            document.getElementById('edit-symbol').value = symbol; document.getElementById('edit-qty').value = qty;
-            document.getElementById('edit-entry').value = entry; document.getElementById('edit-sl').value = sl;
-            document.getElementById('edit-modal').style.display = 'flex';
-        };
-        window.closeModals = function() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); };
-        window.saveBudget = async function() {
-            await fetch('/api/portal/portfolio/update', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ cash: document.getElementById('input-cash').value, initial: document.getElementById('input-initial').value, comm_val: document.getElementById('input-comm-val').value }) });
-            window.closeModals(); window.refreshPortal();
-        };
-        window.saveEdit = async function() {
-            await fetch('/api/portal/holdings/edit', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ symbol: document.getElementById('edit-symbol').value, qty: document.getElementById('edit-qty').value, entry: document.getElementById('edit-entry').value, sl: document.getElementById('edit-sl').value }) });
-            window.closeModals(); window.refreshPortal();
-        };
-        window.scanMarket = async function() { await fetch('/api/portal/orders'); window.refreshPortal(); };
-        window.syncData = async function() { await fetch('/api/portal/update', { method: 'POST' }); alert("Synk startad."); };
+function showTab(id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  document.getElementById('tab-btn-' + id).classList.add('active');
+}
+function closeModals() {
+  document.querySelectorAll('.modal').forEach(m => m.classList.remove('open'));
+}
 
-        window.refreshPortal();
-    </script>
+window.refreshPortal = async function() {
+  try {
+    const p = await fetch('/api/portal/portfolio').then(r => r.json());
+    document.getElementById('stat-cash').textContent     = fmt(p.cash) + ' kr';
+    document.getElementById('stat-holdings').textContent = fmt(p.holdings_value) + ' kr';
+    document.getElementById('stat-total').textContent    = fmt(p.total_value) + ' kr';
+    document.getElementById('stat-initial').textContent  = fmt(p.initial) + ' kr';
+
+    const plv = p.total_value - p.initial;
+    const plp = ((p.total_value / p.initial) - 1) * 100;
+    const plEl = document.getElementById('stat-pl');
+    plEl.textContent = fmt(plp, 2) + '% (' + fmt(plv) + ')';
+    plEl.className = 'stat-val ' + (plv >= 0 ? 'pos' : 'neg');
+
+    const orders = await fetch('/api/portal/orders').then(r => r.json());
+    window.currentOrders = orders;
+
+    const bList = document.getElementById('buy-list');
+    bList.innerHTML = orders.buy.length
+      ? orders.buy.map(o => `
+        <div class="order-card">
+          <div class="order-head">
+            <span class="order-sym">${esc(o.symbol)}</span>
+            <span class="order-score">AI:${esc(o.ai_score || '—')}</span>
+          </div>
+          <div class="order-reason">${esc(o.reason)}</div>
+          <div class="order-meta">BELOPP <strong>${fmt(o.suggested_amount)} kr</strong> · ${esc(o.suggested_qty||0)} ST</div>
+          <button class="btn-order btn-buy-o" onclick="window.openOrderModal('buy','${esc(o.symbol)}')">▶ KÖP ENLIGT RECEPT</button>
+        </div>`).join('')
+      : '<p class="empty">INGA KÖP-SIGNALER IDAG.</p>';
+
+    const sList = document.getElementById('sell-list');
+    sList.innerHTML = orders.sell.length
+      ? orders.sell.map(o => `
+        <div class="order-card sell-card">
+          <div class="order-head">
+            <span class="order-sym">${esc(o.symbol)}</span>
+          </div>
+          <div class="order-reason">${esc(o.reason)}</div>
+          <button class="btn-order btn-sell-o" onclick="window.openOrderModal('sell','${esc(o.symbol)}')">▶ SÄLJ ENLIGT RECEPT</button>
+        </div>`).join('')
+      : '<p class="empty">INGA SÄLJ-SIGNALER.</p>';
+
+    const holdings = await fetch('/api/portal/holdings').then(r => r.json());
+    const tbody = document.getElementById('holdings-table');
+    tbody.innerHTML = holdings.length
+      ? holdings.map(h => `
+        <tr>
+          <td class="td-sym">${esc(h.symbol)}</td>
+          <td class="r">${fmt(h.qty)}</td>
+          <td class="r">${fmt(h.entry,2)}</td>
+          <td class="r">${fmt(h.current,2)}</td>
+          <td class="r"><strong>${fmt(h.market_value)} kr</strong></td>
+          <td class="r" style="color:var(--red)">${fmt(h.sl,2)}</td>
+          <td class="r ${h.pl_pct>=0?'pos':'neg'}">${esc(h.pl_pct)}%</td>
+          <td class="r"><div class="tbl-acts">
+            <button class="btn-sm btn-edit" onclick="window.openEditModal('${esc(h.symbol)}',${num(h.qty)},${num(h.entry)},${num(h.sl)})">REDIGERA</button>
+            <button class="btn-sm btn-sell-s" onclick="window.openManualSell('${esc(h.symbol)}',${num(h.current)})">SÄLJ</button>
+          </div></td>
+        </tr>`).join('')
+      : '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;font-style:italic;">INGEN ÖPPEN POSITION.</td></tr>';
+
+    const t = await fetch('/api/portal/thought').then(r => r.json());
+    document.getElementById('ai-thought').textContent = t.thought || 'INGEN ANALYS TILLGÄNGLIG.';
+  } catch(e) { console.error('refreshPortal:', e); }
+};
+
+window.openOrderModal = function(action, symbol) {
+  if (!window.currentOrders) return;
+  const list = action === 'buy' ? window.currentOrders.buy : window.currentOrders.sell;
+  const order = list.find(o => o.symbol === symbol);
+  if (!order) {
+    console.error("Order hittades inte för symbol:", symbol);
+    return;
+  }
+  window.activeOrder = { action, symbol };
+  const title = document.getElementById('order-title');
+  title.textContent = (action==='buy'?'KÖP — ':'SÄLJ — ') + symbol;
+  title.style.color = action==='buy' ? 'var(--am)' : 'var(--red)';
+  const r = order.recipe || { type:'Standard', trigger:0, limit:order.price };
+  document.getElementById('ot-type').textContent    = r.type;
+  document.getElementById('ot-qty').textContent     = order.suggested_qty ? order.suggested_qty.toLocaleString() + ' ST' : '—';
+  document.getElementById('ot-trigger').textContent = r.trigger ? fmt(r.trigger,2)+' kr' : '—';
+  document.getElementById('ot-limit').textContent   = typeof r.limit==='number' ? fmt(r.limit,2)+' kr' : (r.limit||'—');
+  document.getElementById('final-price').value      = num(order.price).toFixed(2);
+  const slBox = document.getElementById('step-sl');
+  if (action==='buy' && order.sl) {
+    slBox.style.display = 'block';
+    document.getElementById('sl-trigger').textContent = fmt(order.sl,2)+' kr';
+    document.getElementById('sl-limit').textContent   = fmt(order.sl*0.995,2)+' kr';
+  } else { slBox.style.display = 'none'; }
+  document.getElementById('order-modal').classList.add('open');
+};
+
+window.openManualSell = function(symbol, price) {
+  window.activeOrder = { action:'sell', symbol };
+  const title = document.getElementById('order-title');
+  title.textContent = 'SÄLJ — ' + symbol;
+  title.style.color = 'var(--red)';
+  document.getElementById('final-price').value        = num(price).toFixed(2);
+  document.getElementById('ot-type').textContent      = 'MANUELL';
+  document.getElementById('ot-qty').textContent       = '—';
+  document.getElementById('ot-trigger').textContent   = '—';
+  document.getElementById('ot-limit').textContent     = '—';
+  document.getElementById('step-sl').style.display    = 'none';
+  document.getElementById('order-modal').classList.add('open');
+};
+
+window.confirmOrder = async function() {
+  if (!window.activeOrder) return;
+  const priceInput = document.getElementById('final-price');
+  const price = parseFloat(priceInput.value);
+  if (isNaN(price) || price <= 0) {
+    alert("Vänligen ange en giltig kurs.");
+    return;
+  }
+  try {
+    const res = await fetch('/api/portal/execute', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:window.activeOrder.action, symbol:window.activeOrder.symbol, price })
+    }).then(r => r.json());
+    
+    if (res.success) {
+      closeModals(); window.refreshPortal();
+    } else {
+      alert("Fel: " + (res.message || res.error));
+    }
+  } catch(e) {
+    console.error("Order error:", e);
+    alert("Systemfel vid orderläggning.");
+  }
+};
+
+window.openBudgetModal = async function() {
+  const data = await fetch('/api/portal/portfolio').then(r => r.json());
+  document.getElementById('input-cash').value     = data.cash;
+  document.getElementById('input-initial').value  = data.initial;
+  document.getElementById('input-comm-val').value = data.comm_val;
+  document.getElementById('budget-modal').classList.add('open');
+};
+
+window.openEditModal = function(symbol, qty, entry, sl) {
+  document.getElementById('edit-symbol').value = symbol;
+  document.getElementById('edit-title').textContent = symbol;
+  document.getElementById('edit-qty').value   = qty;
+  document.getElementById('edit-entry').value = entry;
+  document.getElementById('edit-sl').value    = sl;
+  document.getElementById('edit-modal').classList.add('open');
+};
+
+window.saveBudget = async function() {
+  await fetch('/api/portal/portfolio/update', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      cash:    document.getElementById('input-cash').value,
+      initial: document.getElementById('input-initial').value,
+      comm_val:document.getElementById('input-comm-val').value
+    })
+  });
+  closeModals(); window.refreshPortal();
+};
+
+window.saveEdit = async function() {
+  await fetch('/api/portal/holdings/edit', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      symbol: document.getElementById('edit-symbol').value,
+      qty:    document.getElementById('edit-qty').value,
+      entry:  document.getElementById('edit-entry').value,
+      sl:     document.getElementById('edit-sl').value
+    })
+  });
+  closeModals(); window.refreshPortal();
+};
+
+window.scanMarket = async function() {
+  await fetch('/api/portal/orders');
+  window.refreshPortal();
+};
+
+window.syncData = async function() {
+  await fetch('/api/portal/update', { method:'POST' });
+  alert('SYNKRONISERING STARTAD — BERÄKNAD TID ~10–15 MIN MED NYA TICKERS.');
+};
+
+window.runBacktest = async function() {
+  const btn = document.querySelector('[onclick="window.runBacktest()"]');
+  btn.textContent = '⟳ BERÄKNAR…';
+  const d = await fetch('/api/portal/backtest', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ market:document.getElementById('bt-market').value, years:document.getElementById('bt-years').value })
+  }).then(r => r.json());
+  btn.textContent = '▶ STARTA SIMULERING';
+  const el = document.getElementById('bt-results');
+  el.classList.add('show');
+  const rv = document.getElementById('bt-return');
+  rv.textContent = d.return + '%';
+  rv.className = 'bt-v ' + (d.return >= 0 ? 'pos' : 'neg');
+  document.getElementById('bt-winrate').textContent = d.win_rate + '%';
+  document.getElementById('bt-trades').textContent  = d.trades + ' ST';
+};
+
+window.runOptimize = async function() {
+  const btn = document.getElementById('opt-btn');
+  btn.textContent = '⟳ OPTIMERAR…';
+  btn.disabled = true;
+  try {
+    const results = await fetch('/api/portal/optimize', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ years: document.getElementById('opt-years').value })
+    }).then(r => r.json());
+
+    const tbody = document.getElementById('opt-table-body');
+    tbody.innerHTML = results.map((r, i) => {
+      if (r.error) return `<tr><td>${i+1}</td><td>${esc(r.name)}</td><td colspan="6" style="color:var(--red)">${esc(r.error)}</td></tr>`;
+      const wr  = r.win_rate ?? 0;
+      const ret = r.return ?? 0;
+      const wrC = wr >= 55 ? 'pos' : wr >= 45 ? '' : 'neg';
+      const retC = ret >= 0 ? 'pos' : 'neg';
+      const medal = i===0 ? '▶ ' : i===1 ? '▷ ' : '';
+      return `<tr>
+        <td class="opt-rank">${medal}${i+1}</td>
+        <td><strong>${esc(r.name)}</strong></td>
+        <td class="${wrC}"><strong>${wr}%</strong></td>
+        <td class="${retC}">${ret}%</td>
+        <td>${r.trades}</td>
+        <td>${r.breakout_d===0?'RSI':r.breakout_d+'d'}</td>
+        <td>${r.atr_mult}×</td>
+        <td>${r.max_days}d</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('opt-results').style.display = 'block';
+  } catch(e) { alert('OPTIMERING MISSLYCKADES: ' + e.message); }
+  btn.textContent = '▶ OPTIMERA';
+  btn.disabled = false;
+};
+
+document.querySelectorAll('.modal').forEach(m =>
+  m.addEventListener('click', e => { if (e.target === m) closeModals(); })
+);
+window.refreshPortal();
+</script>
 </body>
 </html>
