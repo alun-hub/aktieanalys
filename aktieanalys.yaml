@@ -25,7 +25,7 @@ spec:
             value: "2"
       containers:
       - name: aktieanalys
-        image: localhost/aktieanalys:v24.0-fullpath-1776970232
+        image: localhost/aktieanalys:v24.6-1777052875
         imagePullPolicy: Never
         ports:
         - containerPort: 4000

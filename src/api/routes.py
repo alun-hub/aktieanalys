@@ -1,8 +1,10 @@
 from flask import Blueprint, jsonify, request
 import threading
+import json
 import os
 from src.core.portfolio import get_portfolio_summary
-from src.core.strategy import generate_daily_orders, run_backtest_local
+from src.core.signals import generate_daily_orders
+from src.core.backtest import run_backtest_local, optimize_omx
 from src.core.data import get_db, sync_all_stocks
 
 api_bp = Blueprint('api', __name__)
@@ -62,21 +64,43 @@ def orders():
 
 @api_bp.route('/execute', methods=['POST'])
 def execute():
-    data = request.json
-    action = data.get('action')
-    symbol = data.get('symbol')
-    price = float(data.get('price', 0))
-    
-    from src.core.portfolio import execute_buy, execute_sell
-    if action == 'buy':
-        summary = get_portfolio_summary()
-        target_val = summary['total_value'] * 0.20
-        qty = int(target_val / price)
-        if qty <= 0: qty = 1
-        success, msg = execute_buy(symbol, price, qty)
-    else:
-        success, msg = execute_sell(symbol, price, "Manuell")
-    return jsonify({"success": success, "message": msg})
+    try:
+        data = request.json
+        action = data.get('action')
+        symbol = data.get('symbol')
+        price_val = data.get('price')
+        
+        if price_val is None:
+            return jsonify({"success": False, "message": "Inget pris angivet"}), 400
+        
+        price = float(price_val)
+        if price <= 0:
+            return jsonify({"success": False, "message": "Priset måste vara över 0"}), 400
+        
+        from src.core.portfolio import execute_buy, execute_sell
+        if action == 'buy':
+            # Försök hitta stop loss från dagens förslag
+            sl = None
+            try:
+                orders_data = generate_daily_orders()
+                for o in orders_data['buy']:
+                    if o['symbol'] == symbol:
+                        sl = o.get('sl')
+                        break
+            except: pass
+
+            summary = get_portfolio_summary()
+            target_val = summary['total_value'] * 0.20
+            qty = int(target_val / price)
+            if qty <= 0: qty = 1
+            success, msg = execute_buy(symbol, price, qty, sl)
+        else:
+            success, msg = execute_sell(symbol, price, "Manuell")
+        
+        return jsonify({"success": success, "message": msg})
+    except Exception as e:
+        print(f"ERROR in execute: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @api_bp.route('/holdings/edit', methods=['POST'])
 def edit_holding():
@@ -132,3 +156,9 @@ def run_backtest():
 def update_data():
     threading.Thread(target=sync_all_stocks, daemon=True).start()
     return jsonify({"success": True})
+
+@api_bp.route('/optimize', methods=['POST'])
+def run_optimize():
+    data = request.json or {}
+    years = int(data.get('years', 5))
+    return jsonify(optimize_omx(years))
