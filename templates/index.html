@@ -564,31 +564,60 @@ tbody tr:hover td { background: var(--bg3); }
     <div class="bt-wrap">
 
       <div class="panel panel-am" style="align-self:start;">
-        <div class="sec-hdr">HISTORISK SIMULERING</div>
-        <div class="form-field">
-          <label class="form-lbl">MARKNAD</label>
-          <select id="bt-market" class="form-ctrl">
-            <option value="omxs">Stockholm (OMXS)</option>
-            <option value="nasdaq">USA (Nasdaq)</option>
-          </select>
+        <div class="sec-hdr">HISTORISK SIMULERING // DETERMINISTISK LOGIK</div>
+        <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
+          Simulerar strategins deterministiska köp- och säljregler med fast positionsstorlek (20%), ATR-baserade stop loss-nivåer och vinsthemtagning.
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+          <div class="form-field" style="margin-bottom:0;">
+            <label class="form-lbl">MARKNAD</label>
+            <select id="bt-market" class="form-ctrl">
+              <option value="omxs">Stockholm (OMXS30)</option>
+              <option value="nasdaq">USA (Nasdaq 100)</option>
+              <option value="crypto">Krypto (BTC, ETH, SOL)</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin-bottom:0;">
+            <label class="form-lbl">ANTAL ÅR</label>
+            <input type="number" id="bt-years" class="form-ctrl" value="3" min="1" max="7">
+          </div>
         </div>
-        <div class="form-field">
-          <label class="form-lbl">ANTAL ÅR</label>
-          <input type="number" id="bt-years" class="form-ctrl" value="5">
-        </div>
-        <button class="btn btn-am btn-full" onclick="window.runBacktest()">▶ STARTA SIMULERING</button>
-        <div class="bt-result" id="bt-results">
+        <button class="btn btn-am btn-full" id="btn-run-backtest" onclick="window.runBacktest()">▶ STARTA SIMULERING</button>
+        <div class="bt-result" id="bt-results" style="grid-template-columns:repeat(3, 1fr);margin-top:1rem;">
           <div class="bt-cell">
-            <div class="bt-lbl">AVKASTNING</div>
+            <div class="bt-lbl">STRATEGI RET%</div>
             <div id="bt-return" class="bt-v">—</div>
+          </div>
+          <div class="bt-cell">
+            <div class="bt-lbl" id="bt-idx-lbl">INDEX (B&H)</div>
+            <div id="bt-index" class="bt-v">—</div>
+          </div>
+          <div class="bt-cell">
+            <div class="bt-lbl">ALFA (VS INDEX)</div>
+            <div id="bt-alpha" class="bt-v">—</div>
           </div>
           <div class="bt-cell">
             <div class="bt-lbl">WIN RATE</div>
             <div id="bt-winrate" class="bt-v">—</div>
           </div>
           <div class="bt-cell">
+            <div class="bt-lbl">MAX DRAWDOWN</div>
+            <div id="bt-maxdd" class="bt-v" style="color:var(--red);">—</div>
+          </div>
+          <div class="bt-cell">
             <div class="bt-lbl">AFFÄRER</div>
             <div id="bt-trades" class="bt-v">—</div>
+          </div>
+        </div>
+        <div id="bt-trade-log" style="display:none;margin-top:1.25rem;">
+          <div class="sec-hdr" style="font-size:0.75rem;margin-bottom:0.5rem;">GENOMFÖRDA AFFÄRER I SIMULERINGEN</div>
+          <div class="tbl-wrap" style="max-height:350px;overflow-y:auto;">
+            <table>
+              <thead><tr>
+                <th>EXIT</th><th>PAPPER</th><th class="r">KÖP</th><th class="r">SÄLJ</th><th class="r">V/F %</th><th class="r">DAGAR</th><th>EXIT-ORSAK</th>
+              </tr></thead>
+              <tbody id="bt-trades-body"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -817,8 +846,9 @@ function closeModals() {
 window.screenerData = [];
 window.syncInterval = null;
 
-window.copyRecipe = function(sym, limit, sl, tp) {
-  const text = `AVANZA ORDER: ${sym}\nKöp Limit: ${fmt(limit,2)} kr\nStop Loss Trigger: ${fmt(sl,2)} kr\nStop Loss Limit: ${fmt(sl*0.995,2)} kr\nDelvinst (TP1): ${fmt(tp,2)} kr`;
+window.copyRecipe = function(sym, limit, sl, tp, curr='kr') {
+  const c = curr || 'kr';
+  const text = `AVANZA ORDER: ${sym}\nKöp Limit: ${fmt(limit,2)} ${c}\nStop Loss Trigger: ${fmt(sl,2)} ${c}\nStop Loss Limit: ${fmt(sl*0.995,2)} ${c}\nDelvinst (TP1): ${fmt(tp,2)} ${c}`;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => {
       alert("✓ Orderrecept kopierat till urklipp!\n\n" + text);
@@ -1059,20 +1089,75 @@ window.refreshPortal = async function() {
 };
 
 window.runBacktest = async function() {
-  const btn = document.querySelector('[onclick="window.runBacktest()"]');
-  btn.textContent = '⟳ BERÄKNAR…';
-  const d = await fetch('/api/portal/backtest', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ market:document.getElementById('bt-market').value, years:document.getElementById('bt-years').value })
-  }).then(r => r.json());
-  btn.textContent = '▶ STARTA SIMULERING';
-  const el = document.getElementById('bt-results');
-  el.classList.add('show');
-  const rv = document.getElementById('bt-return');
-  rv.textContent = d.return + '%';
-  rv.className = 'bt-v ' + (d.return >= 0 ? 'pos' : 'neg');
-  document.getElementById('bt-winrate').textContent = d.win_rate + '%';
-  document.getElementById('bt-trades').textContent  = d.trades + ' ST';
+  const btn = document.getElementById('btn-run-backtest') || document.querySelector('[onclick="window.runBacktest()"]');
+  if (btn) { btn.textContent = '⟳ SIMULERAR…'; btn.disabled = true; }
+  try {
+    const market = document.getElementById('bt-market').value;
+    const years = document.getElementById('bt-years').value;
+    const d = await fetch('/api/portal/backtest', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ market, years })
+    }).then(r => r.json());
+
+    if (d.error) {
+      alert("Simuleringsfel: " + d.error);
+      return;
+    }
+
+    const el = document.getElementById('bt-results');
+    el.classList.add('show');
+    const rv = document.getElementById('bt-return');
+    rv.textContent = (d.return >= 0 ? '+' : '') + fmt(d.return, 2) + '%';
+    rv.className = 'bt-v ' + (d.return >= 0 ? 'pos' : 'neg');
+
+    const idxEl = document.getElementById('bt-index');
+    if (idxEl) {
+      document.getElementById('bt-idx-lbl').textContent = (d.index_name || 'INDEX') + ' (B&H)';
+      idxEl.textContent = (d.index_return >= 0 ? '+' : '') + fmt(d.index_return, 2) + '%';
+      idxEl.className = 'bt-v ' + (d.index_return >= 0 ? 'pos' : 'neg');
+    }
+
+    const alphaEl = document.getElementById('bt-alpha');
+    if (alphaEl) {
+      alphaEl.textContent = (d.alpha >= 0 ? '+' : '') + fmt(d.alpha, 2) + '%';
+      alphaEl.className = 'bt-v ' + (d.alpha >= 0 ? 'pos' : 'neg');
+    }
+
+    document.getElementById('bt-winrate').textContent = fmt(d.win_rate, 1) + '%';
+    const ddEl = document.getElementById('bt-maxdd');
+    if (ddEl) ddEl.textContent = '-' + fmt(d.max_drawdown, 1) + '%';
+    document.getElementById('bt-trades').textContent = d.trades + ' ST';
+
+    // Rendera affärslogg
+    const tradeLogEl = document.getElementById('bt-trade-log');
+    const tbody = document.getElementById('bt-trades-body');
+    if (tradeLogEl && tbody && d.trade_list && d.trade_list.length) {
+      tbody.innerHTML = d.trade_list.map(t => {
+        const isWin = t.return_pct > 0;
+        const resClass = isWin ? 'pos' : 'neg';
+        return `
+          <tr>
+            <td style="font-family:var(--mono);font-size:0.75rem;color:var(--dim);">${esc(t.exit_date)}</td>
+            <td><strong>${esc(t.symbol)}</strong> <span style="font-size:0.7rem;color:var(--dim);">(${esc(t.name)})</span></td>
+            <td class="r" style="font-family:var(--mono);">${fmt(t.entry_price, 2)}</td>
+            <td class="r" style="font-family:var(--mono);">${fmt(t.exit_price, 2)}</td>
+            <td class="r ${resClass}" style="font-family:var(--mono);font-weight:700;">
+              ${isWin ? '+' : ''}${fmt(t.return_pct, 2)}%
+            </td>
+            <td class="r" style="font-family:var(--mono);">${t.days_held}d</td>
+            <td><span class="badge ${isWin ? 'badge-grn' : 'badge-red'}" style="font-size:0.6rem;">${esc(t.exit_reason)}</span></td>
+          </tr>
+        `;
+      }).join('');
+      tradeLogEl.style.display = 'block';
+    } else if (tradeLogEl) {
+      tradeLogEl.style.display = 'none';
+    }
+  } catch(e) {
+    alert("Simulering misslyckades: " + e.message);
+  } finally {
+    if (btn) { btn.textContent = '▶ STARTA SIMULERING'; btn.disabled = false; }
+  }
 };
 
 window.runOptimize = async function() {
@@ -1318,10 +1403,12 @@ window.analyzeStock = async function(symbol=null) {
     const bears = (data.bear_factors || []).map(f => `<li>${esc(f)}</li>`).join('');
     const rec = data.avanza_recipe || {};
 
+    const cur = data.currency || 'kr';
+
     body.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;border-bottom:1px solid var(--dim2);padding-bottom:0.75rem;">
         <div>
-          <span style="font-size:1.4rem;font-weight:700;color:var(--brt);">${fmt(data.close, 2)}</span>
+          <span style="font-size:1.4rem;font-weight:700;color:var(--brt);">${esc(cur)} ${fmt(data.close, 2)}</span>
           <span style="font-size:0.85rem;margin-left:0.5rem;" class="${data.change_pct >= 0 ? 'pos' : 'neg'}">
             ${data.change_pct > 0 ? '+' : ''}${fmt(data.change_pct, 2)}%
           </span>
@@ -1350,20 +1437,20 @@ window.analyzeStock = async function(symbol=null) {
 
       <div class="step-blk" style="border-color:var(--am);margin-bottom:0.75rem;">
         <div class="step-tag">// AVANZA ORDERRECEPT</div>
-        <div class="step-row"><label>REKOMMENDERAD KÖPKURS (LIMIT)</label><strong style="color:var(--am)">${fmt(rec.buy_limit, 2)}</strong></div>
-        <div class="step-row"><label>STOP LOSS (TRIGGER HOS AVANZA)</label><span style="color:var(--red)">${fmt(rec.stop_loss_trigger, 2)}</span></div>
-        <div class="step-row"><label>STOP LOSS (LIMIT)</label><span>${fmt(rec.stop_loss_limit, 2)}</span></div>
-        <div class="step-row"><label>DELVINST 50% (TAKE PROFIT 1)</label><strong style="color:var(--grn)">${fmt(rec.take_profit_1, 2)}</strong></div>
-        <div class="step-row"><label>RÖRLIG VINST (TAKE PROFIT 2)</label><span>${fmt(rec.take_profit_2, 2)}</span></div>
+        <div class="step-row"><label>REKOMMENDERAD KÖPKURS (LIMIT)</label><strong style="color:var(--am)">${fmt(rec.buy_limit, 2)} ${esc(cur)}</strong></div>
+        <div class="step-row"><label>STOP LOSS (TRIGGER HOS AVANZA)</label><span style="color:var(--red)">${fmt(rec.stop_loss_trigger, 2)} ${esc(cur)}</span></div>
+        <div class="step-row"><label>STOP LOSS (LIMIT)</label><span>${fmt(rec.stop_loss_limit, 2)} ${esc(cur)}</span></div>
+        <div class="step-row"><label>DELVINST 50% (TAKE PROFIT 1)</label><strong style="color:var(--grn)">${fmt(rec.take_profit_1, 2)} ${esc(cur)}</strong></div>
+        <div class="step-row"><label>RÖRLIG VINST (TAKE PROFIT 2)</label><span>${fmt(rec.take_profit_2, 2)} ${esc(cur)}</span></div>
         <div class="step-row"><label>RISK / BELÖNING</label><span>${esc(rec.risk_reward_ratio)}</span></div>
         <div style="font-size:0.7rem;color:var(--dim);margin-top:0.5rem;font-style:italic;">💡 ${esc(rec.courtage_tip)}</div>
       </div>
 
       <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
-        <button class="btn btn-am" style="flex:1;" onclick="window.copyRecipe('${esc(data.symbol)}', ${num(rec.buy_limit)}, ${num(rec.stop_loss_trigger)}, ${num(rec.take_profit_1)})">
+        <button class="btn btn-am" style="flex:1;" onclick="window.copyRecipe('${esc(data.symbol)}', ${num(rec.buy_limit)}, ${num(rec.stop_loss_trigger)}, ${num(rec.take_profit_1)}, '${esc(cur)}')">
           📋 KOPIERA AVANZA-ORDER
         </button>
-        <a class="btn btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;" target="_blank" href="https://www.avanza.se/hitta-marknaden.html?query=${encodeURIComponent(data.name || data.symbol)}">
+        <a class="btn btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;" target="_blank" href="https://www.avanza.se/hitta-marknaden.html?query=${encodeURIComponent(rec.avanza_query || data.name || data.symbol)}">
           AVANZA ↗
         </a>
       </div>
