@@ -487,6 +487,8 @@ tbody tr:hover td { background: var(--bg3); }
   </div>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-dashboard" onclick="showTab('dashboard')">// ÖVERSIKT</button>
+    <button class="tab-btn" id="tab-btn-insider" onclick="showTab('insider'); window.loadInsider();">// INSYN (FI)</button>
+    <button class="tab-btn" id="tab-btn-congress" onclick="showTab('congress'); window.loadCongress();">// KONGRESS (USA)</button>
     <button class="tab-btn" id="tab-btn-crypto" onclick="showTab('crypto'); window.loadCrypto();">// KRYPTO</button>
     <button class="tab-btn" id="tab-btn-backtest" onclick="showTab('backtest')">// BACKTEST</button>
     <button class="tab-btn" id="tab-btn-readme" onclick="showTab('readme')">// DOKUMENTATION</button>
@@ -614,6 +616,91 @@ tbody tr:hover td { background: var(--bg3); }
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- INSYN TAB (FINANSINSPEKTIONEN) -->
+  <div id="tab-insider" class="tab-pane">
+    <div class="panel panel-am">
+      <div class="sec-hdr">INSYNSHANDEL // FINANSINSPEKTIONEN</div>
+      <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
+        Registrerade insynstransaktioner (VD, styrelse och nyckelpersoner) på Stockholmsbörsen och First North. Tydlig separation mellan <strong>KÖP (Förvärv)</strong> och <strong>SÄLJ (Avyttring)</strong>.
+      </p>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
+        <div class="filter-btn-group" style="margin-bottom:0;" id="insider-period-filters">
+          <button class="filter-btn active" onclick="window.setInsiderPeriod(30, this)">30 Dagar</button>
+          <button class="filter-btn" onclick="window.setInsiderPeriod(60, this)">60 Dagar</button>
+          <button class="filter-btn" onclick="window.setInsiderPeriod(90, this)">90 Dagar</button>
+        </div>
+        <div class="filter-btn-group" style="margin-bottom:0;" id="insider-action-filters">
+          <button class="filter-btn active" onclick="window.filterInsiderAction('all', this)">Alla</button>
+          <button class="filter-btn" style="color:var(--grn);border-color:rgba(74,222,128,0.3);" onclick="window.filterInsiderAction('buy', this)">🟢 Endast Köp</button>
+          <button class="filter-btn" style="color:var(--red);border-color:rgba(248,113,113,0.3);" onclick="window.filterInsiderAction('sell', this)">🔴 Endast Sälj</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>PUB. DATUM</th>
+            <th>TYP</th>
+            <th>BOLAG</th>
+            <th>PERSON</th>
+            <th>BEFATTNING</th>
+            <th class="r">ANTAL</th>
+            <th class="r">KURS</th>
+            <th class="r">BELOPP</th>
+            <th class="r">ÅTGÄRD</th>
+          </tr></thead>
+          <tbody id="insider-table-body">
+            <tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Laddar insynshandel från Finansinspektionen…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- KONGRESS TAB (USA) -->
+  <div id="tab-congress" class="tab-pane">
+    <div class="panel panel-am">
+      <div class="sec-hdr">AMERIKANSK KONGRESSHANDEL // SENATE & HOUSE</div>
+      <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
+        Offentliggjorda transaktioner från amerikanska senatorer och kongressledamöter med tydlig märkning av <strong>KÖP (Purchase)</strong> vs <strong>SÄLJ (Sale)</strong> samt beräknad avkastning fram till idag.
+      </p>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
+        <div class="filter-btn-group" style="margin-bottom:0;" id="congress-period-filters">
+          <button class="filter-btn" onclick="window.setCongressPeriod(1, this)">1 Månad</button>
+          <button class="filter-btn active" onclick="window.setCongressPeriod(3, this)">3 Månader</button>
+          <button class="filter-btn" onclick="window.setCongressPeriod(6, this)">6 Månader</button>
+        </div>
+        <div class="filter-btn-group" style="margin-bottom:0;" id="congress-action-filters">
+          <button class="filter-btn active" onclick="window.filterCongressAction('all', this)">Alla</button>
+          <button class="filter-btn" style="color:var(--grn);border-color:rgba(74,222,128,0.3);" onclick="window.filterCongressAction('buy', this)">🟢 Endast Köp</button>
+          <button class="filter-btn" style="color:var(--red);border-color:rgba(248,113,113,0.3);" onclick="window.filterCongressAction('sell', this)">🔴 Endast Sälj</button>
+        </div>
+      </div>
+      <div class="bt-result show" id="congress-stats" style="margin-bottom:1rem;grid-template-columns:repeat(4,1fr);">
+        <div class="bt-cell"><div class="bt-lbl">TOTALT</div><div id="cg-total" class="bt-v">—</div></div>
+        <div class="bt-cell"><div class="bt-lbl">KÖP / SÄLJ</div><div id="cg-buysell" class="bt-v" style="font-size:1rem;">—</div></div>
+        <div class="bt-cell"><div class="bt-lbl">VINST% KÖP</div><div id="cg-winrate" class="bt-v">—</div></div>
+        <div class="bt-cell"><div class="bt-lbl">SNITTAVKASTNING</div><div id="cg-return" class="bt-v">—</div></div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>DATUM</th>
+            <th>TYP</th>
+            <th>POLITIKER</th>
+            <th>PARTI</th>
+            <th>TICKER</th>
+            <th>STORLEK</th>
+            <th class="r">AVKASTNING</th>
+            <th class="r">ÅTGÄRD</th>
+          </tr></thead>
+          <tbody id="congress-table-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Laddar kongresstransaktioner…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -1021,6 +1108,152 @@ window.runOptimize = async function() {
   } catch(e) { alert('OPTIMERING MISSLYCKADES: ' + e.message); }
   btn.textContent = '▶ OPTIMERA';
   btn.disabled = false;
+};
+
+// ── INSYN (FINANSINSPEKTIONEN) ──
+window.insiderDays = 30;
+window.insiderAction = 'all';
+
+window.setInsiderPeriod = function(days, btn) {
+  window.insiderDays = days;
+  document.querySelectorAll('#insider-period-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  window.loadInsider();
+};
+
+window.filterInsiderAction = function(action, btn) {
+  window.insiderAction = action;
+  document.querySelectorAll('#insider-action-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  window.loadInsider();
+};
+
+window.loadInsider = async function() {
+  const tbody = document.getElementById('insider-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Hämtar insynshandel från Finansinspektionen…</td></tr>';
+  try {
+    const res = await fetch(`/api/portal/insider?days=${window.insiderDays}&action=${window.insiderAction}`).then(r => r.json());
+    const trades = res.trades || [];
+    if (!trades.length) {
+      const actLabel = window.insiderAction === 'buy' ? 'köp' : window.insiderAction === 'sell' ? 'sälj' : 'transaktioner';
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Inga registrerade ${actLabel} under de senaste ${window.insiderDays} dagarna.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = trades.map(t => {
+      const isBuy = t.action === 'KÖP';
+      const badgeClass = isBuy ? 'badge-grn' : 'badge-red';
+      const badgeText = isBuy ? '▲ KÖP' : '▼ SÄLJ';
+      const curr = esc(t.currency || 'SEK');
+
+      return `
+        <tr>
+          <td style="font-family:var(--mono);font-size:0.8rem;color:var(--dim);">${esc(t.pub_date || t.date || '—')}</td>
+          <td><span class="badge ${badgeClass}" style="font-weight:700;letter-spacing:0.04em;">${badgeText}</span></td>
+          <td>
+            <strong>${esc(t.company)}</strong>
+            ${t.ticker ? `<span style="margin-left:0.35rem;font-size:0.75rem;color:var(--dim);">(${esc(t.ticker)})</span>` : ''}
+          </td>
+          <td>${esc(t.insider || '—')}</td>
+          <td style="color:var(--dim);font-size:0.75rem;">${esc(t.role || '—')}</td>
+          <td class="r" style="font-family:var(--mono);">${fmt(t.volume)}</td>
+          <td class="r" style="font-family:var(--mono);">${fmt(t.price, 2)} ${curr}</td>
+          <td class="r" style="font-family:var(--mono);color:${isBuy ? 'var(--grn)' : 'var(--red)'};font-weight:700;">
+            ${fmt(t.amount)} ${curr}
+          </td>
+          <td class="r">
+            ${t.ticker 
+              ? `<button class="btn-sm btn-edit" onclick="window.analyzeStock('${esc(t.ticker)}')">ANALYSERA</button>` 
+              : `<a class="btn-sm btn-edit" style="text-decoration:none;display:inline-block;" target="_blank" href="https://www.avanza.se/hitta-marknaden.html?query=${encodeURIComponent(t.company)}">AVANZA ↗</a>`
+            }
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--red);padding:2rem;">Fel vid hämtning av insynsdata: ${esc(e.message)}</td></tr>`;
+  }
+};
+
+// ── KONGRESSHANDEL (USA) ──
+window.congressMonths = 3;
+window.congressAction = 'all';
+
+window.setCongressPeriod = function(months, btn) {
+  window.congressMonths = months;
+  document.querySelectorAll('#congress-period-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  window.loadCongress();
+};
+
+window.filterCongressAction = function(action, btn) {
+  window.congressAction = action;
+  document.querySelectorAll('#congress-action-filters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  window.loadCongress();
+};
+
+window.loadCongress = async function() {
+  const tbody = document.getElementById('congress-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Hämtar kongresstransaktioner från Capitol Hill…</td></tr>';
+  try {
+    const res = await fetch(`/api/portal/congress?months=${window.congressMonths}&action=${window.congressAction}`).then(r => r.json());
+    const stats = res.stats || {};
+    const trades = res.trades || [];
+
+    const totEl = document.getElementById('cg-total');
+    if (totEl) totEl.textContent = (stats.total || trades.length || 0) + ' ST';
+
+    const bsEl = document.getElementById('cg-buysell');
+    if (bsEl) {
+      bsEl.innerHTML = `<span style="color:var(--grn);font-weight:700;">${stats.buys || 0} KÖP</span> / <span style="color:var(--red);font-weight:700;">${stats.sells || 0} SÄLJ</span>`;
+    }
+
+    const wrEl = document.getElementById('cg-winrate');
+    if (wrEl) wrEl.textContent = (stats.win_rate != null ? stats.win_rate : 0) + '%';
+
+    const retEl = document.getElementById('cg-return');
+    if (retEl) {
+      const avg = stats.avg_return || 0;
+      retEl.textContent = (avg >= 0 ? '+' : '') + fmt(avg, 1) + '%';
+      retEl.className = 'bt-v ' + (avg >= 0 ? 'pos' : 'neg');
+    }
+
+    if (!trades.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Inga kongresstransaktioner funna för vald period och filter.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = trades.map(t => {
+      const isBuy = t.action === 'KÖP';
+      const isSell = t.action === 'SÄLJ';
+      const badgeClass = isBuy ? 'badge-grn' : isSell ? 'badge-red' : 'badge-am';
+      const badgeText = isBuy ? '▲ KÖP' : isSell ? '▼ SÄLJ' : esc(t.action);
+      const retVal = t.return_pct != null ? t.return_pct : null;
+      const retClass = retVal != null ? (retVal >= 0 ? 'pos' : 'neg') : '';
+      const retFormatted = retVal != null ? `${retVal > 0 ? '+' : ''}${fmt(retVal, 1)}%` : '—';
+
+      return `
+        <tr>
+          <td style="font-family:var(--mono);font-size:0.8rem;color:var(--dim);">${esc(t.txn_date || t.report_date || '—')}</td>
+          <td><span class="badge ${badgeClass}" style="font-weight:700;letter-spacing:0.04em;">${badgeText}</span></td>
+          <td><strong>${esc(t.politician || 'Okänd')}</strong></td>
+          <td style="color:var(--dim);font-size:0.75rem;">
+            ${esc(t.party || '—')} ${t.chamber ? `(${esc(t.chamber)})` : ''}
+          </td>
+          <td class="td-sym"><strong>${esc(t.ticker)}</strong></td>
+          <td style="font-family:var(--mono);font-size:0.8rem;">${esc(t.amount_range || '—')}</td>
+          <td class="r ${retClass}" style="font-family:var(--mono);font-weight:700;">${retFormatted}</td>
+          <td class="r">
+            <button class="btn-sm btn-edit" onclick="window.analyzeStock('${esc(t.ticker)}')">ANALYSERA</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:2rem;">Fel vid hämtning av kongressdata: ${esc(e.message)}</td></tr>`;
+  }
 };
 
 // ── KRYPTO & DJUPANALYS ──

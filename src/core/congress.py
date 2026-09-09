@@ -22,8 +22,8 @@ def fetch_congress_trades_raw():
         print(f"Fel vid hämtning av kongressdata: {e}")
     return _congress_cache["data"] or []
 
-def scan_congress_trades(months=3, txn_type="purchase", chamber="all", party="all"):
-    """Skannar politiker-köp och returnerar sammanställning och avkastning."""
+def scan_congress_trades(months=3, txn_type="all", chamber="all", party="all"):
+    """Skannar politiker-köp och sälj och returnerar sammanställning och avkastning."""
     raw = fetch_congress_trades_raw()
     if not raw:
         return {"trades": [], "stats": {}, "error": "Kunde inte hämta kongressdata"}
@@ -36,8 +36,21 @@ def scan_congress_trades(months=3, txn_type="purchase", chamber="all", party="al
         if t_date < cutoff:
             continue
         
-        ttype = (t.get("transaction_type") or "").lower()
-        if txn_type != "all" and txn_type.lower() not in ttype:
+        ttype = (t.get("transaction_type") or "Purchase").strip()
+        ttype_low = ttype.lower()
+        if "purchase" in ttype_low or "buy" in ttype_low:
+            action = "KÖP"
+            action_badge = "badge-grn"
+        elif "sale" in ttype_low or "sell" in ttype_low:
+            action = "SÄLJ"
+            action_badge = "badge-red"
+        else:
+            action = "ÖVRIGT"
+            action_badge = "badge-am"
+
+        if txn_type == "buy" and action != "KÖP":
+            continue
+        if txn_type == "sell" and action != "SÄLJ":
             continue
 
         c_chamber = (t.get("chamber") or "").lower()
@@ -62,7 +75,9 @@ def scan_congress_trades(months=3, txn_type="purchase", chamber="all", party="al
             "chamber":       (t.get("chamber") or "Congress").capitalize(),
             "txn_date":      t.get("transaction_date", "")[:10],
             "report_date":   t.get("filing_date", "")[:10],
-            "transaction":   t.get("transaction_type", "Purchase"),
+            "action":        action,
+            "action_badge":  action_badge,
+            "transaction":   ttype,
             "amount_range":  t.get("amount_range_label", ""),
             "entry_price":   None,
             "today_price":   None,
@@ -87,8 +102,13 @@ def scan_congress_trades(months=3, txn_type="purchase", chamber="all", party="al
         ticker_counts[r["ticker"]] = ticker_counts.get(r["ticker"], 0) + 1
     top_tickers = sorted(ticker_counts.items(), key=lambda x: -x[1])[:8]
 
+    buy_count = sum(1 for r in filtered if r["action"] == "KÖP")
+    sell_count = sum(1 for r in filtered if r["action"] == "SÄLJ")
+
     stats = {
         "total":           len(filtered),
+        "buys":            buy_count,
+        "sells":           sell_count,
         "win_rate":        round(len(wins) / len(rets) * 100, 1) if rets else 0,
         "avg_return":      round(sum(rets) / len(rets), 2) if rets else 0,
         "best":            round(max(rets), 2) if rets else 0,

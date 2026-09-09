@@ -6,6 +6,8 @@ from src.core.backtest import run_backtest_local, optimize_omx
 from src.core.data import sync_all_stocks, get_sync_status
 from src.core.analysis import search_symbols, analyze_any_stock, get_market_overview
 from src.core.crypto import get_crypto_screener
+from src.core.insider import fetch_all_insider_buys
+from src.core.congress import scan_congress_trades
 
 api_bp = Blueprint('api', __name__)
 
@@ -47,6 +49,19 @@ def analyze_route():
 @api_bp.route('/crypto')
 def crypto_route():
     return jsonify(get_crypto_screener())
+
+@api_bp.route('/insider')
+def insider_route():
+    days = int(request.args.get('days', 30))
+    action = request.args.get('action', 'all')
+    trades, err = fetch_all_insider_buys(days=days, action=action)
+    return jsonify({"trades": trades, "error": err})
+
+@api_bp.route('/congress')
+def congress_route():
+    months = int(request.args.get('months', 3))
+    action = request.args.get('action', 'all')
+    return jsonify(scan_congress_trades(months=months, txn_type=action))
 
 @api_bp.route('/backtest', methods=['POST'])
 def run_backtest():
