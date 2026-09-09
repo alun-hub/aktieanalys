@@ -62,13 +62,18 @@ def _resolve_ticker(fi_company, instrument=""):
     _ticker_resolve_cache[cache_key] = (None, fi_company)
     return None, fi_company
 
-def fetch_all_insider_buys(days=30, force=False):
-    """Hämtar alla insider-köp (förvärv) från Finansinspektionen de senaste N dagarna."""
+def fetch_all_insider_buys(days=30, action="all", force=False):
+    """Hämtar insynshandel (både köp/förvärv och sälj/avyttring) från Finansinspektionen."""
     global _insider_cache
     now = time.time()
     
     if not force and _insider_cache["data"] and (now - _insider_cache["ts"] < 1800) and (_insider_cache["days"] >= days):
-        return _insider_cache["data"], None
+        trades = _insider_cache["data"]
+        if action == "buy":
+            trades = [t for t in trades if t["action"] == "KÖP"]
+        elif action == "sell":
+            trades = [t for t in trades if t["action"] == "SÄLJ"]
+        return trades, None
 
     today = datetime.now()
     intervals = []
@@ -86,7 +91,6 @@ def fetch_all_insider_buys(days=30, force=False):
 
     all_lines = []
     header = None
-    last_err = None
 
     for d_from, d_to in intervals:
         content = _fetch_fi_chunk(d_from, d_to)
@@ -106,8 +110,15 @@ def fetch_all_insider_buys(days=30, force=False):
     reader = csv.DictReader(io.StringIO("\n".join(all_lines)), delimiter=";")
     for row in reader:
         try:
-            karaktar = row.get("Karaktär", "")
-            if "förvärv" not in karaktar.lower():
+            karaktar = row.get("Karaktär", "").strip()
+            k_low = karaktar.lower()
+            if "förvärv" in k_low or "köp" in k_low:
+                act = "KÖP"
+                act_badge = "badge-grn"
+            elif "avyttring" in k_low or "sälj" in k_low or "avyttrat" in k_low:
+                act = "SÄLJ"
+                act_badge = "badge-red"
+            else:
                 continue
 
             plats = row.get("Handelsplats", "").upper()
@@ -123,26 +134,36 @@ def fetch_all_insider_buys(days=30, force=False):
             ticker, display_name = _resolve_ticker(emittent, row.get("Instrumentnamn", ""))
 
             trades.append({
-                "pub_date":    row.get("Publiceringsdatum", "")[:10],
-                "date":        row.get("Transaktionsdatum", "")[:10],
-                "company":     emittent,
-                "ticker":      ticker,
+                "pub_date":     row.get("Publiceringsdatum", "")[:10],
+                "date":         row.get("Transaktionsdatum", "")[:10],
+                "company":      emittent,
+                "ticker":       ticker,
                 "display_name": display_name,
-                "instrument":  row.get("Instrumentnamn", "").strip(),
-                "insider":     row.get("Person i ledande ställning", "").strip(),
-                "role":        row.get("Befattning", "").replace("\xa0", " ").strip(),
-                "volume":      int(vol),
-                "price":       round(pris, 2),
-                "amount":      total_belopp,
-                "currency":    valuta,
-                "marketplace": plats
+                "instrument":   row.get("Instrumentnamn", "").strip(),
+                "action":       act,
+                "action_badge": act_badge,
+                "karaktar":     karaktar,
+                "insider":      row.get("Person i ledande ställning", "").strip(),
+                "role":         row.get("Befattning", "").replace("\xa0", " ").strip(),
+                "volume":       int(vol),
+                "price":        round(pris, 2),
+                "amount":       total_belopp,
+                "currency":     valuta,
+                "marketplace":  plats
             })
         except Exception:
             continue
 
     trades.sort(key=lambda x: (x["pub_date"], x["amount"]), reverse=True)
     _insider_cache = {"data": trades, "ts": now, "days": days}
-    return trades, None
+
+    filtered_trades = trades
+    if action == "buy":
+        filtered_trades = [t for t in trades if t["action"] == "KÖP"]
+    elif action == "sell":
+        filtered_trades = [t for t in trades if t["action"] == "SÄLJ"]
+
+    return filtered_trades, None
 
 def get_insider_buys_for_symbol(symbol, days=60):
     """Returnerar insynsköp för en specifik symbol under senaste N dagarna."""
