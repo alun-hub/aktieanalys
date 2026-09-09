@@ -40,27 +40,38 @@ def resolve_symbol(query):
     if not q:
         return None
     
-    # Krypto-alias
-    crypto_map = {
-        "btc": "BTC-USD", "bitcoin": "BTC-USD",
-        "eth": "ETH-USD", "ethereum": "ETH-USD",
-        "sol": "SOL-USD", "solana": "SOL-USD",
-        "xrp": "XRP-USD", "ripple": "XRP-USD"
+    # Krypto-alias & direkta par
+    crypto_aliases = {
+        "btc": "BTC-USD", "bitcoin": "BTC-USD", "btc-usd": "BTC-USD",
+        "eth": "ETH-USD", "ethereum": "ETH-USD", "eth-usd": "ETH-USD",
+        "sol": "SOL-USD", "solana": "SOL-USD", "sol-usd": "SOL-USD",
+        "xrp": "XRP-USD", "ripple": "XRP-USD", "xrp-usd": "XRP-USD",
+        "bnb": "BNB-USD", "bnb-usd": "BNB-USD",
+        "ada": "ADA-USD", "cardano": "ADA-USD", "ada-usd": "ADA-USD",
+        "doge": "DOGE-USD", "dogecoin": "DOGE-USD", "doge-usd": "DOGE-USD",
+        "avax": "AVAX-USD", "avalanche": "AVAX-USD", "avax-usd": "AVAX-USD",
+        "link": "LINK-USD", "chainlink": "LINK-USD", "link-usd": "LINK-USD",
+        "dot": "DOT-USD", "polkadot": "DOT-USD", "dot-usd": "DOT-USD",
+        "near": "NEAR-USD", "near-usd": "NEAR-USD",
+        "sui": "SUI-USD", "sui-usd": "SUI-USD"
     }
-    if q.lower() in crypto_map:
-        return crypto_map[q.lower()]
+    q_lower = q.lower()
+    if q_lower in crypto_aliases:
+        return crypto_aliases[q_lower]
+
+    q_upper = q.upper()
+    if q_upper.endswith("-USD"):
+        return q_upper
 
     all_tickers = {**OMXS_50, **NASDAQ_100}
-    q_upper = q.upper()
     if q_upper in all_tickers:
         return q_upper
 
     if f"{q_upper}.ST" in all_tickers:
         return f"{q_upper}.ST"
 
-    q_low = q.lower()
     for sym, name in all_tickers.items():
-        if q_low == name.lower() or q_low in name.lower() or name.lower() in q_low:
+        if q_lower == name.lower() or q_lower in name.lower() or name.lower() in q_lower:
             return sym
 
     # Fallback via search_symbols
@@ -110,7 +121,7 @@ def get_market_overview():
     return overview
 
 def analyze_any_stock(symbol):
-    """Komplett djupanalys av valfri aktie med teknisk status, insynshandel och Avanza-nivåer."""
+    """Komplett djupanalys av valfri aktie eller krypto med teknisk status och Avanza-nivåer."""
     resolved = resolve_symbol(symbol)
     if resolved:
         symbol = resolved
@@ -119,12 +130,16 @@ def analyze_any_stock(symbol):
         ticker = yf.Ticker(symbol)
         df = ticker.history(period="1y")
         if df.empty or len(df) < 30:
-            return {"error": f"Kunde inte hämta kursdata för {symbol}. Prova att ange fullständig ticker (t.ex. INVE-B.ST eller AAPL)."}
+            return {"error": f"Kunde inte hämta kursdata för {symbol}. Prova att ange fullständig ticker (t.ex. INVE-B.ST, AAPL eller BTC-USD)."}
 
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         df.index = df.index.tz_localize(None) if df.index.tzinfo else df.index
         df.index = df.index.normalize()
+
+        is_crypto = symbol.endswith("-USD")
+        is_us = (symbol in NASDAQ_100) or (not symbol.endswith(".ST") and not is_crypto)
+        curr = "$" if (is_crypto or is_us) else "kr"
 
         # Beräkna indikatorer
         df["MA50"] = df["Close"].rolling(50).mean()
@@ -140,15 +155,23 @@ def analyze_any_stock(symbol):
         rsi_prev = round(float(prev["RSI"]), 1) if not pd.isna(prev["RSI"]) else None
         ma50 = round(float(last["MA50"]), 2) if not pd.isna(last["MA50"]) else None
         ma200 = round(float(last["MA200"]), 2) if not pd.isna(last["MA200"]) else None
-        atr = float(last["ATR"]) if not pd.isna(last["ATR"]) else close * 0.03
+        atr = float(last["ATR"]) if not pd.isna(last["ATR"]) else close * (0.05 if is_crypto else 0.03)
 
-        # Bolagsnamn
+        # Bolags- eller tillgångsnamn
         company_name = symbol
         for s, n in {**OMXS_50, **NASDAQ_100}.items():
             if s == symbol:
                 company_name = n
                 break
-        if company_name == symbol:
+        if is_crypto:
+            crypto_names = {
+                "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
+                "XRP-USD": "XRP", "BNB-USD": "BNB", "ADA-USD": "Cardano",
+                "DOGE-USD": "Dogecoin", "AVAX-USD": "Avalanche", "LINK-USD": "Chainlink",
+                "DOT-USD": "Polkadot", "NEAR-USD": "NEAR Protocol", "SUI-USD": "Sui"
+            }
+            company_name = crypto_names.get(symbol, symbol.replace("-USD", ""))
+        elif company_name == symbol:
             try:
                 info = ticker.info
                 company_name = info.get("longName") or info.get("shortName") or symbol
@@ -158,8 +181,13 @@ def analyze_any_stock(symbol):
         # Candlestick-mönster senaste 20 dagarna
         patterns = detect_patterns(df.tail(20))
 
-        # Blankningsdata
-        short_data = fetch_short_interest(symbol, company_name)
+        # Blankningsdata (endast aktier)
+        short_data = {}
+        if not is_crypto:
+            try:
+                short_data = fetch_short_interest(symbol, company_name)
+            except Exception:
+                short_data = {}
 
         # ── Teknisk Poängsättning ──
         score = 50
@@ -170,19 +198,19 @@ def analyze_any_stock(symbol):
         if ma200:
             if close > ma200:
                 score += 20
-                bull_factors.append(f"Kursen ligger över 200-dagars medelvärde ({ma200} kr) – långsiktigt positiv trend.")
+                bull_factors.append(f"Kursen ligger över 200-dagars medelvärde ({ma200} {curr}) – långsiktigt positiv trend.")
             else:
                 score -= 20
-                bear_factors.append(f"Kursen handlas under 200-dagars medelvärde ({ma200} kr) – långsiktig svaghet.")
+                bear_factors.append(f"Kursen handlas under 200-dagars medelvärde ({ma200} {curr}) – långsiktig svaghet.")
 
         # 2. Medellång trend (MA50) & Golden Cross
         if ma50:
             if close > ma50:
                 score += 15
-                bull_factors.append(f"Kursen är över 50-dagars medelvärde ({ma50} kr).")
+                bull_factors.append(f"Kursen är över 50-dagars medelvärde ({ma50} {curr}).")
             else:
                 score -= 15
-                bear_factors.append(f"Kursen har brutit ned under 50-dagars medelvärde ({ma50} kr).")
+                bear_factors.append(f"Kursen har brutit ned under 50-dagars medelvärde ({ma50} {curr}).")
 
             if ma200 and ma50 > ma200:
                 score += 10
@@ -200,12 +228,16 @@ def analyze_any_stock(symbol):
                 score += 15
                 bull_factors.append(f"RSI ({rsi}) befinner sig i hälsosam uppåtgående expansionszon.")
 
-        # 4. Blankningsrisk
-        if short_data.get("risk") == "Hög":
-            score -= 15
-            bear_factors.append(f"Hög blankning ({short_data.get('short_pct')}%) – institutioner spekulerar i nedgång.")
-        elif short_data.get("short_pct", 0) < 1.0:
-            bull_factors.append("Minimal blankning – lågt institutionellt säljtryck.")
+        # 4. Blankningsrisk / Marknadsstruktur
+        if is_crypto:
+            bull_factors.append("24/7 global marknadslikviditet och decentraliserad orderbok.")
+        elif short_data and isinstance(short_data, dict):
+            short_pct = short_data.get("short_pct")
+            if short_data.get("risk") == "Hög":
+                score -= 15
+                bear_factors.append(f"Hög blankning ({short_pct}%) – institutioner spekulerar i nedgång.")
+            elif short_pct is not None and short_pct < 1.0:
+                bull_factors.append("Minimal blankning – lågt institutionellt säljtryck.")
 
         # 5. Candlestick-mönster
         if patterns:
@@ -234,24 +266,38 @@ def analyze_any_stock(symbol):
         # Stop loss sätts utanför normalt brus (3.0 x ATR)
         stop_loss = round(close - (3.0 * atr), 2)
         risk_per_share = round(close - stop_loss, 2)
-        take_profit_1 = round(close + (1.8 * risk_per_share), 2) # 50% vinsthemtagning
-        take_profit_2 = round(close + (3.2 * risk_per_share), 2) # Låta vinnaren löpa
+        take_profit_1 = round(close + (1.8 * risk_per_share), 2)
+        take_profit_2 = round(close + (3.2 * risk_per_share), 2)
+
+        if is_crypto:
+            clean_sym = symbol.replace("-USD", "")
+            courtage_tip = f"Kryptotillgång: Handla via Avanza ISK med certifikat (t.ex. {clean_sym} ZERO utan avgift eller Virtune) för schablonbeskattning."
+            avanza_query = clean_sym
+        elif is_us:
+            courtage_tip = "USA-aktie: Handla med Avanza Mini/Small och tänk på valutaväxling (0.25%)."
+            avanza_query = company_name or symbol
+        else:
+            courtage_tip = "Svensk aktie: Välj Avanza Mini om ordern är under 15 000 kr, annars Avanza Small."
+            avanza_query = company_name or symbol
 
         avanza_recipe = {
             "symbol": symbol,
             "name": company_name,
+            "currency": curr,
             "buy_limit": round(close * 1.003, 2),
             "stop_loss_trigger": stop_loss,
             "stop_loss_limit": round(stop_loss * 0.995, 2),
             "take_profit_1": take_profit_1,
             "take_profit_2": take_profit_2,
             "risk_reward_ratio": "1 : 1.8",
-            "courtage_tip": "Välj Avanza Mini om ordern är under 15 000 kr, annars Avanza Small för lägst avgift."
+            "courtage_tip": courtage_tip,
+            "avanza_query": avanza_query
         }
 
         return {
             "symbol": symbol,
             "name": company_name,
+            "currency": curr,
             "close": close,
             "change_pct": change_pct,
             "rsi": rsi,

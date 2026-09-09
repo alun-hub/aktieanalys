@@ -59,20 +59,19 @@ def _build_entry_sql(all_symbols, bd, vm, ma_col):
 
 
 def _run_omx_config(conn, all_symbols, dates, start_idx, bd, vm, am, md, rsi_out, ma_col):
-    """Kör ett enskilt backtest för given OMX-konfiguration."""
+    """Kör ett enskilt backtest för given OMX-konfiguration med korrekt portföljberäkning."""
     entry_sql = _build_entry_sql(all_symbols, bd, vm, ma_col)
-    trades, cash, holdings, cap = [], 100_000, [], 100_000
+    trades, cash, holdings, cap = [], 100_000.0, [], 100_000.0
 
     for date in dates[start_idx:]:
-        still, port_v = [], cash
+        still = []
 
         for h in holdings:
             row = conn.execute(
                 "SELECT low, close, rsi, ma50, ma200 FROM history WHERE symbol = ? AND date = ?",
                 (h["sym"], date)
             ).fetchone()
-            if not row:
-                port_v += h["qty"] * h["last_p"]
+            if not row or row["close"] is None:
                 still.append(h)
                 continue
 
@@ -95,11 +94,12 @@ def _run_omx_config(conn, all_symbols, dates, start_idx, bd, vm, am, md, rsi_out
                 trades.append(exit_p / h["entry"] - 1)
             else:
                 h["days"] += 1
-                port_v += h["qty"] * row["close"]
                 still.append(h)
 
         holdings = still
-        if len(holdings) >= 5:
+        port_v = cash + sum(h["qty"] * h["last_p"] for h in holdings)
+
+        if len(holdings) >= 5 or cash < port_v * 0.10:
             continue
 
         # Marknadsfilter: index över MA50 (snabbare signal än MA200)
@@ -112,15 +112,16 @@ def _run_omx_config(conn, all_symbols, dates, start_idx, bd, vm, am, md, rsi_out
         best = conn.execute(entry_sql, [date] + all_symbols).fetchone()
         if best and not any(h["sym"] == best["symbol"] for h in holdings):
             sl = best["close"] - am * best["atr"] if best["atr"] else best["close"] * 0.92
-            p = port_v * POSITION_SIZE
+            p = min(cash, port_v * POSITION_SIZE)
             holdings.append({
                 "sym": best["symbol"], "entry": best["close"], "sl": sl,
                 "qty": p / best["close"], "days": 0, "last_p": best["close"]
             })
             cash -= p
 
+    final_val = cash + sum(h["qty"] * h["last_p"] for h in holdings)
     wins = len([t for t in trades if t > 0])
-    total_return = round((port_v / cap - 1) * 100, 2)
+    total_return = round((final_val / cap - 1) * 100, 2)
     win_rate = round(wins / len(trades) * 100, 2) if trades else 0
     # Kombinationsmått: win_rate × sign(return) för smart ranking
     score = win_rate * (1 if total_return >= 0 else -1)
@@ -199,11 +200,180 @@ def _find_nasdaq_entry(conn, date, all_symbols):
     """, [date] + all_symbols).fetchone()
 
 
+def run_crypto_backtest(years=3):
+    """Kör deterministiskt backtest på ledande kryptopar mot Bitcoin som benchmark."""
+    from src.core.crypto import get_crypto_df, CRYPTO_LIST
+    symbols = ["BTC-USD", "ETH-USD", "SOL-USD"]
+    dfs = {}
+    p_str = f"{max(1, min(5, years))}y"
+    for s in symbols:
+        df = get_crypto_df(s, period=p_str)
+        if df is not None and not df.empty and len(df) > 30:
+            dfs[s] = df
+
+    if not dfs or "BTC-USD" not in dfs:
+        return {"error": "Kunde inte hämta tillräcklig historisk data för kryptobacktest."}
+
+    # Hitta gemensamma datum
+    all_dates = sorted(list(set.intersection(*[set(df.index.strftime('%Y-%m-%d')) for df in dfs.values()])))
+    if len(all_dates) < 30:
+        return {"error": "För få gemensamma handelsdagar för vald period."}
+
+    initial_cap = 100_000.0
+    cash = initial_cap
+    holdings = []
+    trades = []
+    equity_curve = [initial_cap]
+
+    for d in all_dates:
+        still = []
+        for h in holdings:
+            df = dfs.get(h["sym"])
+            try:
+                row = df.loc[d]
+                c = float(row["Close"])
+                low = float(row["Low"])
+                rsi = float(row["RSI"]) if not pd.isna(row["RSI"]) else 50
+                h["last_p"] = c
+            except KeyError:
+                still.append(h)
+                continue
+
+            exit_p, reason = None, ""
+            if h["days"] > 0:
+                if low <= h["sl"]:
+                    exit_p = h["sl"]
+                    reason = "Stop loss utlöst"
+                elif rsi > 78:
+                    exit_p = c
+                    reason = "Vinsthemtagning (RSI > 78)"
+                elif h["days"] >= 25:
+                    exit_p = c
+                    reason = "Timeout (25 dagar)"
+
+            if exit_p is not None:
+                proceeds = h["qty"] * exit_p
+                cash += proceeds
+                ret = (exit_p / h["entry"] - 1) * 100
+                trades.append({
+                    "symbol": h["sym"],
+                    "name": CRYPTO_LIST.get(h["sym"], h["sym"]),
+                    "entry_date": h["entry_date"],
+                    "entry_price": round(h["entry"], 2),
+                    "exit_date": d,
+                    "exit_price": round(exit_p, 2),
+                    "return_pct": round(ret, 2),
+                    "profit": round(proceeds - (h["qty"] * h["entry"]), 2),
+                    "days_held": h["days"],
+                    "exit_reason": reason
+                })
+            else:
+                h["days"] += 1
+                still.append(h)
+
+        holdings = still
+        port_v = cash + sum(h["qty"] * h["last_p"] for h in holdings)
+        equity_curve.append(port_v)
+
+        # Marknadsregim: Bitcoin över MA50
+        try:
+            btc_row = dfs["BTC-USD"].loc[d]
+            if pd.isna(btc_row.get("MA50")) or float(btc_row["Close"]) < float(btc_row["MA50"]):
+                continue
+        except KeyError:
+            continue
+
+        if len(holdings) < 3 and cash >= port_v * 0.25:
+            for s in symbols:
+                if any(h["sym"] == s for h in holdings):
+                    continue
+                s_df = dfs[s]
+                try:
+                    s_row = s_df.loc[d]
+                    c_p = float(s_row["Close"])
+                    rsi_v = float(s_row["RSI"]) if not pd.isna(s_row["RSI"]) else 50
+                    ma50_v = float(s_row["MA50"]) if not pd.isna(s_row["MA50"]) else 0
+                    atr_v = float(s_row["ATR"]) if not pd.isna(s_row["ATR"]) else c_p * 0.05
+                    if c_p > ma50_v and rsi_v < 44:
+                        p_size = min(cash, port_v * 0.30)
+                        sl = round(c_p - 2.5 * atr_v, 2)
+                        holdings.append({
+                            "sym": s,
+                            "name": CRYPTO_LIST.get(s, s),
+                            "entry_date": d,
+                            "entry": c_p,
+                            "sl": sl,
+                            "qty": p_size / c_p,
+                            "days": 0,
+                            "last_p": c_p
+                        })
+                        cash -= p_size
+                        break
+                except KeyError:
+                    continue
+
+    # Avsluta öppna positioner
+    for h in holdings:
+        proceeds = h["qty"] * h["last_p"]
+        ret = (h["last_p"] / h["entry"] - 1) * 100
+        trades.append({
+            "symbol": h["sym"],
+            "name": CRYPTO_LIST.get(h["sym"], h["sym"]),
+            "entry_date": h["entry_date"],
+            "entry_price": round(h["entry"], 2),
+            "exit_date": all_dates[-1],
+            "exit_price": round(h["last_p"], 2),
+            "return_pct": round(ret, 2),
+            "profit": round(proceeds - (h["qty"] * h["entry"]), 2),
+            "days_held": h["days"],
+            "exit_reason": "Öppen position vid slut"
+        })
+
+    final_cap = cash + sum(h["qty"] * h["last_p"] for h in holdings)
+    total_return = round((final_cap / initial_cap - 1) * 100, 2)
+
+    btc_first = float(dfs["BTC-USD"].loc[all_dates[0]]["Close"])
+    btc_last = float(dfs["BTC-USD"].loc[all_dates[-1]]["Close"])
+    btc_return = round((btc_last / btc_first - 1) * 100, 2)
+    alpha = round(total_return - btc_return, 2)
+
+    win_count = len([t for t in trades if t["return_pct"] > 0])
+    win_rate = round(win_count / len(trades) * 100, 1) if trades else 0
+
+    gross_profit = sum(t["profit"] for t in trades if t["profit"] > 0)
+    gross_loss = abs(sum(t["profit"] for t in trades if t["profit"] < 0))
+    profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (round(gross_profit, 2) if gross_profit > 0 else 1.0)
+
+    peak = initial_cap
+    max_dd = 0.0
+    for v in equity_curve:
+        if v > peak: peak = v
+        dd = (peak - v) / peak * 100
+        if dd > max_dd: max_dd = dd
+
+    return {
+        "trades": len(trades),
+        "return": total_return,
+        "win_rate": win_rate,
+        "index_name": "Bitcoin",
+        "index_return": btc_return,
+        "alpha": alpha,
+        "max_drawdown": round(max_dd, 2),
+        "profit_factor": profit_factor,
+        "trade_list": trades[::-1]
+    }
+
+
 def run_backtest_local(market="omxs", years=5):
+    """Kör deterministisk backtest med full affärslogg, benchmark och max drawdown."""
+    if market == "crypto":
+        return run_crypto_backtest(years=years)
+
     conn = get_db()
     is_omx = (market == "omxs")
     idx_ticker = "^OMX" if is_omx else "^NDX"
-    all_symbols = list(OMXS_50.keys()) if is_omx else list(NASDAQ_100.keys())
+    symbols_dict = OMXS_50 if is_omx else NASDAQ_100
+    all_symbols = list(symbols_dict.keys())
     max_days = OMX_MAX_DAYS if is_omx else NASDAQ_MAX_DAYS
     atr_mult = OMX_ATR_MULT if is_omx else NASDAQ_ATR_MULT
 
@@ -212,46 +382,62 @@ def run_backtest_local(market="omxs", years=5):
         conn, params=(idx_ticker,)
     )
     if dates_df.empty:
-        return {"error": "Ingen historik."}
+        return {"error": f"Ingen historik för index {idx_ticker}."}
 
     dates = dates_df['date'].tolist()
     start_idx = max(0, len(dates) - (years * 252))
-    trades, cash, holdings, initial_cap = [], 100000, [], 100000
+    initial_cap = 100_000.0
+    cash = initial_cap
+    holdings = []
+    trades = []
+    equity_curve = [initial_cap]
 
     for date in dates[start_idx:]:
         still_holding = []
-        port_v = cash
 
         for h in holdings:
             row = conn.execute(
                 "SELECT low, close, rsi, ma50, ma200 FROM history WHERE symbol = ? AND date = ?",
                 (h["sym"], date)
             ).fetchone()
-            if not row:
-                port_v += h["qty"] * h["last_p"]
+            if not row or row["close"] is None:
                 still_holding.append(h)
                 continue
 
             h["last_p"] = row["close"]
+            exit_p, reason = None, ""
             if h["days"] > 0:
-                exit_p, _ = check_exit(
+                exit_p, reason = check_exit(
                     row["close"], row["low"], row["rsi"],
                     row["ma50"], row["ma200"],
                     h["sl"], is_omx, max_days, h["days"]
                 )
-            else:
-                exit_p = None
 
             if exit_p is not None:
-                cash += h["qty"] * exit_p
-                trades.append(exit_p / h["entry"] - 1)
+                proceeds = h["qty"] * exit_p
+                cash += proceeds
+                ret = (exit_p / h["entry"] - 1) * 100
+                trades.append({
+                    "symbol": h["sym"],
+                    "name": h.get("name", h["sym"]),
+                    "entry_date": h["entry_date"],
+                    "entry_price": round(h["entry"], 2),
+                    "exit_date": date,
+                    "exit_price": round(exit_p, 2),
+                    "return_pct": round(ret, 2),
+                    "profit": round(proceeds - (h["qty"] * h["entry"]), 2),
+                    "days_held": h["days"],
+                    "exit_reason": reason or "Avslut"
+                })
             else:
                 h["days"] += 1
-                port_v += h["qty"] * row["close"]
                 still_holding.append(h)
 
         holdings = still_holding
-        if len(holdings) >= 5:
+        port_v = cash + sum(h["qty"] * h["last_p"] for h in holdings)
+        equity_curve.append(port_v)
+
+        if len(holdings) >= 5 or cash < port_v * 0.10:
             continue
 
         idx_row = conn.execute(
@@ -265,17 +451,72 @@ def run_backtest_local(market="omxs", years=5):
         best = _find_omx_entry(conn, date, all_symbols) if is_omx else _find_nasdaq_entry(conn, date, all_symbols)
         if best and not any(h["sym"] == best["symbol"] for h in holdings):
             sl = best["close"] - atr_mult * best["atr"] if best["atr"] else best["close"] * 0.95
-            p_size = port_v * POSITION_SIZE
+            p_size = min(cash, port_v * POSITION_SIZE)
+            sym = best["symbol"]
             holdings.append({
-                "sym": best["symbol"], "entry": best["close"], "sl": sl,
-                "qty": p_size / best["close"], "days": 0, "last_p": best["close"]
+                "sym": sym,
+                "name": symbols_dict.get(sym, sym),
+                "entry_date": date,
+                "entry": best["close"],
+                "sl": sl,
+                "qty": p_size / best["close"],
+                "days": 0,
+                "last_p": best["close"]
             })
             cash -= p_size
 
-    win_count = len([t for t in trades if t > 0])
-    win_rate = round(win_count / len(trades) * 100, 2) if trades else 0
+    # Avsluta öppna positioner
+    for h in holdings:
+        proceeds = h["qty"] * h["last_p"]
+        ret = (h["last_p"] / h["entry"] - 1) * 100
+        trades.append({
+            "symbol": h["sym"],
+            "name": h.get("name", h["sym"]),
+            "entry_date": h["entry_date"],
+            "entry_price": round(h["entry"], 2),
+            "exit_date": dates[-1],
+            "exit_price": round(h["last_p"], 2),
+            "return_pct": round(ret, 2),
+            "profit": round(proceeds - (h["qty"] * h["entry"]), 2),
+            "days_held": h["days"],
+            "exit_reason": "Öppen position vid slut"
+        })
+
+    final_cap = cash + sum(h["qty"] * h["last_p"] for h in holdings)
+    total_return = round((final_cap / initial_cap - 1) * 100, 2)
+
+    # Benchmark avkastning
+    idx_df = pd.read_sql_query(
+        "SELECT close FROM history WHERE symbol = ? AND date IN (?, ?) ORDER BY date",
+        conn, params=(idx_ticker, dates[start_idx], dates[-1])
+    )
+    index_return = 0.0
+    if len(idx_df) >= 2 and idx_df.iloc[0]["close"]:
+        index_return = round((float(idx_df.iloc[-1]["close"]) / float(idx_df.iloc[0]["close"]) - 1) * 100, 2)
+    alpha = round(total_return - index_return, 2)
+
+    win_count = len([t for t in trades if t["return_pct"] > 0])
+    win_rate = round(win_count / len(trades) * 100, 1) if trades else 0
+
+    gross_profit = sum(t["profit"] for t in trades if t["profit"] > 0)
+    gross_loss = abs(sum(t["profit"] for t in trades if t["profit"] < 0))
+    profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (round(gross_profit, 2) if gross_profit > 0 else 1.0)
+
+    peak = initial_cap
+    max_dd = 0.0
+    for v in equity_curve:
+        if v > peak: peak = v
+        dd = (peak - v) / peak * 100
+        if dd > max_dd: max_dd = dd
+
     return {
         "trades": len(trades),
-        "return": round((port_v / initial_cap - 1) * 100, 2),
-        "win_rate": win_rate
+        "return": total_return,
+        "win_rate": win_rate,
+        "index_name": "OMXS30" if is_omx else "Nasdaq 100",
+        "index_return": index_return,
+        "alpha": alpha,
+        "max_drawdown": round(max_dd, 2),
+        "profit_factor": profit_factor,
+        "trade_list": trades[::-1][:100]
     }
