@@ -3,7 +3,6 @@ import pandas as pd
 import yfinance as yf
 from src.core.indicators import calc_rsi, calc_atr
 from src.core.patterns import detect_patterns
-from src.core.insider import get_insider_buys_for_symbol
 from src.core.short_interest import fetch_short_interest
 from src.core.config import OMXS_50, NASDAQ_100
 
@@ -159,18 +158,10 @@ def analyze_any_stock(symbol):
         # Candlestick-mönster senaste 20 dagarna
         patterns = detect_patterns(df.tail(20))
 
-        # Insynshandel (om svensk aktie)
-        insider_buys = []
-        if symbol.endswith(".ST"):
-            try:
-                insider_buys = get_insider_buys_for_symbol(symbol, days=90)
-            except Exception:
-                pass
-
         # Blankningsdata
         short_data = fetch_short_interest(symbol, company_name)
 
-        # ── Professionell Poängsättning (Konfluens) ──
+        # ── Teknisk Poängsättning ──
         score = 50
         bull_factors = []
         bear_factors = []
@@ -178,52 +169,45 @@ def analyze_any_stock(symbol):
         # 1. Långsiktig Trend (MA200)
         if ma200:
             if close > ma200:
-                score += 15
+                score += 20
                 bull_factors.append(f"Kursen ligger över 200-dagars medelvärde ({ma200} kr) – långsiktigt positiv trend.")
             else:
-                score -= 15
+                score -= 20
                 bear_factors.append(f"Kursen handlas under 200-dagars medelvärde ({ma200} kr) – långsiktig svaghet.")
 
         # 2. Medellång trend (MA50) & Golden Cross
         if ma50:
             if close > ma50:
-                score += 10
+                score += 15
                 bull_factors.append(f"Kursen är över 50-dagars medelvärde ({ma50} kr).")
             else:
-                score -= 10
+                score -= 15
                 bear_factors.append(f"Kursen har brutit ned under 50-dagars medelvärde ({ma50} kr).")
 
             if ma200 and ma50 > ma200:
-                score += 5
+                score += 10
                 bull_factors.append("Golden Cross (MA50 över MA200) indikerar etablerad bull-trend.")
 
         # 3. Momentum & RSI
         if rsi:
-            if rsi < 35 and rsi_prev and rsi > rsi_prev:
-                score += 20
+            if rsi < 40 and rsi_prev and rsi > rsi_prev:
+                score += 25
                 bull_factors.append(f"RSI har vänt upp från översålt läge ({rsi}) – god risk/reward för studs.")
             elif rsi > 72:
-                score -= 10
+                score -= 15
                 bear_factors.append(f"RSI är överköpt ({rsi}) – ökad risk för kortsiktig vinsthemtagning.")
-            elif 45 <= rsi <= 60:
-                score += 5
+            elif 45 <= rsi <= 65:
+                score += 15
                 bull_factors.append(f"RSI ({rsi}) befinner sig i hälsosam uppåtgående expansionszon.")
 
-        # 4. Katalysator: Insynshandel
-        if insider_buys:
-            recent_count = len(insider_buys)
-            total_amount = sum(b.get("amount", 0) for b in insider_buys)
-            score += 25
-            bull_factors.append(f"Insynsköp: {recent_count} st köp registrerade hos FI senaste 90 dgr (totalt ca {total_amount:,.0f} SEK). Ledningen satsar egna pengar.")
-
-        # 5. Blankningsrisk
+        # 4. Blankningsrisk
         if short_data.get("risk") == "Hög":
             score -= 15
             bear_factors.append(f"Hög blankning ({short_data.get('short_pct')}%) – institutioner spekulerar i nedgång.")
         elif short_data.get("short_pct", 0) < 1.0:
             bull_factors.append("Minimal blankning – lågt institutionellt säljtryck.")
 
-        # 6. Candlestick-mönster
+        # 5. Candlestick-mönster
         if patterns:
             last_p = patterns[-1]
             if last_p.get("bullish") is True:
@@ -279,7 +263,6 @@ def analyze_any_stock(symbol):
             "bull_factors": bull_factors,
             "bear_factors": bear_factors,
             "patterns": patterns,
-            "insider_buys": insider_buys[:5],
             "short_data": short_data,
             "avanza_recipe": avanza_recipe
         }

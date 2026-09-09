@@ -487,8 +487,6 @@ tbody tr:hover td { background: var(--bg3); }
   </div>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-dashboard" onclick="showTab('dashboard')">// ÖVERSIKT</button>
-    <button class="tab-btn" id="tab-btn-insider" onclick="showTab('insider'); window.loadInsider();">// INSYN (FI)</button>
-    <button class="tab-btn" id="tab-btn-congress" onclick="showTab('congress'); window.loadCongress();">// KONGRESS (USA)</button>
     <button class="tab-btn" id="tab-btn-crypto" onclick="showTab('crypto'); window.loadCrypto();">// KRYPTO</button>
     <button class="tab-btn" id="tab-btn-backtest" onclick="showTab('backtest')">// BACKTEST</button>
     <button class="tab-btn" id="tab-btn-readme" onclick="showTab('readme')">// DOKUMENTATION</button>
@@ -539,11 +537,6 @@ tbody tr:hover td { background: var(--bg3); }
       <button class="quick-tag" onclick="window.analyzeStock('BTC-USD')">Bitcoin</button>
     </div>
 
-    <div class="panel panel-am" style="margin-bottom:1.25rem;">
-      <div class="sec-hdr">AI MARKNADSBRIEFING // GEMINI 3.1 PRO</div>
-      <div id="ai-thought" class="empty">Laddar analys…</div>
-    </div>
-
     <div class="panel panel-am">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem;">
         <div class="sec-hdr" style="margin-bottom:0;border:none;">MARKNADSSCREENER // AKTUELLA REKOMMENDATIONER</div>
@@ -552,7 +545,6 @@ tbody tr:hover td { background: var(--bg3); }
           <button class="filter-btn" onclick="window.filterScreener('omx', this)">Sverige (OMXS)</button>
           <button class="filter-btn" onclick="window.filterScreener('nasdaq', this)">USA (Nasdaq)</button>
           <button class="filter-btn" onclick="window.filterScreener('kop', this)">Bästa Köp</button>
-          <button class="filter-btn" onclick="window.filterScreener('insider', this)">Med Insynsköp</button>
           <button class="filter-btn" onclick="window.filterScreener('salj', this)">Sälj / Svaghet</button>
         </div>
       </div>
@@ -622,76 +614,6 @@ tbody tr:hover td { background: var(--bg3); }
         </div>
       </div>
 
-    </div>
-  </div>
-
-  <!-- INSYN TAB (FINANSINSPEKTIONEN) -->
-  <div id="tab-insider" class="tab-pane">
-    <div class="panel panel-am">
-      <div class="sec-hdr">INSYNSHANDEL // FINANSINSPEKTIONEN</div>
-      <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
-        Registrerade insynsköp (VD, styrelse och nyckelpersoner) på Stockholmsbörsen och First North. Insynsköp med egna pengar är historiskt en av marknadens starkaste köpsignaler.
-      </p>
-      <div class="filter-btn-group">
-        <button class="filter-btn active" onclick="window.loadInsider(30, this)">Senaste 30 dagarna</button>
-        <button class="filter-btn" onclick="window.loadInsider(60, this)">Senaste 60 dagarna</button>
-        <button class="filter-btn" onclick="window.loadInsider(90, this)">Senaste 90 dagarna</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>PUB. DATUM</th>
-            <th>BOLAG</th>
-            <th>PERSON</th>
-            <th>BEFATTNING</th>
-            <th class="r">ANTAL</th>
-            <th class="r">KURS</th>
-            <th class="r">BELOPP</th>
-            <th class="r">ÅTGÄRD</th>
-          </tr></thead>
-          <tbody id="insider-table-body">
-            <tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Laddar insynsköp från Finansinspektionen…</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- KONGRESS TAB (USA) -->
-  <div id="tab-congress" class="tab-pane">
-    <div class="panel panel-am">
-      <div class="sec-hdr">AMERIKANSK KONGRESSHANDEL // SENATE & HOUSE</div>
-      <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
-        Offentliggjorda aktieaffärer från amerikanska senatorer och kongressledamöter via Quiver Quant med beräknad avkastning fram till idag.
-      </p>
-      <div class="filter-btn-group">
-        <button class="filter-btn" onclick="window.loadCongress(1, this)">1 Månad</button>
-        <button class="filter-btn active" onclick="window.loadCongress(3, this)">3 Månader</button>
-        <button class="filter-btn" onclick="window.loadCongress(6, this)">6 Månader</button>
-      </div>
-      <div class="bt-result show" id="congress-stats" style="margin-bottom:1rem;">
-        <div class="bt-cell"><div class="bt-lbl">TOTALA KÖP</div><div id="cg-total" class="bt-v">—</div></div>
-        <div class="bt-cell"><div class="bt-lbl">VINSTPROCENT</div><div id="cg-winrate" class="bt-v">—</div></div>
-        <div class="bt-cell"><div class="bt-lbl">SNITTAVKASTNING</div><div id="cg-return" class="bt-v">—</div></div>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>DATUM</th>
-            <th>POLITIKER</th>
-            <th>PARTI</th>
-            <th>TICKER</th>
-            <th>STORLEK</th>
-            <th class="r">INKÖP</th>
-            <th class="r">SENASTE</th>
-            <th class="r">AVKASTNING</th>
-            <th class="r">ÅTGÄRD</th>
-          </tr></thead>
-          <tbody id="congress-table-body">
-            <tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Laddar kongresstransaktioner…</td></tr>
-          </tbody>
-        </table>
-      </div>
     </div>
   </div>
 
@@ -841,19 +763,6 @@ window.loadMarketOverview = async function() {
     }
   } catch (e) {
     console.error("loadMarketOverview error:", e);
-  }
-};
-
-window.loadAiThought = async function() {
-  try {
-    const t = await fetch('/api/portal/thought').then(r => r.json());
-    const el = document.getElementById('ai-thought');
-    if (el) {
-      el.textContent = t.thought || 'Väntar på marknadsskanning och analys…';
-      el.classList.remove('empty');
-    }
-  } catch (e) {
-    console.error("loadAiThought error:", e);
   }
 };
 
@@ -1008,8 +917,6 @@ window.filterScreener = function(type, btn) {
     filtered = window.screenerData.filter(x => x.market === 'NASDAQ');
   } else if (type === 'kop') {
     filtered = window.screenerData.filter(x => (x.rek || '').includes('KÖP'));
-  } else if (type === 'insider') {
-    filtered = window.screenerData.filter(x => x.has_insider === true);
   } else if (type === 'salj') {
     filtered = window.screenerData.filter(x => (x.rek || '').includes('SÄLJ'));
   }
@@ -1050,7 +957,6 @@ window.syncData = async function() {
         if (statusEl) statusEl.textContent = `SYNKAD ${s.last_synced ? s.last_synced.split(' ')[1] : 'KLAR'}`;
         window.loadMarketOverview();
         window.scanMarket();
-        window.loadAiThought();
       }
     } catch(err) {
       console.error("sync status poll error:", err);
@@ -1061,7 +967,6 @@ window.syncData = async function() {
 window.refreshPortal = async function() {
   await Promise.allSettled([
     window.loadMarketOverview(),
-    window.loadAiThought(),
     window.scanMarket()
   ]);
 };
@@ -1118,86 +1023,7 @@ window.runOptimize = async function() {
   btn.disabled = false;
 };
 
-// ── NYA MODULER: INSYN, KONGRESS, KRYPTO & DJUPANALYS ──
-
-window.loadInsider = async function(days=30, btn=null) {
-  if (btn) {
-    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }
-  const tbody = document.getElementById('insider-table-body');
-  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Hämtar insynsdata från Finansinspektionen…</td></tr>';
-  try {
-    const res = await fetch(`/api/portal/insider?days=${days}`).then(r => r.json());
-    if (!res.trades || !res.trades.length) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Inga registrerade insynsköp under perioden.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = res.trades.slice(0, 100).map(t => `
-      <tr>
-        <td style="color:var(--dim);font-size:0.75rem;">${esc(t.pub_date)}</td>
-        <td><strong>${esc(t.company)}</strong> ${t.ticker ? `<span class="badge badge-am" style="font-size:0.55rem;">${esc(t.ticker)}</span>` : ''}</td>
-        <td>${esc(t.insider)}</td>
-        <td style="color:var(--dim);font-size:0.75rem;">${esc(t.role)}</td>
-        <td class="r">${fmt(t.volume)}</td>
-        <td class="r">${fmt(t.price, 2)} ${esc(t.currency)}</td>
-        <td class="r"><strong>${fmt(t.amount)} kr</strong></td>
-        <td class="r">
-          <button class="btn-sm btn-edit" onclick="window.analyzeStock('${esc(t.ticker || t.company)}')">ANALYSERA</button>
-        </td>
-      </tr>
-    `).join('');
-  } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:2rem;">Fel vid hämtning: ${esc(e.message)}</td></tr>`;
-  }
-};
-
-window.loadCongress = async function(months=3, btn=null) {
-  if (btn) {
-    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }
-  const tbody = document.getElementById('congress-table-body');
-  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Hämtar amerikanska politiker-köp…</td></tr>';
-  try {
-    const res = await fetch(`/api/portal/congress?months=${months}`).then(r => r.json());
-    const stats = res.stats || {};
-    document.getElementById('cg-total').textContent = (stats.total || 0) + ' ST';
-    document.getElementById('cg-winrate').textContent = (stats.win_rate || 0) + '%';
-    const retEl = document.getElementById('cg-return');
-    retEl.textContent = (stats.avg_return != null ? stats.avg_return : 0) + '%';
-    retEl.className = 'bt-v ' + ((stats.avg_return || 0) >= 0 ? 'pos' : 'neg');
-
-    if (!res.trades || !res.trades.length) {
-      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Inga transaktioner hittades.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = res.trades.slice(0, 100).map(t => {
-      const ret = t.return_pct;
-      const retClass = ret != null ? (ret >= 0 ? 'pos' : 'neg') : '';
-      const retText = ret != null ? `${ret > 0 ? '+' : ''}${ret}%` : '—';
-      const partyBadge = t.party === 'D' ? '<span class="badge" style="background:rgba(59,130,246,0.2);color:#60a5fa;">DEM</span>'
-                       : t.party === 'R' ? '<span class="badge badge-red">REP</span>' : '';
-      return `
-        <tr>
-          <td style="color:var(--dim);font-size:0.75rem;">${esc(t.txn_date)}</td>
-          <td><strong>${esc(t.politician)}</strong></td>
-          <td>${partyBadge}</td>
-          <td class="td-sym">${esc(t.ticker)}</td>
-          <td style="color:var(--dim);font-size:0.75rem;">${esc(t.amount_range)}</td>
-          <td class="r">${t.entry_price ? '$' + fmt(t.entry_price, 2) : '—'}</td>
-          <td class="r">${t.today_price ? '$' + fmt(t.today_price, 2) : '—'}</td>
-          <td class="r ${retClass}"><strong>${retText}</strong></td>
-          <td class="r">
-            <button class="btn-sm btn-edit" onclick="window.analyzeStock('${esc(t.ticker)}')">ANALYSERA</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--red);padding:2rem;">Fel vid hämtning: ${esc(e.message)}</td></tr>`;
-  }
-};
+// ── KRYPTO & DJUPANALYS ──
 
 window.loadCrypto = async function() {
   const tbody = document.getElementById('crypto-table-body');
@@ -1244,7 +1070,7 @@ window.analyzeStock = async function(symbol=null) {
   const title = document.getElementById('an-title');
   const body = document.getElementById('an-body');
   title.textContent = sym.toUpperCase();
-  body.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--dim);font-style:italic;">Hämtar data, mönster, insynsköp och Avanza-recept…</div>';
+  body.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--dim);font-style:italic;">Hämtar marknadsdata, mönster och Avanza-recept…</div>';
   modal.classList.add('open');
 
   try {

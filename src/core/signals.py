@@ -2,7 +2,6 @@ import sqlite3
 import pandas as pd
 from src.core.data import get_db
 from src.core.config import OMXS_50, NASDAQ_100
-from src.core.insider import get_insider_buys_for_symbol
 
 # --- Konstanterna för strategin ---
 OMX_ATR_MULT     = 4.5
@@ -68,54 +67,42 @@ def run_market_screener(market="all"):
         ma200 = round(float(r_now["ma200"]), 2) if r_now["ma200"] is not None else None
         atr = float(r_now["atr"]) if r_now["atr"] is not None else (close * 0.03)
 
-        # ── Poängsättning (Konfluens) ──
+        # ── Teknisk Poängsättning ──
         score = 50
         reasons = []
 
         # 1. Trend MA200 & MA50
         if ma200:
             if close > ma200:
-                score += 15
+                score += 20
                 reasons.append("Över MA200 (bullish)")
             else:
-                score -= 15
+                score -= 20
                 reasons.append("Under MA200 (bearish)")
 
         if ma50:
             if close > ma50:
-                score += 10
+                score += 15
                 reasons.append("Över MA50")
             else:
-                score -= 10
+                score -= 15
                 reasons.append("Under MA50")
 
             if ma200 and ma50 > ma200:
-                score += 5
+                score += 10
                 reasons.append("Golden Cross")
 
         # 2. RSI Momentum
         if rsi:
-            if rsi < 38 and rsi_prev and rsi > rsi_prev:
-                score += 20
+            if rsi < 40 and rsi_prev and rsi > rsi_prev:
+                score += 25
                 reasons.append(f"RSI-vändning upp ({rsi})")
-            elif rsi > 74:
-                score -= 10
+            elif rsi > 72:
+                score -= 15
                 reasons.append(f"Överköpt RSI ({rsi})")
-            elif 45 <= rsi <= 62:
-                score += 10
+            elif 45 <= rsi <= 65:
+                score += 15
                 reasons.append(f"Starkt momentum ({rsi})")
-
-        # 3. Insynshandel (Svenska aktier)
-        has_insider = False
-        if sym.endswith(".ST"):
-            try:
-                buys = get_insider_buys_for_symbol(sym, days=60)
-                if buys:
-                    has_insider = True
-                    score += 25
-                    reasons.append(f"Insynsköp: {len(buys)} st")
-            except Exception:
-                pass
 
         score = max(5, min(95, score))
 
@@ -151,7 +138,6 @@ def run_market_screener(market="all"):
             "score": score,
             "rek": rek,
             "rek_class": rek_class,
-            "has_insider": has_insider,
             "reasons": reasons,
             "recipe": {
                 "type": "Standard Köp",
