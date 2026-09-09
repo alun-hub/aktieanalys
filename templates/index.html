@@ -421,6 +421,55 @@ tbody tr:hover td { background: var(--bg3); }
 .stats-strip { animation: fadeUp 0.35s ease both; }
 .main-grid   { animation: fadeUp 0.35s 0.08s ease both; }
 .panel-full  { animation: fadeUp 0.35s 0.16s ease both; }
+/* Sök & Taggar */
+.search-bar { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+.search-bar input { flex: 1; background: var(--bg2); border: 1px solid var(--dim2); color: var(--txt); font-family: var(--mono); font-size: 0.85rem; padding: 0.65rem 1rem; outline: none; }
+.search-bar input:focus { border-color: var(--am); }
+.badge { display: inline-block; padding: 0.2rem 0.5rem; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; border-radius: 2px; }
+.badge-grn { background: rgba(74,222,128,0.15); color: var(--grn); border: 1px solid rgba(74,222,128,0.3); }
+.badge-am  { background: rgba(245,158,11,0.15); color: var(--am); border: 1px solid rgba(245,158,11,0.3); }
+.badge-red { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+.filter-btn-group { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.filter-btn { background: var(--bg2); border: 1px solid var(--dim2); color: var(--dim); padding: 0.4rem 0.8rem; font-family: var(--mono); font-size: 0.65rem; cursor: pointer; text-transform: uppercase; }
+.filter-btn.active, .filter-btn:hover { border-color: var(--am); color: var(--am); }
+.analysis-factor-list { list-style: none; margin: 0.5rem 0; }
+.analysis-factor-list li { font-size: 0.76rem; margin-bottom: 0.35rem; line-height: 1.5; }
+.analysis-factor-list li::before { content: '▸ '; color: var(--am); }
+
+/* Screener & Rekommendationskort */
+.screener-grid { display: grid; grid-template-columns: 1fr; gap: 0.85rem; }
+@media(min-width: 768px) { .screener-grid { grid-template-columns: repeat(2, 1fr); } }
+@media(min-width: 1100px) { .screener-grid { grid-template-columns: repeat(3, 1fr); } }
+.screener-card { background: var(--bg2); border: 1px solid var(--dim2); padding: 0.9rem 1rem; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
+.screener-card:hover { border-color: var(--am); background: var(--bg3); }
+.screener-card.prime { border-top: 3px solid var(--grn); }
+.screener-card.bra   { border-top: 3px solid #22c55e; }
+.screener-card.vanta { border-top: 3px solid var(--am); }
+.screener-card.undvik{ border-top: 3px solid var(--red); }
+.score-bar-wrap { width: 100%; height: 4px; background: var(--dim2); margin: 0.4rem 0 0.7rem; border-radius: 2px; overflow: hidden; }
+.score-bar-fill { height: 100%; background: var(--am); }
+.quick-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: -0.75rem; margin-bottom: 1.25rem; }
+.quick-tag { font-size: 0.62rem; background: var(--bg2); border: 1px solid var(--dim2); color: var(--dim); padding: 0.2rem 0.5rem; cursor: pointer; text-transform: uppercase; }
+.quick-tag:hover { color: var(--am); border-color: var(--am); }
+.sync-status-badge { font-size: 0.65rem; color: var(--dim); margin-left: 0.5rem; }
+
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; }
+.card-sym { font-weight: 700; font-size: 1.05rem; color: var(--brt); letter-spacing: 0.04em; }
+.card-name { font-size: 0.72rem; color: var(--dim); margin-top: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.card-price-row { display: flex; justify-content: space-between; align-items: baseline; margin: 0.4rem 0 0.6rem; }
+.card-price { font-size: 1.15rem; font-weight: 600; color: var(--brt); }
+.card-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; background: var(--bg); padding: 0.5rem; border: 1px solid var(--dim2); margin-bottom: 0.6rem; font-size: 0.7rem; }
+.card-metric-col { display: flex; flex-direction: column; }
+.card-metric-lbl { font-size: 0.55rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
+.card-metric-val { font-weight: 600; margin-top: 0.15rem; }
+.card-reasons { list-style: none; margin: 0.3rem 0 0.75rem; min-height: 2.4rem; }
+.card-reasons li { font-size: 0.7rem; color: var(--dim); margin-bottom: 0.2rem; line-height: 1.35; }
+.card-reasons li::before { content: '▸ '; color: var(--am); }
+.card-recipe { background: rgba(245,158,11,0.04); border: 1px dashed var(--am-l); padding: 0.5rem 0.65rem; margin-bottom: 0.75rem; font-size: 0.72rem; }
+.card-recipe-row { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
+.card-recipe-row:last-child { margin-bottom: 0; }
+.card-recipe-row label { color: var(--dim); }
+.card-recipe-row span { font-weight: 500; }
 </style>
 </head>
 <body>
@@ -432,78 +481,85 @@ tbody tr:hover td { background: var(--bg3); }
     <div id="sys-clock">——:——:——<span class="cursor"></span></div>
     <div class="header-flex"></div>
     <div class="header-actions">
-      <button class="btn btn-am" onclick="window.scanMarket()">▶ SKANNA</button>
-      <button class="btn btn-ghost" onclick="window.syncData()">⟳ SYNKA</button>
+      <button class="btn btn-am" id="btn-scan" onclick="window.scanMarket()">▶ SKANNA</button>
+      <button class="btn btn-ghost" id="btn-sync" onclick="window.syncData()">⟳ SYNKA</button>
     </div>
   </div>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-dashboard" onclick="showTab('dashboard')">// ÖVERSIKT</button>
+    <button class="tab-btn" id="tab-btn-insider" onclick="showTab('insider'); window.loadInsider();">// INSYN (FI)</button>
+    <button class="tab-btn" id="tab-btn-congress" onclick="showTab('congress'); window.loadCongress();">// KONGRESS (USA)</button>
+    <button class="tab-btn" id="tab-btn-crypto" onclick="showTab('crypto'); window.loadCrypto();">// KRYPTO</button>
     <button class="tab-btn" id="tab-btn-backtest" onclick="showTab('backtest')">// BACKTEST</button>
+    <button class="tab-btn" id="tab-btn-readme" onclick="showTab('readme')">// DOKUMENTATION</button>
   </div>
 </div>
 
 <div class="wrap">
 
-  <!-- STATS STRIP -->
-  <div class="stats-strip">
-    <div class="stat-cell clickable" onclick="window.openBudgetModal()">
-      <div class="stat-lbl">LIKVIDITET</div>
-      <div id="stat-cash" class="stat-val">—</div>
+  <!-- MARKET STRIP (INDICES) -->
+  <div class="stats-strip" id="market-strip">
+    <div class="stat-cell">
+      <div class="stat-lbl">OMXS30</div>
+      <div id="mkt-omx" class="stat-val">—</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-lbl">INNEHAV</div>
-      <div id="stat-holdings" class="stat-val">—</div>
+      <div class="stat-lbl">NASDAQ 100</div>
+      <div id="mkt-ndx" class="stat-val">—</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-lbl">TOTALVÄRDE</div>
-      <div id="stat-total" class="stat-val">—</div>
+      <div class="stat-lbl">S&P 500</div>
+      <div id="mkt-spx" class="stat-val">—</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-lbl">STARTKAPITAL</div>
-      <div id="stat-initial" class="stat-val">—</div>
+      <div class="stat-lbl">BITCOIN</div>
+      <div id="mkt-btc" class="stat-val">—</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-lbl">AVKASTNING</div>
-      <div id="stat-pl" class="stat-val">—</div>
+      <div class="stat-lbl">SCREENER STATUS</div>
+      <div id="mkt-status" class="stat-val" style="font-size:0.85rem;color:var(--am);">REDO</div>
     </div>
   </div>
 
-  <!-- DASHBOARD TAB -->
+  <!-- DASHBOARD TAB (SCREENER & REKOMMENDATIONER) -->
   <div id="tab-dashboard" class="tab-pane active">
 
-    <div class="main-grid">
-      <div class="panel panel-am">
-        <div class="sec-hdr">AI ANALYS</div>
-        <div id="ai-thought" class="empty">Laddar analys…</div>
-      </div>
-      <div class="panel panel-grn">
-        <div class="sec-hdr">KÖP IDAG</div>
-        <div id="buy-list"><p class="empty">Skanna marknaden för signaler.</p></div>
-      </div>
-      <div class="panel panel-red">
-        <div class="sec-hdr">SÄLJ IDAG</div>
-        <div id="sell-list"><p class="empty">Inga säljsignaler.</p></div>
-      </div>
+    <div class="search-bar">
+      <input type="text" id="symbol-search-input" placeholder="SÖK AKTIE ELLER TICKER (T.EX. INVESTOR, VOLVO, SAAB, NVIDIA, APPLE, BITCOIN)..." onkeydown="if(event.key==='Enter') window.analyzeStock()">
+      <button class="btn btn-am" onclick="window.analyzeStock()">🔍 DJUPANALYS</button>
+    </div>
+    <div class="quick-tags">
+      <span style="font-size:0.62rem;color:var(--dim);margin-right:0.25rem;align-self:center;">SNABBVAL:</span>
+      <button class="quick-tag" onclick="window.analyzeStock('INVE-B.ST')">Investor B</button>
+      <button class="quick-tag" onclick="window.analyzeStock('VOLV-B.ST')">Volvo B</button>
+      <button class="quick-tag" onclick="window.analyzeStock('SAAB-B.ST')">SAAB B</button>
+      <button class="quick-tag" onclick="window.analyzeStock('EVO.ST')">Evolution</button>
+      <button class="quick-tag" onclick="window.analyzeStock('NVDA')">Nvidia</button>
+      <button class="quick-tag" onclick="window.analyzeStock('AAPL')">Apple</button>
+      <button class="quick-tag" onclick="window.analyzeStock('BTC-USD')">Bitcoin</button>
     </div>
 
-    <div class="panel-full">
-      <div class="sec-hdr">AKTUELL PORTFÖLJ</div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>PAPPER</th>
-            <th class="r">ANTAL</th>
-            <th class="r">INKÖP</th>
-            <th class="r">SENASTE</th>
-            <th class="r">VÄRDE</th>
-            <th class="r">STOP LOSS</th>
-            <th class="r">V/F %</th>
-            <th class="r">ÅTGÄRD</th>
-          </tr></thead>
-          <tbody id="holdings-table">
-            <tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;font-style:italic;">Laddar…</td></tr>
-          </tbody>
-        </table>
+    <div class="panel panel-am" style="margin-bottom:1.25rem;">
+      <div class="sec-hdr">AI MARKNADSBRIEFING // GEMINI 3.1 PRO</div>
+      <div id="ai-thought" class="empty">Laddar analys…</div>
+    </div>
+
+    <div class="panel panel-am">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem;">
+        <div class="sec-hdr" style="margin-bottom:0;border:none;">MARKNADSSCREENER // AKTUELLA REKOMMENDATIONER</div>
+        <div class="filter-btn-group" style="margin-bottom:0;">
+          <button class="filter-btn active" onclick="window.filterScreener('all', this)">Alla</button>
+          <button class="filter-btn" onclick="window.filterScreener('omx', this)">Sverige (OMXS)</button>
+          <button class="filter-btn" onclick="window.filterScreener('nasdaq', this)">USA (Nasdaq)</button>
+          <button class="filter-btn" onclick="window.filterScreener('kop', this)">Bästa Köp</button>
+          <button class="filter-btn" onclick="window.filterScreener('insider', this)">Med Insynsköp</button>
+          <button class="filter-btn" onclick="window.filterScreener('salj', this)">Sälj / Svaghet</button>
+        </div>
+      </div>
+      <div id="screener-results" class="screener-grid">
+        <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--dim);font-style:italic;">
+          Klicka på <strong>▶ SKANNA</strong> för att hämta rankade rekommendationer från marknaden.
+        </div>
       </div>
     </div>
 
@@ -569,79 +625,154 @@ tbody tr:hover td { background: var(--bg3); }
     </div>
   </div>
 
-</div>
-
-<!-- MODAL: ORDER -->
-<div id="order-modal" class="modal">
-  <div class="modal-box">
-    <div class="modal-hdr">
-      <div>
-        <div class="modal-tag">ORDERLÄGGNING</div>
-        <div id="order-title" class="modal-title">—</div>
+  <!-- INSYN TAB (FINANSINSPEKTIONEN) -->
+  <div id="tab-insider" class="tab-pane">
+    <div class="panel panel-am">
+      <div class="sec-hdr">INSYNSHANDEL // FINANSINSPEKTIONEN</div>
+      <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
+        Registrerade insynsköp (VD, styrelse och nyckelpersoner) på Stockholmsbörsen och First North. Insynsköp med egna pengar är historiskt en av marknadens starkaste köpsignaler.
+      </p>
+      <div class="filter-btn-group">
+        <button class="filter-btn active" onclick="window.loadInsider(30, this)">Senaste 30 dagarna</button>
+        <button class="filter-btn" onclick="window.loadInsider(60, this)">Senaste 60 dagarna</button>
+        <button class="filter-btn" onclick="window.loadInsider(90, this)">Senaste 90 dagarna</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>PUB. DATUM</th>
+            <th>BOLAG</th>
+            <th>PERSON</th>
+            <th>BEFATTNING</th>
+            <th class="r">ANTAL</th>
+            <th class="r">KURS</th>
+            <th class="r">BELOPP</th>
+            <th class="r">ÅTGÄRD</th>
+          </tr></thead>
+          <tbody id="insider-table-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Laddar insynsköp från Finansinspektionen…</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
-    <div class="modal-body">
-      <div class="step-blk">
-        <div class="step-tag">// STEG 1 — AVANZA</div>
-        <div class="step-row"><label>ORDERTYP</label><span id="ot-type">—</span></div>
-        <div class="step-row"><label>ANTAL</label><span id="ot-qty">—</span></div>
-        <div class="step-row"><label>TRIGGER</label><span id="ot-trigger">—</span></div>
-        <div class="step-row"><label>LIMIT</label><span id="ot-limit">—</span></div>
-        <div class="step-row"><label>GILTIGHET</label><span>I DAG</span></div>
+  </div>
+
+  <!-- KONGRESS TAB (USA) -->
+  <div id="tab-congress" class="tab-pane">
+    <div class="panel panel-am">
+      <div class="sec-hdr">AMERIKANSK KONGRESSHANDEL // SENATE & HOUSE</div>
+      <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
+        Offentliggjorda aktieaffärer från amerikanska senatorer och kongressledamöter via Quiver Quant med beräknad avkastning fram till idag.
+      </p>
+      <div class="filter-btn-group">
+        <button class="filter-btn" onclick="window.loadCongress(1, this)">1 Månad</button>
+        <button class="filter-btn active" onclick="window.loadCongress(3, this)">3 Månader</button>
+        <button class="filter-btn" onclick="window.loadCongress(6, this)">6 Månader</button>
       </div>
-      <div id="step-sl" class="step-blk" style="border-color:rgba(248,113,113,0.2);">
-        <div class="step-tag red">// STEG 2 — STOP LOSS</div>
-        <div class="step-row"><label>TRIGGER</label><span id="sl-trigger" style="color:var(--red)">—</span></div>
-        <div class="step-row"><label>LIMIT</label><span id="sl-limit">—</span></div>
+      <div class="bt-result show" id="congress-stats" style="margin-bottom:1rem;">
+        <div class="bt-cell"><div class="bt-lbl">TOTALA KÖP</div><div id="cg-total" class="bt-v">—</div></div>
+        <div class="bt-cell"><div class="bt-lbl">VINSTPROCENT</div><div id="cg-winrate" class="bt-v">—</div></div>
+        <div class="bt-cell"><div class="bt-lbl">SNITTAVKASTNING</div><div id="cg-return" class="bt-v">—</div></div>
       </div>
-      <div class="m-group">
-        <label class="m-lbl">VILKEN KURS FICK DU?</label>
-        <input type="number" id="final-price" class="m-input" step="0.01">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>DATUM</th>
+            <th>POLITIKER</th>
+            <th>PARTI</th>
+            <th>TICKER</th>
+            <th>STORLEK</th>
+            <th class="r">INKÖP</th>
+            <th class="r">SENASTE</th>
+            <th class="r">AVKASTNING</th>
+            <th class="r">ÅTGÄRD</th>
+          </tr></thead>
+          <tbody id="congress-table-body">
+            <tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Laddar kongresstransaktioner…</td></tr>
+          </tbody>
+        </table>
       </div>
-      <button class="btn btn-am btn-full" onclick="window.confirmOrder()">▶ GENOMFÖR I PORTALEN</button>
-      <button class="btn-cancel" onclick="closeModals()">AVBRYT</button>
+    </div>
+  </div>
+
+  <!-- KRYPTO TAB -->
+  <div id="tab-crypto" class="tab-pane">
+    <div class="panel panel-am">
+      <div class="sec-hdr">KRYPTO SCREENER // TOPPVALUTOR</div>
+      <p style="color:var(--dim);font-size:0.78rem;margin-bottom:1rem;line-height:1.6;">
+        Teknisk trend, momentum och handelsnivåer för de ledande kryptovalutorna baserat på MA50, MA200 och RSI.
+      </p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>SYMBOL</th>
+            <th>NAMN</th>
+            <th class="r">PRIS (USD)</th>
+            <th class="r">24H %</th>
+            <th class="r">RSI</th>
+            <th>SIGNAL</th>
+            <th class="r">STOP LOSS</th>
+            <th class="r">MÅLKURS (TP)</th>
+            <th class="r">ÅTGÄRD</th>
+          </tr></thead>
+          <tbody id="crypto-table-body">
+            <tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Laddar marknadsdata för krypto…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- README / DOKUMENTATION TAB -->
+  <div id="tab-readme" class="tab-pane">
+    <div class="panel panel-am">
+      <div class="sec-hdr">HANDBOK FÖR AMATÖRINVESTERAREN // STRATEGI & AVANZA-GUIDE</div>
+      <div style="font-size:0.82rem;line-height:1.7;color:var(--txt);max-width:900px;">
+        <h4 style="color:var(--am);margin:1rem 0 0.5rem;">1. Strategi & Konfluens</h4>
+        <p>Systemet kombinerar deterministiska regler med marknadens starkaste katalysatorer:</p>
+        <ul class="analysis-factor-list">
+          <li><strong>Sverige Breakout:</strong> Söker 40-dagars utbrott på OMX med volymbekräftelse (>1.6x) över 50-dagars medelvärde.</li>
+          <li><strong>Insynskonfluens:</strong> Om ett utbrott eller stöd sammanfaller med att VD eller styrelsemedlemmar köper med egna pengar ges maximal köpstyrka.</li>
+          <li><strong>USA Momentum:</strong> Fångar rekyler och vändningar i ledande Nasdaq 100-bolag när RSI vänder upp under 45 i stigande 200-dagars trend.</li>
+        </ul>
+
+        <h4 style="color:var(--am);margin:1.5rem 0 0.5rem;">2. Orderläggning i Avanza (Avanza Expert)</h4>
+        <p>Följ portalens tvåstegsrecept när du lägger ordern i Avanzas app eller webb:</p>
+        <ul class="analysis-factor-list">
+          <li><strong>STEG 1 (Köporder):</strong> Lägg en vanlig köporder med Limitkurs (senaste avslut + 0.3%). Detta ger omedelbart avslut utan att du halkar efter spreaden.</li>
+          <li><strong>STEG 2 (Stop Loss):</strong> Gå direkt till positionen i Avanza och aktivera Stop Loss med de angivna Trigger- och Limitnivåerna. Detta skyddar ditt kapital om marknaden vänder.</li>
+          <li><strong>Courtage-tips:</strong> Om ordern är under 15 000 kr – välj <em>Avanza Mini</em>. Om ordern är över 15 000 kr – välj <em>Avanza Small</em> för att minimera avgifterna.</li>
+        </ul>
+
+        <h4 style="color:var(--am);margin:1.5rem 0 0.5rem;">3. Hur du Realiserar Vinster (Disciplin)</h4>
+        <p>Det vanligaste misstaget är att ta för små vinster (+3%) och låta förluster växa. Portalens regler är tydliga:</p>
+        <ul class="analysis-factor-list">
+          <li><strong>Delvinst (Take Profit 1):</strong> När aktien når ca 1.8x din risk (vanligen +8% till +12%), sälj 50% av positionen. Flytta samtidigt upp Stop Loss till ditt inköpspris. Därefter är affären helt riskfri!</li>
+          <li><strong>Låt vinnaren löpa:</strong> Resterande 50% får löpa med en rörlig stop loss (t.ex. MA50 eller ATR-stöd) tills RSI överstiger 78 eller trenden bryts.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL: DJUPANALYS -->
+<div id="analysis-modal" class="modal">
+  <div class="modal-box" style="max-width:650px;">
+    <div class="modal-hdr" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div class="modal-tag">BÖRSPROFFSETS DJUPANALYS</div>
+        <div id="an-title" class="modal-title">—</div>
+      </div>
+      <button class="btn-sm btn-ghost" onclick="closeModals()" style="font-size:0.9rem;padding:0.2rem 0.6rem;line-height:1;border-color:transparent;">✕</button>
+    </div>
+    <div class="modal-body" id="an-body">
+      <div style="text-align:center;padding:2rem;color:var(--dim);">Analyserar papper…</div>
     </div>
   </div>
 </div>
 
-<!-- MODAL: BUDGET -->
-<div id="budget-modal" class="modal">
-  <div class="modal-box">
-    <div class="modal-hdr">
-      <div>
-        <div class="modal-tag">KONFIGURATION</div>
-        <div class="modal-title">PORTFÖLJINSTÄLLNINGAR</div>
-      </div>
-    </div>
-    <div class="modal-body">
-      <div class="m-group"><label class="m-lbl">LIKVIDITET (CASH)</label><input type="number" id="input-cash" class="m-input"></div>
-      <div class="m-group"><label class="m-lbl">STARTKAPITAL</label><input type="number" id="input-initial" class="m-input"></div>
-      <div class="m-group"><label class="m-lbl">COURTAGE</label><input type="number" id="input-comm-val" class="m-input" step="0.01"></div>
-      <button class="btn btn-am btn-full" onclick="window.saveBudget()">▶ SPARA</button>
-      <button class="btn-cancel" onclick="closeModals()">AVBRYT</button>
-    </div>
-  </div>
-</div>
 
-<!-- MODAL: EDIT -->
-<div id="edit-modal" class="modal">
-  <div class="modal-box">
-    <div class="modal-hdr">
-      <div>
-        <div class="modal-tag">REDIGERA POSITION</div>
-        <div id="edit-title" class="modal-title">—</div>
-      </div>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="edit-symbol">
-      <div class="m-group"><label class="m-lbl">ANTAL</label><input type="number" id="edit-qty" class="m-input"></div>
-      <div class="m-group"><label class="m-lbl">INKÖPSPRIS</label><input type="number" id="edit-entry" class="m-input" step="0.01"></div>
-      <div class="m-group"><label class="m-lbl">STOP LOSS</label><input type="number" id="edit-sl" class="m-input" step="0.01"></div>
-      <button class="btn btn-am btn-full" onclick="window.saveEdit()">▶ SPARA</button>
-      <button class="btn-cancel" onclick="closeModals()">AVBRYT</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // Clock
@@ -652,9 +783,6 @@ tbody tr:hover td { background: var(--bg3); }
     `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}<span class="cursor"></span>`;
   setTimeout(tick, 1000);
 })();
-
-window.currentOrders = { buy: [], sell: [] };
-window.activeOrder   = null;
 
 function esc(s) {
   const d = document.createElement('div');
@@ -676,189 +804,266 @@ function closeModals() {
   document.querySelectorAll('.modal').forEach(m => m.classList.remove('open'));
 }
 
-window.refreshPortal = async function() {
-  try {
-    const p = await fetch('/api/portal/portfolio').then(r => r.json());
-    document.getElementById('stat-cash').textContent     = fmt(p.cash) + ' kr';
-    document.getElementById('stat-holdings').textContent = fmt(p.holdings_value) + ' kr';
-    document.getElementById('stat-total').textContent    = fmt(p.total_value) + ' kr';
-    document.getElementById('stat-initial').textContent  = fmt(p.initial) + ' kr';
+// State
+window.screenerData = [];
+window.syncInterval = null;
 
-    const plv = p.total_value - p.initial;
-    const plp = ((p.total_value / p.initial) - 1) * 100;
-    const plEl = document.getElementById('stat-pl');
-    plEl.textContent = fmt(plp, 2) + '% (' + fmt(plv) + ')';
-    plEl.className = 'stat-val ' + (plv >= 0 ? 'pos' : 'neg');
-
-    const orders = await fetch('/api/portal/orders').then(r => r.json());
-    window.currentOrders = orders;
-
-    const bList = document.getElementById('buy-list');
-    bList.innerHTML = orders.buy.length
-      ? orders.buy.map(o => `
-        <div class="order-card">
-          <div class="order-head">
-            <span class="order-sym">${esc(o.symbol)}</span>
-            <span class="order-score">AI:${esc(o.ai_score || '—')}</span>
-          </div>
-          <div class="order-reason">${esc(o.reason)}</div>
-          <div class="order-meta">BELOPP <strong>${fmt(o.suggested_amount)} kr</strong> · ${esc(o.suggested_qty||0)} ST</div>
-          <button class="btn-order btn-buy-o" onclick="window.openOrderModal('buy','${esc(o.symbol)}')">▶ KÖP ENLIGT RECEPT</button>
-        </div>`).join('')
-      : '<p class="empty">INGA KÖP-SIGNALER IDAG.</p>';
-
-    const sList = document.getElementById('sell-list');
-    sList.innerHTML = orders.sell.length
-      ? orders.sell.map(o => `
-        <div class="order-card sell-card">
-          <div class="order-head">
-            <span class="order-sym">${esc(o.symbol)}</span>
-          </div>
-          <div class="order-reason">${esc(o.reason)}</div>
-          <button class="btn-order btn-sell-o" onclick="window.openOrderModal('sell','${esc(o.symbol)}')">▶ SÄLJ ENLIGT RECEPT</button>
-        </div>`).join('')
-      : '<p class="empty">INGA SÄLJ-SIGNALER.</p>';
-
-    const holdings = await fetch('/api/portal/holdings').then(r => r.json());
-    const tbody = document.getElementById('holdings-table');
-    tbody.innerHTML = holdings.length
-      ? holdings.map(h => `
-        <tr>
-          <td class="td-sym">${esc(h.symbol)}</td>
-          <td class="r">${fmt(h.qty)}</td>
-          <td class="r">${fmt(h.entry,2)}</td>
-          <td class="r">${fmt(h.current,2)}</td>
-          <td class="r"><strong>${fmt(h.market_value)} kr</strong></td>
-          <td class="r" style="color:var(--red)">${fmt(h.sl,2)}</td>
-          <td class="r ${h.pl_pct>=0?'pos':'neg'}">${esc(h.pl_pct)}%</td>
-          <td class="r"><div class="tbl-acts">
-            <button class="btn-sm btn-edit" onclick="window.openEditModal('${esc(h.symbol)}',${num(h.qty)},${num(h.entry)},${num(h.sl)})">REDIGERA</button>
-            <button class="btn-sm btn-sell-s" onclick="window.openManualSell('${esc(h.symbol)}',${num(h.current)})">SÄLJ</button>
-          </div></td>
-        </tr>`).join('')
-      : '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;font-style:italic;">INGEN ÖPPEN POSITION.</td></tr>';
-
-    const t = await fetch('/api/portal/thought').then(r => r.json());
-    document.getElementById('ai-thought').textContent = t.thought || 'INGEN ANALYS TILLGÄNGLIG.';
-  } catch(e) { console.error('refreshPortal:', e); }
-};
-
-window.openOrderModal = function(action, symbol) {
-  if (!window.currentOrders) return;
-  const list = action === 'buy' ? window.currentOrders.buy : window.currentOrders.sell;
-  const order = list.find(o => o.symbol === symbol);
-  if (!order) {
-    console.error("Order hittades inte för symbol:", symbol);
-    return;
+window.copyRecipe = function(sym, limit, sl, tp) {
+  const text = `AVANZA ORDER: ${sym}\nKöp Limit: ${fmt(limit,2)} kr\nStop Loss Trigger: ${fmt(sl,2)} kr\nStop Loss Limit: ${fmt(sl*0.995,2)} kr\nDelvinst (TP1): ${fmt(tp,2)} kr`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert("✓ Orderrecept kopierat till urklipp!\n\n" + text);
+    }).catch(() => prompt("Kopiera orderrecept:", text));
+  } else {
+    prompt("Kopiera orderrecept:", text);
   }
-  window.activeOrder = { action, symbol };
-  const title = document.getElementById('order-title');
-  title.textContent = (action==='buy'?'KÖP — ':'SÄLJ — ') + symbol;
-  title.style.color = action==='buy' ? 'var(--am)' : 'var(--red)';
-  const r = order.recipe || { type:'Standard', trigger:0, limit:order.price };
-  document.getElementById('ot-type').textContent    = r.type;
-  document.getElementById('ot-qty').textContent     = order.suggested_qty ? order.suggested_qty.toLocaleString() + ' ST' : '—';
-  document.getElementById('ot-trigger').textContent = r.trigger ? fmt(r.trigger,2)+' kr' : '—';
-  document.getElementById('ot-limit').textContent   = typeof r.limit==='number' ? fmt(r.limit,2)+' kr' : (r.limit||'—');
-  document.getElementById('final-price').value      = num(order.price).toFixed(2);
-  const slBox = document.getElementById('step-sl');
-  if (action==='buy' && order.sl) {
-    slBox.style.display = 'block';
-    document.getElementById('sl-trigger').textContent = fmt(order.sl,2)+' kr';
-    document.getElementById('sl-limit').textContent   = fmt(order.sl*0.995,2)+' kr';
-  } else { slBox.style.display = 'none'; }
-  document.getElementById('order-modal').classList.add('open');
 };
 
-window.openManualSell = function(symbol, price) {
-  window.activeOrder = { action:'sell', symbol };
-  const title = document.getElementById('order-title');
-  title.textContent = 'SÄLJ — ' + symbol;
-  title.style.color = 'var(--red)';
-  document.getElementById('final-price').value        = num(price).toFixed(2);
-  document.getElementById('ot-type').textContent      = 'MANUELL';
-  document.getElementById('ot-qty').textContent       = '—';
-  document.getElementById('ot-trigger').textContent   = '—';
-  document.getElementById('ot-limit').textContent     = '—';
-  document.getElementById('step-sl').style.display    = 'none';
-  document.getElementById('order-modal').classList.add('open');
-};
-
-window.confirmOrder = async function() {
-  if (!window.activeOrder) return;
-  const priceInput = document.getElementById('final-price');
-  const price = parseFloat(priceInput.value);
-  if (isNaN(price) || price <= 0) {
-    alert("Vänligen ange en giltig kurs.");
-    return;
-  }
+window.loadMarketOverview = async function() {
   try {
-    const res = await fetch('/api/portal/execute', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:window.activeOrder.action, symbol:window.activeOrder.symbol, price })
-    }).then(r => r.json());
-    
-    if (res.success) {
-      closeModals(); window.refreshPortal();
-    } else {
-      alert("Fel: " + (res.message || res.error));
+    const data = await fetch('/api/portal/market_overview').then(r => r.json());
+    if (Array.isArray(data)) {
+      data.forEach(item => {
+        let el = null;
+        if (item.name === 'OMXS30') el = document.getElementById('mkt-omx');
+        else if (item.name === 'Nasdaq 100') el = document.getElementById('mkt-ndx');
+        else if (item.name === 'S&P 500') el = document.getElementById('mkt-spx');
+        else if (item.name === 'Bitcoin') el = document.getElementById('mkt-btc');
+
+        if (el) {
+          const chg = item.change_pct != null ? item.change_pct : 0;
+          const sign = chg > 0 ? '+' : '';
+          const cls = chg >= 0 ? 'pos' : 'neg';
+          const pfx = item.name === 'Bitcoin' ? '$' : '';
+          el.innerHTML = `${pfx}${fmt(item.price)} <span class="${cls}" style="font-size:0.75rem;font-weight:400;">(${sign}${fmt(chg, 2)}%)</span>`;
+        }
+      });
     }
-  } catch(e) {
-    console.error("Order error:", e);
-    alert("Systemfel vid orderläggning.");
+  } catch (e) {
+    console.error("loadMarketOverview error:", e);
   }
 };
 
-window.openBudgetModal = async function() {
-  const data = await fetch('/api/portal/portfolio').then(r => r.json());
-  document.getElementById('input-cash').value     = data.cash;
-  document.getElementById('input-initial').value  = data.initial;
-  document.getElementById('input-comm-val').value = data.comm_val;
-  document.getElementById('budget-modal').classList.add('open');
+window.loadAiThought = async function() {
+  try {
+    const t = await fetch('/api/portal/thought').then(r => r.json());
+    const el = document.getElementById('ai-thought');
+    if (el) {
+      el.textContent = t.thought || 'Väntar på marknadsskanning och analys…';
+      el.classList.remove('empty');
+    }
+  } catch (e) {
+    console.error("loadAiThought error:", e);
+  }
 };
 
-window.openEditModal = function(symbol, qty, entry, sl) {
-  document.getElementById('edit-symbol').value = symbol;
-  document.getElementById('edit-title').textContent = symbol;
-  document.getElementById('edit-qty').value   = qty;
-  document.getElementById('edit-entry').value = entry;
-  document.getElementById('edit-sl').value    = sl;
-  document.getElementById('edit-modal').classList.add('open');
+window.scanMarket = async function(market='all') {
+  const btn = document.getElementById('btn-scan');
+  const statusEl = document.getElementById('mkt-status');
+  if (btn) {
+    btn.textContent = '▶ SKANNAR…';
+    btn.disabled = true;
+  }
+  if (statusEl) statusEl.textContent = 'SKANNAR…';
+
+  try {
+    const res = await fetch(`/api/portal/screener?market=${market}`).then(r => r.json());
+    window.screenerData = res.results || [];
+    window.renderScreenerCards(window.screenerData);
+    if (statusEl) statusEl.textContent = `${window.screenerData.length} KANDIDATER`;
+  } catch(e) {
+    console.error("scanMarket error:", e);
+    const container = document.getElementById('screener-results');
+    if (container) {
+      container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--red);">Kunde inte genomföra skanning: ${esc(e.message)}</div>`;
+    }
+    if (statusEl) statusEl.textContent = 'FEL';
+  } finally {
+    if (btn) {
+      btn.textContent = '▶ SKANNA';
+      btn.disabled = false;
+    }
+  }
 };
 
-window.saveBudget = async function() {
-  await fetch('/api/portal/portfolio/update', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      cash:    document.getElementById('input-cash').value,
-      initial: document.getElementById('input-initial').value,
-      comm_val:document.getElementById('input-comm-val').value
-    })
-  });
-  closeModals(); window.refreshPortal();
+window.renderScreenerCards = function(list) {
+  const container = document.getElementById('screener-results');
+  if (!container) return;
+
+  if (!list || !list.length) {
+    container.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--dim);font-style:italic;">
+        Inga aktier matchade urvalet. Prova att välja "Alla" eller klicka på <strong>▶ SKANNA</strong>.
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(s => {
+    const r = s.recipe || {};
+    const chg = s.change_pct ?? 0;
+    const chgSign = chg > 0 ? '+' : '';
+    const chgClass = chg >= 0 ? 'pos' : 'neg';
+
+    let badgeClass = 'badge-am';
+    if (s.rek && s.rek.includes('KÖP (STARK)')) badgeClass = 'badge-grn';
+    else if (s.rek && s.rek.includes('KÖP')) badgeClass = 'badge-grn';
+    else if (s.rek && s.rek.includes('SÄLJ')) badgeClass = 'badge-red';
+
+    const borderClass = s.rek_class || 'vanta';
+    const rsiVal = s.rsi != null ? fmt(s.rsi, 1) : '—';
+    const rsiClass = s.rsi < 35 ? 'pos' : s.rsi > 70 ? 'neg' : '';
+    const reasonsHtml = (s.reasons || []).slice(0, 3).map(reason => `<li>${esc(reason)}</li>`).join('');
+
+    return `
+      <div class="screener-card ${borderClass}">
+        <div>
+          <div class="card-top">
+            <div>
+              <div class="card-sym">${esc(s.symbol)}</div>
+              <div class="card-name" title="${esc(s.name)}">${esc(s.name)}</div>
+            </div>
+            <div style="text-align:right;">
+              <span class="badge ${badgeClass}">${esc(s.rek || 'BEVAKA')}</span>
+              <div style="font-size:0.6rem;color:var(--dim);margin-top:0.2rem;">${esc(s.market)}</div>
+            </div>
+          </div>
+
+          <div class="card-price-row">
+            <span class="card-price">${fmt(s.close, 2)} kr</span>
+            <span class="${chgClass}" style="font-size:0.82rem;font-weight:600;">
+              ${chgSign}${fmt(chg, 2)}%
+            </span>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--dim);margin-bottom:0.2rem;">
+            <span>SCORE</span>
+            <strong style="color:var(--am);">${esc(s.score)}/100</strong>
+          </div>
+          <div class="score-bar-wrap">
+            <div class="score-bar-fill" style="width:${Math.max(5, Math.min(100, s.score))}%;"></div>
+          </div>
+
+          <div class="card-metrics">
+            <div class="card-metric-col">
+              <span class="card-metric-lbl">RSI (14)</span>
+              <span class="card-metric-val ${rsiClass}">${rsiVal}</span>
+            </div>
+            <div class="card-metric-col">
+              <span class="card-metric-lbl">MA50</span>
+              <span class="card-metric-val">${s.ma50 != null ? fmt(s.ma50, 1) : '—'}</span>
+            </div>
+            <div class="card-metric-col">
+              <span class="card-metric-lbl">MA200</span>
+              <span class="card-metric-val">${s.ma200 != null ? fmt(s.ma200, 1) : '—'}</span>
+            </div>
+          </div>
+
+          <ul class="card-reasons">
+            ${reasonsHtml || '<li style="color:var(--dim);">Neutral konsolidering</li>'}
+          </ul>
+        </div>
+
+        <div>
+          <div class="card-recipe">
+            <div class="card-recipe-row">
+              <label>KÖP (LIMIT):</label>
+              <strong style="color:var(--am);">${fmt(r.buy_limit, 2)} kr</strong>
+            </div>
+            <div class="card-recipe-row">
+              <label>STOP LOSS:</label>
+              <span style="color:var(--red);">${fmt(r.stop_loss_trigger, 2)} kr</span>
+            </div>
+            <div class="card-recipe-row">
+              <label>DELVINST (TP):</label>
+              <strong style="color:var(--grn);">${fmt(r.take_profit_1, 2)} kr</strong>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:0.4rem;">
+            <button class="btn btn-am" style="flex:1;padding:0.5rem;" onclick="window.analyzeStock('${esc(s.symbol)}')">
+              🔍 DJUPANALYS
+            </button>
+            <button class="btn btn-ghost" style="padding:0.5rem 0.65rem;" title="Kopiera Avanza-recept" onclick="window.copyRecipe('${esc(s.symbol)}', ${num(r.buy_limit)}, ${num(r.stop_loss_trigger)}, ${num(r.take_profit_1)})">
+              📋
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 };
 
-window.saveEdit = async function() {
-  await fetch('/api/portal/holdings/edit', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      symbol: document.getElementById('edit-symbol').value,
-      qty:    document.getElementById('edit-qty').value,
-      entry:  document.getElementById('edit-entry').value,
-      sl:     document.getElementById('edit-sl').value
-    })
-  });
-  closeModals(); window.refreshPortal();
-};
+window.filterScreener = function(type, btn) {
+  if (btn) {
+    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
 
-window.scanMarket = async function() {
-  await fetch('/api/portal/orders');
-  window.refreshPortal();
+  if (!window.screenerData || !window.screenerData.length) return;
+
+  let filtered = window.screenerData;
+  if (type === 'omx') {
+    filtered = window.screenerData.filter(x => x.market === 'OMX');
+  } else if (type === 'nasdaq') {
+    filtered = window.screenerData.filter(x => x.market === 'NASDAQ');
+  } else if (type === 'kop') {
+    filtered = window.screenerData.filter(x => (x.rek || '').includes('KÖP'));
+  } else if (type === 'insider') {
+    filtered = window.screenerData.filter(x => x.has_insider === true);
+  } else if (type === 'salj') {
+    filtered = window.screenerData.filter(x => (x.rek || '').includes('SÄLJ'));
+  }
+
+  window.renderScreenerCards(filtered);
 };
 
 window.syncData = async function() {
-  await fetch('/api/portal/update', { method:'POST' });
-  alert('SYNKRONISERING STARTAD — BERÄKNAD TID ~10–15 MIN MED NYA TICKERS.');
+  const btn = document.getElementById('btn-sync');
+  const statusEl = document.getElementById('mkt-status');
+  if (btn) {
+    btn.textContent = '⟳ STARTAR…';
+    btn.disabled = true;
+  }
+  if (statusEl) statusEl.textContent = 'SYNK PÅGÅR…';
+
+  try {
+    await fetch('/api/portal/update', { method: 'POST' });
+  } catch(e) {
+    console.error("sync trigger error:", e);
+  }
+
+  if (window.syncInterval) clearInterval(window.syncInterval);
+
+  window.syncInterval = setInterval(async () => {
+    try {
+      const s = await fetch('/api/portal/sync_status').then(r => r.json());
+      if (s.running) {
+        if (btn) btn.textContent = `⟳ SYNKAR (${s.progress || 0}/${s.total || 0})`;
+        if (statusEl) statusEl.textContent = s.current || 'Synkar…';
+      } else {
+        clearInterval(window.syncInterval);
+        window.syncInterval = null;
+        if (btn) {
+          btn.textContent = '⟳ SYNKA';
+          btn.disabled = false;
+        }
+        if (statusEl) statusEl.textContent = `SYNKAD ${s.last_synced ? s.last_synced.split(' ')[1] : 'KLAR'}`;
+        window.loadMarketOverview();
+        window.scanMarket();
+        window.loadAiThought();
+      }
+    } catch(err) {
+      console.error("sync status poll error:", err);
+    }
+  }, 1500);
+};
+
+window.refreshPortal = async function() {
+  await Promise.allSettled([
+    window.loadMarketOverview(),
+    window.loadAiThought(),
+    window.scanMarket()
+  ]);
 };
 
 window.runBacktest = async function() {
@@ -913,9 +1118,209 @@ window.runOptimize = async function() {
   btn.disabled = false;
 };
 
+// ── NYA MODULER: INSYN, KONGRESS, KRYPTO & DJUPANALYS ──
+
+window.loadInsider = async function(days=30, btn=null) {
+  if (btn) {
+    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const tbody = document.getElementById('insider-table-body');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Hämtar insynsdata från Finansinspektionen…</td></tr>';
+  try {
+    const res = await fetch(`/api/portal/insider?days=${days}`).then(r => r.json());
+    if (!res.trades || !res.trades.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--dim);padding:2rem;">Inga registrerade insynsköp under perioden.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = res.trades.slice(0, 100).map(t => `
+      <tr>
+        <td style="color:var(--dim);font-size:0.75rem;">${esc(t.pub_date)}</td>
+        <td><strong>${esc(t.company)}</strong> ${t.ticker ? `<span class="badge badge-am" style="font-size:0.55rem;">${esc(t.ticker)}</span>` : ''}</td>
+        <td>${esc(t.insider)}</td>
+        <td style="color:var(--dim);font-size:0.75rem;">${esc(t.role)}</td>
+        <td class="r">${fmt(t.volume)}</td>
+        <td class="r">${fmt(t.price, 2)} ${esc(t.currency)}</td>
+        <td class="r"><strong>${fmt(t.amount)} kr</strong></td>
+        <td class="r">
+          <button class="btn-sm btn-edit" onclick="window.analyzeStock('${esc(t.ticker || t.company)}')">ANALYSERA</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red);padding:2rem;">Fel vid hämtning: ${esc(e.message)}</td></tr>`;
+  }
+};
+
+window.loadCongress = async function(months=3, btn=null) {
+  if (btn) {
+    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  const tbody = document.getElementById('congress-table-body');
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Hämtar amerikanska politiker-köp…</td></tr>';
+  try {
+    const res = await fetch(`/api/portal/congress?months=${months}`).then(r => r.json());
+    const stats = res.stats || {};
+    document.getElementById('cg-total').textContent = (stats.total || 0) + ' ST';
+    document.getElementById('cg-winrate').textContent = (stats.win_rate || 0) + '%';
+    const retEl = document.getElementById('cg-return');
+    retEl.textContent = (stats.avg_return != null ? stats.avg_return : 0) + '%';
+    retEl.className = 'bt-v ' + ((stats.avg_return || 0) >= 0 ? 'pos' : 'neg');
+
+    if (!res.trades || !res.trades.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Inga transaktioner hittades.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = res.trades.slice(0, 100).map(t => {
+      const ret = t.return_pct;
+      const retClass = ret != null ? (ret >= 0 ? 'pos' : 'neg') : '';
+      const retText = ret != null ? `${ret > 0 ? '+' : ''}${ret}%` : '—';
+      const partyBadge = t.party === 'D' ? '<span class="badge" style="background:rgba(59,130,246,0.2);color:#60a5fa;">DEM</span>'
+                       : t.party === 'R' ? '<span class="badge badge-red">REP</span>' : '';
+      return `
+        <tr>
+          <td style="color:var(--dim);font-size:0.75rem;">${esc(t.txn_date)}</td>
+          <td><strong>${esc(t.politician)}</strong></td>
+          <td>${partyBadge}</td>
+          <td class="td-sym">${esc(t.ticker)}</td>
+          <td style="color:var(--dim);font-size:0.75rem;">${esc(t.amount_range)}</td>
+          <td class="r">${t.entry_price ? '$' + fmt(t.entry_price, 2) : '—'}</td>
+          <td class="r">${t.today_price ? '$' + fmt(t.today_price, 2) : '—'}</td>
+          <td class="r ${retClass}"><strong>${retText}</strong></td>
+          <td class="r">
+            <button class="btn-sm btn-edit" onclick="window.analyzeStock('${esc(t.ticker)}')">ANALYSERA</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--red);padding:2rem;">Fel vid hämtning: ${esc(e.message)}</td></tr>`;
+  }
+};
+
+window.loadCrypto = async function() {
+  const tbody = document.getElementById('crypto-table-body');
+  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Hämtar krypto-analys…</td></tr>';
+  try {
+    const list = await fetch('/api/portal/crypto').then(r => r.json());
+    if (!list || !list.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:2rem;">Inga kryptodata tillgängliga.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(c => {
+      const sigBadge = c.signal === 'STARK KÖP' ? '<span class="badge badge-grn">STARK KÖP</span>'
+                     : c.signal === 'KÖP' ? '<span class="badge badge-grn">KÖP</span>'
+                     : c.signal === 'SÄLJ' ? '<span class="badge badge-red">SÄLJ</span>'
+                     : '<span class="badge badge-am">NEUTRAL</span>';
+      return `
+        <tr>
+          <td class="td-sym">${esc(c.symbol)}</td>
+          <td><strong>${esc(c.name)}</strong></td>
+          <td class="r"><strong>$${fmt(c.price, 2)}</strong></td>
+          <td class="r ${c.change_24h >= 0 ? 'pos' : 'neg'}">${c.change_24h > 0 ? '+' : ''}${fmt(c.change_24h, 2)}%</td>
+          <td class="r">${fmt(c.rsi, 1)}</td>
+          <td>${sigBadge}</td>
+          <td class="r" style="color:var(--red)">$${fmt(c.sl, 2)}</td>
+          <td class="r" style="color:var(--grn)">$${fmt(c.tp1, 2)}</td>
+          <td class="r">
+            <button class="btn-sm btn-edit" onclick="window.analyzeStock('${esc(c.symbol)}')">ANALYSERA</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--red);padding:2rem;">Fel vid hämtning: ${esc(e.message)}</td></tr>`;
+  }
+};
+
+window.analyzeStock = async function(symbol=null) {
+  const sym = symbol || (document.getElementById('symbol-search-input') ? document.getElementById('symbol-search-input').value.trim() : '');
+  if (!sym) {
+    alert("Ange en aktie eller ticker att analysera.");
+    return;
+  }
+  const modal = document.getElementById('analysis-modal');
+  const title = document.getElementById('an-title');
+  const body = document.getElementById('an-body');
+  title.textContent = sym.toUpperCase();
+  body.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--dim);font-style:italic;">Hämtar data, mönster, insynsköp och Avanza-recept…</div>';
+  modal.classList.add('open');
+
+  try {
+    const data = await fetch(`/api/portal/analyze?symbol=${encodeURIComponent(sym)}`).then(r => r.json());
+    if (data.error) {
+      body.innerHTML = `<div style="padding:1.5rem;color:var(--red);text-align:center;">${esc(data.error)}</div>`;
+      return;
+    }
+    title.textContent = `${data.name} (${data.symbol})`;
+
+    const bulls = (data.bull_factors || []).map(f => `<li>${esc(f)}</li>`).join('');
+    const bears = (data.bear_factors || []).map(f => `<li>${esc(f)}</li>`).join('');
+    const rec = data.avanza_recipe || {};
+
+    body.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;border-bottom:1px solid var(--dim2);padding-bottom:0.75rem;">
+        <div>
+          <span style="font-size:1.4rem;font-weight:700;color:var(--brt);">${fmt(data.close, 2)}</span>
+          <span style="font-size:0.85rem;margin-left:0.5rem;" class="${data.change_pct >= 0 ? 'pos' : 'neg'}">
+            ${data.change_pct > 0 ? '+' : ''}${fmt(data.change_pct, 2)}%
+          </span>
+        </div>
+        <div>
+          <span class="badge" style="background:${data.decision_color}22;color:${data.decision_color};border:1px solid ${data.decision_color};font-size:0.75rem;padding:0.35rem 0.75rem;">
+            ${esc(data.decision)} (SCORE: ${esc(data.score)}/100)
+          </span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+        <div style="background:var(--bg3);padding:0.75rem;border-left:2px solid var(--grn);">
+          <div class="sec-hdr" style="color:var(--grn);font-size:0.6rem;margin-bottom:0.4rem;">STYRKOR & KATALYSATORER</div>
+          <ul class="analysis-factor-list" style="margin:0;">
+            ${bulls || '<li style="color:var(--dim)">Inga specifika styrkefaktorer.</li>'}
+          </ul>
+        </div>
+        <div style="background:var(--bg3);padding:0.75rem;border-left:2px solid var(--red);">
+          <div class="sec-hdr" style="color:var(--red);font-size:0.6rem;margin-bottom:0.4rem;">RISKER & SVAGHETER</div>
+          <ul class="analysis-factor-list" style="margin:0;">
+            ${bears || '<li style="color:var(--dim)">Inga överhängande risker identifierade.</li>'}
+          </ul>
+        </div>
+      </div>
+
+      <div class="step-blk" style="border-color:var(--am);margin-bottom:0.75rem;">
+        <div class="step-tag">// AVANZA ORDERRECEPT</div>
+        <div class="step-row"><label>REKOMMENDERAD KÖPKURS (LIMIT)</label><strong style="color:var(--am)">${fmt(rec.buy_limit, 2)}</strong></div>
+        <div class="step-row"><label>STOP LOSS (TRIGGER HOS AVANZA)</label><span style="color:var(--red)">${fmt(rec.stop_loss_trigger, 2)}</span></div>
+        <div class="step-row"><label>STOP LOSS (LIMIT)</label><span>${fmt(rec.stop_loss_limit, 2)}</span></div>
+        <div class="step-row"><label>DELVINST 50% (TAKE PROFIT 1)</label><strong style="color:var(--grn)">${fmt(rec.take_profit_1, 2)}</strong></div>
+        <div class="step-row"><label>RÖRLIG VINST (TAKE PROFIT 2)</label><span>${fmt(rec.take_profit_2, 2)}</span></div>
+        <div class="step-row"><label>RISK / BELÖNING</label><span>${esc(rec.risk_reward_ratio)}</span></div>
+        <div style="font-size:0.7rem;color:var(--dim);margin-top:0.5rem;font-style:italic;">💡 ${esc(rec.courtage_tip)}</div>
+      </div>
+
+      <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+        <button class="btn btn-am" style="flex:1;" onclick="window.copyRecipe('${esc(data.symbol)}', ${num(rec.buy_limit)}, ${num(rec.stop_loss_trigger)}, ${num(rec.take_profit_1)})">
+          📋 KOPIERA AVANZA-ORDER
+        </button>
+        <a class="btn btn-ghost" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;" target="_blank" href="https://www.avanza.se/hitta-marknaden.html?query=${encodeURIComponent(data.name || data.symbol)}">
+          AVANZA ↗
+        </a>
+      </div>
+      <button class="btn-cancel" onclick="closeModals()">STÄNG</button>
+    `;
+  } catch(e) {
+    body.innerHTML = `<div style="padding:1.5rem;color:var(--red);text-align:center;">Analysfel: ${esc(e.message)}</div>`;
+  }
+};
+
+
+
 document.querySelectorAll('.modal').forEach(m =>
   m.addEventListener('click', e => { if (e.target === m) closeModals(); })
 );
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
 window.refreshPortal();
 </script>
 </body>

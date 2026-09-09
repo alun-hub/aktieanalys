@@ -6,7 +6,7 @@ VERSION="v24.6-$(date +%s)"
 IMAGE_NAME="localhost/aktieanalys:$VERSION"
 
 echo "1. Validerar kod..."
-python3 -m py_compile app.py src/api/routes.py src/core/signals.py src/core/backtest.py
+python3 -m py_compile app.py src/api/routes.py src/core/*.py
 
 echo "2. Bygger image $IMAGE_NAME..."
 podman build --no-cache -t $IMAGE_NAME -f Containerfile .
