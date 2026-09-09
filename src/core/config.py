@@ -1,33 +1,124 @@
-import os
+# --- KONFIGURATION FÖR TRADING PORTAL ---
 
-BASE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_DIR = os.path.join(BASE, "data")
-
+# OMXS Large Cap — aktiva aktier per 2025
+# Borttagna: LUNE.ST (fusionerades med Aker BP 2022), SWMA.ST (avnoterades okt 2022),
+#            CAST.ST (förvärvades av Balder/SBB 2022), HMB.ST (felaktig ticker → HM-B.ST)
 OMXS_50 = {
-    "ABB.ST": "ABB", "ALFA.ST": "Alfa Laval", "ALIV-SDB.ST": "Autoliv", "ASSA-B.ST": "Assa Abloy B",
-    "ATCO-A.ST": "Atlas Copco A", "ATCO-B.ST": "Atlas Copco B", "BOL.ST": "Boliden", "ELUX-B.ST": "Electrolux B",
-    "ERIC-B.ST": "Ericsson B", "ESSITY-B.ST": "Essity B", "EVO.ST": "Evolution", "GETI-B.ST": "Getinge B",
-    "HM-B.ST": "H&M B", "HEXA-B.ST": "Hexagon B", "HUSQ-B.ST": "Husqvarna B", "INDU-C.ST": "Industrivärden C",
-    "INVE-B.ST": "Investor B", "KINV-B.ST": "Kinnevik B", "NIBE-B.ST": "Nibe B", "NDA-SE.ST": "Nordea",
-    "SAND.ST": "Sandvik", "SCA-B.ST": "SCA B", "SECU-B.ST": "Securitas B", "SEB-A.ST": "SEB A",
-    "SKA-B.ST": "Skanska B", "SKF-B.ST": "SKF B", "SHB-A.ST": "Handelsbanken A", "SWED-A.ST": "Swedbank A",
-    "TEL2-B.ST": "Tele2 B", "TELIA.ST": "Telia", "VOLV-B.ST": "Volvo B",
-    "ADDT-B.ST": "Addtech B", "AXFO.ST": "Axfood", "BILL.ST": "Billerud", "EQT.ST": "EQT",
-    "FABG.ST": "Fabege", "HPOL-B.ST": "Hexpol B", "INDT.ST": "Indutrade", "INTRUM.ST": "Intrum",
-    "NOLA-B.ST": "Nolato B", "PEAB-B.ST": "Peab B", "SAAB-B.ST": "SAAB B", "SINCH.ST": "Sinch",
-    "SSAB-A.ST": "SSAB A", "SWEC-B.ST": "Sweco B", "THULE.ST": "Thule Group", "TREL-B.ST": "Trelleborg B",
-    "VOLCAR-B.ST": "Volvo Cars B", "BALD-B.ST": "Fastighets Balder B", "BETS-B.ST": "Betsson B",
-    "CAST.ST": "Castellum", "EPI-A.ST": "Epiroc A", "GRNG.ST": "Gränges", "HUFV-A.ST": "Hufvudstaden A",
-    "HMS.ST": "HMS Networks", "LATO-B.ST": "Latour B", "LIAB.ST": "Lindab International",
-    "LUND-B.ST": "Lundbergföretagen B", "MIPS.ST": "MIPS", "OEM-B.ST": "OEM International B",
-    "PLAZ-B.ST": "Platzer B", "SOBI.ST": "Swedish Orphan Biovitrum", "TROAX.ST": "Troax Group",
-    "WIHL.ST": "Wihlborgs", "DIOS.ST": "Diös Fastigheter",
-    "BUFAB.ST": "Bufab", "CLAS-B.ST": "Clas Ohlson B", "KNOW.ST": "Knowit B", "SYSR.ST": "Systemair"
+    # Storbolag
+    "ABB.ST":       "ABB",
+    "ALFA.ST":      "Alfa Laval",
+    "ALIV-SDB.ST":  "Autoliv SDB",
+    "ASSA-B.ST":    "Assa Abloy B",
+    "ATCO-A.ST":    "Atlas Copco A",
+    "ATCO-B.ST":    "Atlas Copco B",
+    "AZN.ST":       "AstraZeneca",
+    "BOL.ST":       "Boliden",
+    "ELUX-B.ST":    "Electrolux B",
+    "EPIR.ST":      "Epiroc B",
+    "ERIC-B.ST":    "Ericsson B",
+    "ESSITY-B.ST":  "Essity B",
+    "EVO.ST":       "Evolution",
+    "GETI-B.ST":    "Getinge B",
+    "HEXA-B.ST":    "Hexagon B",
+    "HM-B.ST":      "H&M B",
+    "HUSQ-B.ST":    "Husqvarna B",
+    "INVE-B.ST":    "Investor B",
+    "KINV-B.ST":    "Kinnevik B",
+    "LATO-B.ST":    "Latour B",
+    "NIBE-B.ST":    "NIBE B",
+    "NDA-SE.ST":    "Nordea",
+    "SAND.ST":      "Sandvik",
+    "SCA-B.ST":     "SCA B",
+    "SEB-A.ST":     "SEB A",
+    "SHB-A.ST":     "Handelsbanken A",
+    "SINCH.ST":     "Sinch",
+    "SKA-B.ST":     "Skanska B",
+    "SKF-B.ST":     "SKF B",
+    "SSAB-A.ST":    "SSAB A",
+    "SSAB-B.ST":    "SSAB B",
+    "SWED-A.ST":    "Swedbank A",
+    "TEL2-B.ST":    "Tele2 B",
+    "TELIA.ST":     "Telia",
+    "THULE.ST":     "Thule Group",
+    "TREL-B.ST":    "Trelleborg B",
+    "VOLV-B.ST":    "Volvo B",
+    "VOLCAR-B.ST":  "Volvo Cars B",
+    # Övrig Large Cap
+    "BALD-B.ST":    "Balder B",
+    "FABG.ST":      "Fabege",
+    "HUFV-A.ST":    "Hufvudstaden A",
+    "INDUT.ST":     "Indutrade",
+    "LIAB.ST":      "Lifco B",
+    "LUND-B.ST":    "Lundbergföretagen B",
+    "PEAB-B.ST":    "Peab B",
+    "SECU-B.ST":    "Securitas B",
+    "TIETO.ST":     "TietoEVRY",
 }
 
+# Nasdaq 100 — 50 mest likvida och marknadsviktade (per 2025)
 NASDAQ_100 = {
-    "AAPL": "Apple", "MSFT": "Microsoft", "NVDA": "NVIDIA", "AMZN": "Amazon", "META": "Meta Platforms",
-    "GOOGL": "Alphabet A", "GOOG": "Alphabet C", "TSLA": "Tesla", "AVGO": "Broadcom", "COST": "Costco",
-    "NFLX": "Netflix", "ASML": "ASML", "AMD": "Advanced Micro Devices", "AZN": "AstraZeneca",
-    "ADBE": "Adobe", "QCOM": "Qualcomm", "CSCO": "Cisco", "INTC": "Intel", "INTU": "Intuit"
+    # Mega cap tech
+    "AAPL":  "Apple",
+    "MSFT":  "Microsoft",
+    "NVDA":  "Nvidia",
+    "AMZN":  "Amazon",
+    "META":  "Meta",
+    "GOOGL": "Alphabet A",
+    "GOOG":  "Alphabet C",
+    "TSLA":  "Tesla",
+    "AVGO":  "Broadcom",
+    # Halvledare
+    "AMD":   "AMD",
+    "QCOM":  "Qualcomm",
+    "ASML":  "ASML Holding",
+    "AMAT":  "Applied Materials",
+    "MU":    "Micron Technology",
+    "KLAC":  "KLA Corporation",
+    "LRCX":  "Lam Research",
+    "MRVL":  "Marvell Technology",
+    "ADI":   "Analog Devices",
+    "MCHP":  "Microchip Technology",
+    "ON":    "ON Semiconductor",
+    "SNPS":  "Synopsys",
+    "CDNS":  "Cadence Design",
+    # Mjukvara & Cloud
+    "ADBE":  "Adobe",
+    "INTU":  "Intuit",
+    "CRWD":  "CrowdStrike",
+    "PANW":  "Palo Alto Networks",
+    "FTNT":  "Fortinet",
+    "CSCO":  "Cisco",
+    # Cybersäkerhet / SaaS
+    "ABNB":  "Airbnb",
+    "PYPL":  "PayPal",
+    # Internet & Media
+    "NFLX":  "Netflix",
+    "MELI":  "MercadoLibre",
+    # Hälsa & Biotech
+    "ISRG":  "Intuitive Surgical",
+    "REGN":  "Regeneron",
+    "VRTX":  "Vertex Pharmaceuticals",
+    "GILD":  "Gilead Sciences",
+    "DXCM":  "Dexcom",
+    "IDXX":  "IDEXX Laboratories",
+    # Konsument
+    "COST":  "Costco",
+    "SBUX":  "Starbucks",
+    "MNST":  "Monster Beverage",
+    "MDLZ":  "Mondelez",
+    "PEP":   "PepsiCo",
+    # Industri & Övrig
+    "ADP":   "ADP",
+    "CTAS":  "Cintas",
+    "PAYX":  "Paychex",
+    "PCAR":  "PACCAR",
+    "ODFL":  "Old Dominion Freight",
+    "FAST":  "Fastenal",
+    "ROST":  "Ross Stores",
+}
+
+# Index för marknadsanalys
+INDEX_TICKERS = {
+    "^OMX": "OMXS30",
+    "^NDX": "Nasdaq 100",
 }

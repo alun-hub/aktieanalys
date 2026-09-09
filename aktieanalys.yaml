@@ -25,11 +25,15 @@ spec:
             value: "2"
       containers:
       - name: aktieanalys
-        image: localhost/aktieanalys:v24.6-1777052875
+        image: localhost/aktieanalys:v24.6-1788978278
         imagePullPolicy: Never
         ports:
         - containerPort: 4000
         env:
+        - name: REQUESTS_CA_BUNDLE
+          value: /etc/ssl/certs/ca-certificates.crt
+        - name: SSL_CERT_FILE
+          value: /etc/ssl/certs/ca-certificates.crt
         - name: GEMINI_API_KEY
           valueFrom:
             secretKeyRef:
@@ -61,6 +65,16 @@ metadata:
 spec:
   rules:
   - host: aktieanalys.192.168.1.176.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: aktieanalys
+            port:
+              number: 80
+  - host: aktieanalys.192.168.2.163.nip.io
     http:
       paths:
       - path: /

@@ -1,25 +1,24 @@
 import sqlite3
+import pandas as pd
 from src.core.data import get_db
 from src.core.config import OMXS_50, NASDAQ_100
+from src.core.insider import get_insider_buys_for_symbol
 
 # --- Konstanterna för strategin ---
-# Optimerade via walk-forward validation (IS 2019-2022, OOS 2023-2026)
-# Vinnare: OOS 72.4% vinstprocent, +13.2% avkastning mot 61.7% / +4.6% för baseline
-OMX_ATR_MULT    = 4.5   # ATR-multiplikator för OMX stop loss (ökat från 3.5 → ger mer andrum)
-NASDAQ_ATR_MULT = 3.5   # ATR-multiplikator för Nasdaq stop loss (optimerat: 4.5→3.5)
-MA_MARGIN       = 0.993  # Hur långt under MA innan trendbrott utlöses
-MA_ENTRY_MARGIN = 1.005  # Close måste vara denna % över MA vid köp
-VOLUME_SURGE    = 1.6    # Volym måste vara denna × snittvolym vid utbrott (ökat från 1.2)
-RSI_OVERBOUGHT  = 78     # RSI-nivå för vinsthemtagning (ökat från 70 → låter vinnare löpa)
-RSI_OVERSOLD    = 45     # RSI-nivå för Nasdaq-köp (optimerat: 40→45 = fler trades, samma win-rate)
-BREAKOUT_DAYS   = 40     # Antal dagar för att beräkna högsta (ökat från 20)
-OMX_MAX_DAYS    = 27     # Max dagar i OMX-position innan timeout-exit
-BUY_LIMIT_MARGIN = 1.003 # Limitpris = close × denna faktor vid köp
-
+OMX_ATR_MULT     = 4.5
+NASDAQ_ATR_MULT  = 3.5
+MA_MARGIN        = 0.993
+MA_ENTRY_MARGIN  = 1.005
+VOLUME_SURGE     = 1.6
+RSI_OVERBOUGHT   = 78
+RSI_OVERSOLD     = 45
+BREAKOUT_DAYS    = 40
+OMX_MAX_DAYS     = 27
+BUY_LIMIT_MARGIN = 1.003
 
 def check_exit(close, low, rsi, ma50, ma200, stop_loss, is_omx, max_days=None, days=0):
     """Returnerar (exit_pris, anledning) eller (None, None) om ingen exit."""
-    if low is not None and low <= stop_loss:
+    if low is not None and stop_loss is not None and low <= stop_loss:
         return stop_loss, "Stop loss utlöst"
     if rsi is not None and rsi > RSI_OVERBOUGHT:
         return close, f"Vinsthemtagning (RSI > {RSI_OVERBOUGHT})"
@@ -32,107 +31,147 @@ def check_exit(close, low, rsi, ma50, ma200, stop_loss, is_omx, max_days=None, d
         return close, f"Timeout ({md} dagar)"
     return None, None
 
-
-def find_omx_buys(db, holdings):
-    held = {h["symbol"] for h in holdings}
-    candidates = []
-    for sym in OMXS_50.keys():
-        if sym in held:
-            continue
-        row = db.execute("""
-            SELECT close, volume, atr, ma50,
-            (SELECT MAX(high) FROM history h2
-             WHERE h2.symbol = history.symbol AND h2.date < history.date
-             ORDER BY h2.date DESC LIMIT ?) as last_h,
-            (SELECT AVG(volume) FROM history h3
-             WHERE h3.symbol = history.symbol AND h3.date < history.date
-             ORDER BY h3.date DESC LIMIT ?) as avg_v
-            FROM history WHERE symbol = ? ORDER BY date DESC LIMIT 1
-        """, (BREAKOUT_DAYS, BREAKOUT_DAYS, sym)).fetchone()
-
-        if not (row and row["close"] and row["last_h"] and row["avg_v"] and row["ma50"]):
-            continue
-        if (row["close"] > row["last_h"]
-                and row["volume"] > row["avg_v"] * VOLUME_SURGE
-                and row["close"] > row["ma50"] * MA_ENTRY_MARGIN):
-            sl = row["close"] - OMX_ATR_MULT * row["atr"] if row["atr"] else row["close"] * 0.95
-            candidates.append({
-                "symbol": sym, "reason": f"Utbrott ({BREAKOUT_DAYS} dgr högsta)", "price": row["close"],
-                "sl": sl,
-                "recipe": {"type": "Standard Köp", "operator": "Direkt",
-                           "trigger": 0, "limit": row["close"] * BUY_LIMIT_MARGIN}
-            })
-    return candidates
-
-
-def find_nasdaq_buys(db, holdings):
-    held = {h["symbol"] for h in holdings}
-    candidates = []
-    for sym in NASDAQ_100.keys():
-        if sym in held:
-            continue
-        rows = db.execute(
-            "SELECT close, rsi, ma200, atr FROM history WHERE symbol = ? ORDER BY date DESC LIMIT 2",
-            (sym,)
-        ).fetchall()
-        if len(rows) < 2:
-            continue
-        r_now, r_prev = rows[0], rows[1]
-
-        # Rising MA200: MA200 idag måste vara högre än för 20 dagar sedan
-        ma_old = db.execute(
-            "SELECT ma200 FROM history WHERE symbol = ? AND ma200 IS NOT NULL ORDER BY date DESC LIMIT 1 OFFSET 19",
-            (sym,)
-        ).fetchone()
-
-        if (r_now["rsi"] and r_prev["rsi"]
-                and r_now["rsi"] < RSI_OVERSOLD
-                and r_now["rsi"] > r_prev["rsi"]
-                and r_now["ma200"]
-                and r_now["close"] > r_now["ma200"] * MA_ENTRY_MARGIN
-                and ma_old and r_now["ma200"] > ma_old["ma200"]):
-            sl = r_now["close"] - NASDAQ_ATR_MULT * r_now["atr"] if r_now["atr"] else r_now["close"] * 0.90
-            candidates.append({
-                "symbol": sym, "reason": "Momentum (RSI vändning, stigande MA200)", "price": r_now["close"],
-                "sl": sl,
-                "recipe": {"type": "Stop Loss (Köp)", "operator": ">=",
-                           "trigger": r_now["close"], "limit": r_now["close"] * 1.01}
-            })
-    return candidates
-
-
-def generate_daily_orders():
+def run_market_screener(market="all"):
+    """Kör komplett marknadsscreener och returnerar rekommendationer för alla bevakade aktier.
+    market: 'all', 'omx', eller 'nasdaq'
+    """
     db = get_db()
     db.row_factory = sqlite3.Row
 
-    sell_orders = []
-    holdings = db.execute("SELECT * FROM holdings").fetchall()
+    tickers_to_scan = {}
+    if market in ("all", "omx"):
+        tickers_to_scan.update({sym: (name, "OMX") for sym, name in OMXS_50.items()})
+    if market in ("all", "nasdaq"):
+        tickers_to_scan.update({sym: (name, "NASDAQ") for sym, name in NASDAQ_100.items()})
 
-    for h in holdings:
-        if h["days_held"] == 0:
+    results = []
+    
+    for sym, (name, mkt) in tickers_to_scan.items():
+        rows = db.execute("""
+            SELECT date, close, open, high, low, volume, ma50, ma200, rsi, atr
+            FROM history WHERE symbol = ? ORDER BY date DESC LIMIT 2
+        """, (sym,)).fetchall()
+
+        if not rows or len(rows) < 1 or rows[0]["close"] is None:
             continue
-        last = db.execute(
-            "SELECT close, low, rsi, ma50, ma200 FROM history WHERE symbol = ? ORDER BY date DESC LIMIT 1",
-            (h["symbol"],)
-        ).fetchone()
-        if not last:
-            continue
 
-        is_omx = h["symbol"].endswith(".ST")
-        exit_p, reason = check_exit(
-            last["close"], last["low"], last["rsi"], last["ma50"], last["ma200"],
-            h["stop_loss"], is_omx
-        )
-        if exit_p is not None:
-            sell_orders.append({
-                "symbol": h["symbol"], "action": "SÄLJ", "reason": reason,
-                "price": exit_p,
-                "recipe": {"type": "Standard Sälj", "operator": "Direkt",
-                           "trigger": 0, "limit": exit_p}
-            })
+        r_now = rows[0]
+        r_prev = rows[1] if len(rows) > 1 else rows[0]
 
-    buy_orders = []
-    if len(holdings) < 5:
-        buy_orders = find_omx_buys(db, holdings) + find_nasdaq_buys(db, holdings)
+        close = float(r_now["close"])
+        prev_close = float(r_prev["close"]) if r_prev["close"] else close
+        change_pct = round(((close / prev_close) - 1) * 100, 2) if prev_close else 0.0
 
-    return {"sell": sell_orders, "buy": buy_orders[:5]}
+        rsi = round(float(r_now["rsi"]), 1) if r_now["rsi"] is not None else None
+        rsi_prev = round(float(r_prev["rsi"]), 1) if r_prev["rsi"] is not None else None
+        ma50 = round(float(r_now["ma50"]), 2) if r_now["ma50"] is not None else None
+        ma200 = round(float(r_now["ma200"]), 2) if r_now["ma200"] is not None else None
+        atr = float(r_now["atr"]) if r_now["atr"] is not None else (close * 0.03)
+
+        # ── Poängsättning (Konfluens) ──
+        score = 50
+        reasons = []
+
+        # 1. Trend MA200 & MA50
+        if ma200:
+            if close > ma200:
+                score += 15
+                reasons.append("Över MA200 (bullish)")
+            else:
+                score -= 15
+                reasons.append("Under MA200 (bearish)")
+
+        if ma50:
+            if close > ma50:
+                score += 10
+                reasons.append("Över MA50")
+            else:
+                score -= 10
+                reasons.append("Under MA50")
+
+            if ma200 and ma50 > ma200:
+                score += 5
+                reasons.append("Golden Cross")
+
+        # 2. RSI Momentum
+        if rsi:
+            if rsi < 38 and rsi_prev and rsi > rsi_prev:
+                score += 20
+                reasons.append(f"RSI-vändning upp ({rsi})")
+            elif rsi > 74:
+                score -= 10
+                reasons.append(f"Överköpt RSI ({rsi})")
+            elif 45 <= rsi <= 62:
+                score += 10
+                reasons.append(f"Starkt momentum ({rsi})")
+
+        # 3. Insynshandel (Svenska aktier)
+        has_insider = False
+        if sym.endswith(".ST"):
+            try:
+                buys = get_insider_buys_for_symbol(sym, days=60)
+                if buys:
+                    has_insider = True
+                    score += 25
+                    reasons.append(f"Insynsköp: {len(buys)} st")
+            except Exception:
+                pass
+
+        score = max(5, min(95, score))
+
+        # Rekommendations-nivå
+        if score >= 70:
+            rek = "KÖP (STARK)"
+            rek_class = "prime"
+        elif score >= 55:
+            rek = "KÖP"
+            rek_class = "bra"
+        elif score <= 38:
+            rek = "SÄLJ"
+            rek_class = "undvik"
+        else:
+            rek = "BEVAKA"
+            rek_class = "vanta"
+
+        # Riskhantering / Avanza-recept
+        sl = round(close - (3.0 * atr), 2)
+        risk = max(0.1, close - sl)
+        tp1 = round(close + (1.8 * risk), 2)
+        tp2 = round(close + (3.2 * risk), 2)
+
+        results.append({
+            "symbol": sym,
+            "name": name,
+            "market": mkt,
+            "close": close,
+            "change_pct": change_pct,
+            "rsi": rsi,
+            "ma50": ma50,
+            "ma200": ma200,
+            "score": score,
+            "rek": rek,
+            "rek_class": rek_class,
+            "has_insider": has_insider,
+            "reasons": reasons,
+            "recipe": {
+                "type": "Standard Köp",
+                "buy_limit": round(close * BUY_LIMIT_MARGIN, 2),
+                "stop_loss_trigger": sl,
+                "stop_loss_limit": round(sl * 0.995, 2),
+                "take_profit_1": tp1,
+                "take_profit_2": tp2,
+                "risk_reward": "1:1.8",
+                "courtage_tip": "Mini vid order <15 000 kr, annars Small"
+            }
+        })
+
+    # Sortera primärt på Score fallande
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results
+
+def generate_daily_orders():
+    """Bakåtkompatibilitet för äldre anrop."""
+    results = run_market_screener(market="all")
+    buys = [r for r in results if "KÖP" in r.get("rek", "")]
+    sells = [r for r in results if "SÄLJ" in r.get("rek", "")]
+    return {"buy": buys, "sell": sells, "all": results}
