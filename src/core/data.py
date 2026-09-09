@@ -77,12 +77,6 @@ def sync_all_stocks():
         except Exception as e:
             print(f"Fel vid synk av {symbol}: {e}")
 
-    try:
-        from src.core.ai_bridge import generate_ai_briefing
-        generate_ai_briefing()
-    except Exception as e:
-        print(f"AI-analys misslyckades efter synk: {e}")
-
     _sync_status["running"] = False
     _sync_status["current"] = "Klar"
     _sync_status["last_synced"] = datetime.now().strftime("%Y-%m-%d %H:%M")
