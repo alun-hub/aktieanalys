@@ -1,137 +1,51 @@
-# Aktieanalys for n00b's
+# Aktieanalys
 
-Webbapp för teknisk analys av svenska aktier, optimerad för swing trading (2–4 trades/månad). Byggd med Flask och yfinance, körs i Podman/Docker.
+Ett personligt webbverktyg som hjälper en privatinvesterare att fatta bra, begripliga
+beslut. Fokus ligger på det som faktiskt bygger förmögenhet över tid – regelbundet
+sparande i billiga indexfonder, diversifiering och en lång horisont – med teknisk
+analys som *kontext*, inte som köp-/säljsignaler.
 
-![Python](https://img.shields.io/badge/python-3.12-blue) ![Flask](https://img.shields.io/badge/flask-3.1-lightgrey) ![License](https://img.shields.io/badge/license-MIT-green)
+Byggd med Flask + yfinance + pandas. Ren vanilla-JS-frontend, ingen framework.
 
----
+## Vyer
 
-## Funktioner
+| Vy | Vad den gör |
+|----|-------------|
+| **Din plan** | Sparprognos: vad regelbundet månadssparande i en indexfond kan bli, i dagens penningvärde, med fondavgiften avdragen. Visar också vad en dyr fond kostar jämfört med en billig. |
+| **Min portfölj** | Lägg in dina innehav och få en hälsokoll: värde, vinst/förlust och framför allt **riskbilden** – koncentration per innehav, bransch- och landfördelning, vägd avgift. Ingen handel sker här. |
+| **Analysera bolag** | Leder med *vad bolaget gör* och *hur det är värderat* (P/E, direktavkastning, pris i sitt 5-årsspann i klarspråk). Teknisk trend visas som kontext. Ingen "köpvärd"-dom. |
+| **Marknadsläge** | Teknisk trend (glidande medelvärden + RSI) för bevakade aktier. Uttryckligen *inte* köp-/säljråd. |
+| **Backtest** | Simulerar en regelstyrd swing-strategi *ärligt*: köp fylls på nästa dags öppningskurs, courtage/spread/valutaväxling dras av, jämförs alltid med "köp allt och behåll". Plus walk-forward som visar om strategin är överanpassad. |
+| **Insyn / Kongress** | Insynshandel (Finansinspektionen) och amerikansk kongresshandel – som ren information, utan signalvärde. |
+| **Krypto** | Trend och årlig volatilitet för de största kryptovalutorna. Ingen köpsignal. |
+| **Ordlista** | Förklaringar av alla facktermer. Termer i texten går också att hovra över. |
 
-### Marknadspuls
-Visar OMXS30:s långsiktiga trend (Golden Cross / Death Cross) direkt under headern. Grönt = upptrend, rött = nedtrend. Påverkar Swing-Score för alla aktier.
-
-### Aktieanalys
-Analysera en eller flera aktier med:
-- **MA50 / MA200** – Golden Cross (köp) eller Death Cross (sälj)
-- **RSI 14** – översåld / neutral / överköpt
-- **MACD 12/26/9** – momentum och riktning
-- **Bollinger Bands** – prisposition relativt normalvariation
-- **Candlestick-mönster** – Hammer, Shooting Star, Doji, Engulfing, Morning Star
-- **Stop-loss & kursmål** – ATR-baserade nivåer med 1:2 och 1:3 R/R
-- **Positionsstorlekskalkylator** – räknar max antal aktier baserat på portföljstorlek och risktolerans (1–2%)
-
-### Swing-Score (0–10)
-Bedömer om *timing för entry* är rätt just nu, baserat på 5 kriterier:
-
-| Kriterium | Poäng |
-|-----------|-------|
-| OMXS30 i upptrend | 2 |
-| RSI i köpzon (32–52) | 2 |
-| Färsk MACD-korsning (≤5 dagar) | 2 |
-| Kurs vid MA50 eller nedre Bollinger Band (±4%) | 2 |
-| Volym över 20-dagarssnitt | 2 |
-
-- **8–10**: PRIME SETUP – sällsynt, agera
-- **6–7**: BRA SETUP – godkänd entry
-- **4–5**: AVVAKTA – för tidig, invänta dipp
-- **0–3**: UNDVIK – dålig timing
-
-### Top 3 köprekommendationer
-Screener-fliken visar automatiskt de tre aktier som bäst uppfyller swing trade-kriterierna. Krav för att kvalificera:
-- Golden Cross (långsiktig upptrend)
-- Swing-Score ≥ 6 (BRA SETUP eller bättre)
-- Minst 2 av 3 klassiska indikatorer positiva
-
-Om inga aktier kvalificerar visas ett meddelande – hellre ingen handel än dålig handel.
-
-### Screener
-Analyserar 72 svenska Large/Mid Cap-aktier parallellt. Filter:
-- Prime Setup (Swing-Score ≥ 8)
-- Köp / Köp–Håll / Håll–Sälj / Sälj
-
-### Förklara-läge
-Klicka på **❓ Förklara** i headern för att aktivera förklaringsläge. Klicka sedan på valfri indikator, tabell eller term för att få en nybörjarvänlig förklaring i en panel längst ned på skärmen.
-
-### Portfölj & Bevakningslista
-Spara egna innehav och bevakade aktier. Data lagras lokalt i JSON-filer.
-
----
-
-## Kom igång
-
-### Krav
-- Podman (eller Docker)
-
-### Starta med Podman
-
-```bash
-# Bygg image
-podman build -t aktieanalys .
-
-# Starta container med persistent data
-podman run -d \
-  --name aktieanalys \
-  -p 5000:5000 \
-  -v aktieanalys-data:/app/data \
-  aktieanalys
-
-# Öppna i webbläsaren
-open http://localhost:5000
-```
-
-### Starta lokalt (utan container)
+## Kör lokalt
 
 ```bash
 pip install -r requirements.txt
-python app.py
+python app.py          # http://localhost:4000
 ```
 
-### Stoppa / uppdatera
+Databasen (`data/trading.db`) skapas automatiskt. Klicka **Uppdatera kursdata** i
+appen (eller vänta på nattsynken) för att fylla den – screener och backtest är tomma
+tills dess. Full historik hämtas (`period="max"`), så första synken tar några minuter.
+
+Miljövariabler (se `src/core/settings.py`): `AKTIEANALYS_DB`, `AKTIEANALYS_DATA`,
+`AKTIEANALYS_HISTORY`, `RUN_SCHEDULER`.
+
+## Container / k3s
 
 ```bash
-# Stoppa
-podman stop aktieanalys
-
-# Uppdatera efter kodändring
-podman stop aktieanalys && podman rm aktieanalys
-podman build -t aktieanalys . && podman run -d --name aktieanalys -p 5000:5000 -v aktieanalys-data:/app/data aktieanalys
+podman build -t localhost/aktieanalys:latest -f Containerfile .
+podman run -d --name aktieanalys -p 4000:4000 -v aktieanalys-data:/app/data localhost/aktieanalys:latest
 ```
 
----
+k3s: `./deploy.sh` (bygger, importerar till containerd, uppdaterar `aktieanalys.yaml`, startar om).
 
-## Deployment (k3s / Kubernetes)
+## Datakällor & förbehåll
 
-Eftersom projektet körs i ett k3s-kluster med containerd krävs en specifik process för att Kubernetes ska se de lokalt byggda bilderna:
-
-1.  **Bygg bilden:** `podman build -t localhost/aktieanalys:latest -f Containerfile .`
-2.  **Exportera:** `podman save localhost/aktieanalys:latest -o aktieanalys.tar`
-3.  **Importera till k3s:** `sudo k3s ctr -n k8s.io images import aktieanalys.tar` (Viktigt: `-n k8s.io` krävs för att k3s ska hitta bilden).
-4.  **Omstart:** `kubectl rollout restart deployment aktieanalys`
-
-Eller använd det färdiga skriptet:
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
-
----
-
-## Teknisk stack
-
-| Komponent | Teknologi |
-|-----------|-----------|
-| Backend | Python 3.12, Flask 3.1 |
-| Data | yfinance (Yahoo Finance) |
-| Analys | pandas, beräkningar i Python |
-| Frontend | Vanilla JS, HTML/CSS (ingen framework) |
-| Container | Podman / Docker, gunicorn (2 workers, 120s timeout) |
-| Persistens | JSON-filer via named volume |
-
----
-
-## Datakällor
-
-Kurser och historik hämtas från **Yahoo Finance** via `yfinance`. Datan är fördröjd och kan saknas för avnoterade eller sällan handlade aktier. Appen är avsedd för analys och lärande – **inte** som finansiell rådgivning.
-
-> ⚠️ Sätt alltid stop-loss. Ej finansiell rådgivning.
+Kurser från Yahoo Finance via `yfinance` – fördröjda, och universumet är *dagens*
+indexbolag (avnoterade bolag saknas, vilket smickrar historiska backtest –
+"survivorship bias"). Insynsdata från Finansinspektionen, kongressdata från en öppen
+datadump. **Inget i appen är finansiell rådgivning.**
