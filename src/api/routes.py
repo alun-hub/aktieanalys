@@ -27,15 +27,6 @@ def screener_route():
     except Exception as e:
         return jsonify({"error": str(e), "results": []}), 500
 
-@api_bp.route('/orders')
-def orders_fallback():
-    """Bakåtkompatibilitet för skanningsknappar."""
-    market = request.args.get('market', 'all')
-    results = run_market_screener(market=market)
-    buys = [r for r in results if "KÖP" in r["rek"]]
-    sells = [r for r in results if "SÄLJ" in r["rek"]]
-    return jsonify({"buy": buys, "sell": sells, "all": results})
-
 @api_bp.route('/search')
 def search_route():
     q = request.args.get('q', '')
