@@ -294,6 +294,8 @@ def analyze_any_stock(symbol):
             "avanza_query": avanza_query
         }
 
+        confluence = calc_confluence(symbol, score, short_data, is_crypto, is_us, ticker)
+
         return {
             "symbol": symbol,
             "name": company_name,
@@ -310,7 +312,146 @@ def analyze_any_stock(symbol):
             "bear_factors": bear_factors,
             "patterns": patterns,
             "short_data": short_data,
+            "confluence": confluence,
+            "earnings": confluence.get("earnings"),
             "avanza_recipe": avanza_recipe
         }
     except Exception as e:
         return {"error": f"Fel vid analys av {symbol}: {str(e)}"}
+
+
+def calc_confluence(symbol, tech_score, short_data, is_crypto, is_us, ticker_obj):
+    """Beräknar ett samlat konfluens-score (0-100) som väger samman teknik, insyn, kongress och rapportkalender."""
+    confluence_factors = []
+    # Baspoäng från teknisk setup (max 45p)
+    conf_score = int(tech_score * 0.45)
+    insider_buys = []
+    congress_buys = []
+    earnings_info = None
+
+    # 1. Insynskonfluens (Sverige - Finansinspektionen)
+    if not is_crypto and not is_us:
+        try:
+            from src.core.insider import get_insider_buys_for_symbol
+            insider_buys = get_insider_buys_for_symbol(symbol, days=60)
+            if insider_buys:
+                tot_sek = sum(t.get("amount", 0) for t in insider_buys)
+                latest = insider_buys[0]
+                conf_score += 25
+                confluence_factors.append({
+                    "type": "insider",
+                    "title": "Insynsköp bekräftar",
+                    "desc": f"Insynspersoner har köpt aktier för {tot_sek:,.0f} kr senaste 60 dagarna ({latest.get('insider', '')}, {latest.get('role', '')}).",
+                    "positive": True
+                })
+        except Exception:
+            pass
+
+    # 2. Kongresskonfluens (USA - Senate & House)
+    if is_us and not is_crypto:
+        try:
+            from src.core.congress import scan_congress_trades
+            cg = scan_congress_trades(months=3, txn_type="buy")
+            congress_buys = [t for t in cg.get("trades", []) if t.get("ticker") == symbol]
+            if congress_buys:
+                conf_score += 20
+                names = ", ".join(list(set(t["politician"] for t in congress_buys[:3])))
+                confluence_factors.append({
+                    "type": "congress",
+                    "title": "Kongressköp (USA)",
+                    "desc": f"Amerikanska politiker ({names}) har rapporterat köp i bolaget.",
+                    "positive": True
+                })
+        except Exception:
+            pass
+
+    # 3. Blankningssituation
+    if not is_crypto and short_data and isinstance(short_data, dict):
+        short_pct = short_data.get("short_pct")
+        if short_pct is not None:
+            if short_pct < 1.0:
+                conf_score += 15
+                confluence_factors.append({
+                    "type": "short",
+                    "title": "Minimal blankning",
+                    "desc": f"Endast {short_pct}% blankat. Institutionellt säljtryck saknas.",
+                    "positive": True
+                })
+            elif short_pct > 5.0 and tech_score >= 60:
+                conf_score += 15
+                confluence_factors.append({
+                    "type": "short_squeeze",
+                    "title": "Short Squeeze Potential",
+                    "desc": f"Hög blankning ({short_pct}%) kombinerat med utbrott ökar chansen för squeeze.",
+                    "positive": True
+                })
+
+    # 4. Krypto marknadsstruktur
+    if is_crypto:
+        conf_score += 20
+        confluence_factors.append({
+            "type": "crypto",
+            "title": "Hög likviditet & ETF-flöden",
+            "desc": "Global handel med växande institutionellt kapital.",
+            "positive": True
+        })
+
+    # 5. Rapportkalender (Earnings Guard)
+    if not is_crypto and ticker_obj:
+        try:
+            cal = ticker_obj.calendar
+            if cal and "Earnings Date" in cal:
+                ed_list = cal.get("Earnings Date")
+                if ed_list and len(ed_list) > 0:
+                    import datetime
+                    next_ed = ed_list[0]
+                    if isinstance(next_ed, (datetime.date, datetime.datetime)):
+                        d_val = next_ed.date() if isinstance(next_ed, datetime.datetime) else next_ed
+                        days_until = (d_val - datetime.date.today()).days
+                        if 0 <= days_until <= 14:
+                            conf_score -= 25  # Riskavdrag: Ta aldrig ny position precis före rapport!
+                            earnings_info = {
+                                "date": str(d_val),
+                                "days_until": days_until,
+                                "warning": True,
+                                "message": f"Kvartalsrapport om {days_until} dagar ({d_val}). Risk för gap nedåt vid rapportmiss!"
+                            }
+                            confluence_factors.append({
+                                "type": "earnings_warning",
+                                "title": "⚠️ Rapportvarning",
+                                "desc": f"Kvartalsrapport om {days_until} dagar ({d_val}). Ökad risk – avråder från aggressivt utbrottsköp före rapporten.",
+                                "positive": False
+                            })
+                        elif days_until > 14:
+                            earnings_info = {
+                                "date": str(d_val),
+                                "days_until": days_until,
+                                "warning": False,
+                                "message": f"Nästa rapport: {d_val} ({days_until} dagar kvar)."
+                            }
+        except Exception:
+            pass
+
+    conf_score = max(5, min(99, conf_score))
+    if conf_score >= 80:
+        conf_label = "SUPER-KONFLUENS"
+        conf_badge = "badge-grn"
+    elif conf_score >= 65:
+        conf_label = "STARK KONFLUENS"
+        conf_badge = "badge-grn"
+    elif conf_score >= 45:
+        conf_label = "MÅTTLIG KONFLUENS"
+        conf_badge = "badge-am"
+    else:
+        conf_label = "LÅG KONFLUENS"
+        conf_badge = "badge-red"
+
+    return {
+        "score": conf_score,
+        "label": conf_label,
+        "badge": conf_badge,
+        "factors": confluence_factors,
+        "earnings": earnings_info,
+        "insider_count": len(insider_buys),
+        "congress_count": len(congress_buys)
+    }

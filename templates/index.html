@@ -8,133 +8,142 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Sans+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:    #04040a;
-  --bg2:   #09090f;
-  --bg3:   #0e0e18;
-  --bg4:   #131320;
-  --am:    #f59e0b;
-  --am2:   #d97706;
-  --am-d:  rgba(245,158,11,0.07);
-  --am-l:  rgba(245,158,11,0.18);
-  --am-ll: rgba(245,158,11,0.04);
-  --grn:   #4ade80;
-  --red:   #f87171;
-  --txt:   #e2e2f0;
-  --dim:   #8888a8;
-  --dim2:  #3a3a52;
-  --brt:   #f8f8ff;
-  --mono:  'IBM Plex Mono', 'Courier New', monospace;
-  --cond:  'IBM Plex Sans Condensed', sans-serif;
+  --bg:    #08101a;
+  --bg2:   #101c2d;
+  --bg3:   #182a3f;
+  --bg4:   #20354e;
+  --am:    #00C274; /* Avanza Emerald Green */
+  --am2:   #00A365;
+  --am-d:  rgba(0, 194, 116, 0.08);
+  --am-l:  rgba(0, 194, 116, 0.25);
+  --am-ll: rgba(0, 194, 116, 0.04);
+  --grn:   #00C274;
+  --grn-btn: #00A365;
+  --red:   #FF4D4D;
+  --gold:  #FFB800;
+  --blue:  #0088FF;
+  --txt:   #E2EAF2;
+  --dim:   #8E9DAE;
+  --dim2:  #20344d;
+  --brt:   #FFFFFF;
+  --font:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --cond:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --radius: 8px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--dim2); }
+::-webkit-scrollbar-thumb { background: var(--dim2); border-radius: 3px; }
 
 body {
-  font-family: var(--mono);
-  font-size: 13px;
+  font-family: var(--font);
+  font-size: 13.5px;
   background: var(--bg);
   color: var(--txt);
   min-height: 100vh;
-  background-image:
-    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(245,158,11,0.006) 2px, rgba(245,158,11,0.006) 4px);
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── HEADER ─────────────────────────────────────────────── */
+/* ── HEADER (AVANZA STYLE) ────────────────────────────────── */
 .header {
   background: var(--bg2);
-  border-bottom: 1px solid var(--am-l);
+  border-bottom: 1px solid var(--dim2);
   padding: 0;
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 .header-top {
   display: flex;
   align-items: center;
-  gap: 0;
-  height: 44px;
-  padding: 0 1rem;
+  height: 48px;
+  padding: 0 1.25rem;
 }
 .logo {
-  font-family: var(--cond);
-  font-weight: 700;
-  font-size: 1.05rem;
-  letter-spacing: 0.12em;
-  color: var(--am);
+  font-family: var(--font);
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  color: var(--brt);
   text-transform: uppercase;
-  margin-right: 1rem;
+  margin-right: 1.25rem;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
-.logo span { color: var(--brt); }
-.header-sep { width: 1px; height: 24px; background: var(--dim2); margin: 0 1rem; flex-shrink: 0; }
+.logo span { color: var(--grn); }
+.logo-tag {
+  background: rgba(0,194,116,0.15);
+  color: var(--grn);
+  border: 1px solid rgba(0,194,116,0.3);
+  font-size: 0.62rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.header-sep { width: 1px; height: 22px; background: var(--dim2); margin: 0 0.85rem; flex-shrink: 0; }
 #sys-clock {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--dim);
-  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-.cursor {
-  display: inline-block; width: 7px; height: 11px;
-  background: var(--am); vertical-align: middle;
-  animation: blink 1.1s step-end infinite;
-  margin-left: 4px;
-}
-@keyframes blink { 50% { opacity: 0; } }
 .header-flex { flex: 1; }
-.header-actions { display: flex; gap: 0.5rem; }
+.header-actions { display: flex; gap: 0.6rem; align-items: center; }
 
 .btn {
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--font);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
   cursor: pointer;
   border: 1px solid transparent;
-  padding: 0.45rem 1rem;
-  transition: all 0.15s;
-  font-weight: 500;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  transition: all 0.15s ease-in-out;
+  font-weight: 600;
 }
 .btn-am {
-  background: var(--am);
-  color: #050508;
-  border-color: var(--am);
+  background: var(--grn-btn);
+  color: #ffffff;
+  border-color: var(--grn-btn);
 }
-.btn-am:hover { background: var(--brt); border-color: var(--brt); }
+.btn-am:hover { background: var(--grn); border-color: var(--grn); box-shadow: 0 2px 8px rgba(0,194,116,0.35); }
 .btn-ghost {
-  background: transparent;
-  color: var(--dim);
+  background: var(--bg3);
+  color: var(--txt);
   border-color: var(--dim2);
 }
-.btn-ghost:hover { border-color: var(--am); color: var(--am); }
+.btn-ghost:hover { border-color: var(--grn); color: var(--grn); }
 
-/* ── TABS ────────────────────────────────────────────────── */
+/* ── TABS (AVANZA STYLE) ──────────────────────────────────── */
 .tabs {
   display: flex;
   border-top: 1px solid var(--dim2);
   overflow-x: auto;
   scrollbar-width: none;
+  padding: 0 0.5rem;
+  background: #0d1724;
 }
 .tabs::-webkit-scrollbar { display: none; }
 .tab-btn {
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   color: var(--dim);
   cursor: pointer;
-  padding: 0.45rem 1.25rem;
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  padding: 0.6rem 1.1rem;
+  font-family: var(--font);
+  font-size: 0.74rem;
+  font-weight: 600;
   white-space: nowrap;
   margin-bottom: -1px;
   transition: all 0.15s;
 }
 .tab-btn:hover { color: var(--txt); }
-.tab-btn.active { color: var(--am); border-bottom-color: var(--am); }
+.tab-btn.active { color: #ffffff; border-bottom-color: var(--grn); }
 .tab-pane { display: none; }
 .tab-pane.active { display: block; }
 
@@ -360,56 +369,62 @@ tbody tr:hover td { background: var(--bg3); }
 .modal.open { display: flex; }
 .modal-box {
   background: var(--bg2);
-  border: 1px solid var(--am-l);
-  width: 100%; max-width: 440px;
+  border: 1px solid var(--dim2);
+  border-radius: 8px;
+  width: 100%; max-width: 580px;
   max-height: 92vh; overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
 }
 .modal-hdr {
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--dim2);
   background: var(--bg3);
   display: flex; align-items: center; gap: 0.6rem;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 .modal-tag {
-  font-size: 0.58rem; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase;
+  font-size: 0.62rem; letter-spacing: 0.08em; color: var(--dim); text-transform: uppercase; font-weight: 700;
 }
-.modal-title { font-size: 0.95rem; font-weight: 600; color: var(--brt); }
+.modal-title { font-size: 1.05rem; font-weight: 700; color: var(--brt); }
 .modal-body { padding: 1.25rem; }
 
 .step-blk {
   background: var(--bg);
   border: 1px solid var(--dim2);
+  border-radius: 6px;
   padding: 1rem;
   margin-bottom: 0.75rem;
 }
 .step-tag {
-  font-size: 0.58rem; letter-spacing: 0.18em; color: var(--am);
-  text-transform: uppercase; margin-bottom: 0.65rem;
+  font-size: 0.62rem; letter-spacing: 0.08em; color: var(--am);
+  text-transform: uppercase; margin-bottom: 0.65rem; font-weight: 700;
 }
 .step-tag.red { color: var(--red); }
 .step-row {
   display: flex; justify-content: space-between;
-  padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.03);
-  font-size: 0.8rem;
+  padding: 0.45rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.82rem;
 }
 .step-row:last-child { border-bottom: none; }
 .step-row label { color: var(--dim); }
-.step-row span { font-weight: 500; font-variant-numeric: tabular-nums; }
+.step-row span { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .m-group { margin-bottom: 1rem; }
-.m-lbl { display: block; margin-bottom: 0.3rem; font-size: 0.6rem; letter-spacing: 0.16em; color: var(--dim); text-transform: uppercase; }
+.m-lbl { display: block; margin-bottom: 0.3rem; font-size: 0.62rem; letter-spacing: 0.08em; color: var(--dim); text-transform: uppercase; font-weight: 600; }
 .m-input {
-  width: 100%; padding: 0.8rem 1rem;
+  width: 100%; padding: 0.75rem 1rem;
   background: var(--bg); border: 1px solid var(--dim2);
-  color: var(--brt); font-family: var(--mono); font-size: 1.15rem;
-  font-weight: 600; text-align: center; outline: none; transition: border-color 0.15s;
+  color: var(--brt); font-family: var(--font); font-size: 1.15rem;
+  font-weight: 700; text-align: center; outline: none; transition: border-color 0.15s;
+  border-radius: 6px;
 }
 .m-input:focus { border-color: var(--am); }
 .btn-cancel {
   width: 100%; padding: 0.6rem;
   cursor: pointer; border: none; background: transparent;
-  color: var(--dim); font-family: var(--mono); font-size: 0.65rem;
-  letter-spacing: 0.14em; text-transform: uppercase; margin-top: 0.5rem;
+  color: var(--dim); font-family: var(--font); font-size: 0.72rem;
+  letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; margin-top: 0.5rem;
 }
 .btn-cancel:hover { color: var(--txt); }
 
@@ -418,58 +433,64 @@ tbody tr:hover td { background: var(--bg3); }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.stats-strip { animation: fadeUp 0.35s ease both; }
+.stats-strip { animation: fadeUp 0.35s ease both; border-radius: 8px; overflow: hidden; }
 .main-grid   { animation: fadeUp 0.35s 0.08s ease both; }
-.panel-full  { animation: fadeUp 0.35s 0.16s ease both; }
+.panel-full  { animation: fadeUp 0.35s 0.16s ease both; border-radius: 8px; }
 /* Sök & Taggar */
-.search-bar { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
-.search-bar input { flex: 1; background: var(--bg2); border: 1px solid var(--dim2); color: var(--txt); font-family: var(--mono); font-size: 0.85rem; padding: 0.65rem 1rem; outline: none; }
+.search-bar { display: flex; gap: 0.5rem; margin-bottom: 0.85rem; }
+.search-bar input { flex: 1; background: var(--bg2); border: 1px solid var(--dim2); color: var(--txt); font-family: var(--font); font-size: 0.85rem; padding: 0.65rem 1rem; outline: none; border-radius: 6px; }
 .search-bar input:focus { border-color: var(--am); }
-.badge { display: inline-block; padding: 0.2rem 0.5rem; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; border-radius: 2px; }
-.badge-grn { background: rgba(74,222,128,0.15); color: var(--grn); border: 1px solid rgba(74,222,128,0.3); }
-.badge-am  { background: rgba(245,158,11,0.15); color: var(--am); border: 1px solid rgba(245,158,11,0.3); }
-.badge-red { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
-.filter-btn-group { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-.filter-btn { background: var(--bg2); border: 1px solid var(--dim2); color: var(--dim); padding: 0.4rem 0.8rem; font-family: var(--mono); font-size: 0.65rem; cursor: pointer; text-transform: uppercase; }
-.filter-btn.active, .filter-btn:hover { border-color: var(--am); color: var(--am); }
+.badge { display: inline-flex; align-items: center; padding: 0.2rem 0.55rem; font-size: 0.62rem; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; border-radius: 12px; }
+.badge-grn { background: rgba(0,194,116,0.15); color: var(--grn); border: 1px solid rgba(0,194,116,0.3); }
+.badge-am  { background: rgba(255,184,0,0.15); color: var(--gold); border: 1px solid rgba(255,184,0,0.3); }
+.badge-red { background: rgba(255,77,77,0.15); color: var(--red); border: 1px solid rgba(255,77,77,0.3); }
+.filter-btn-group { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.filter-btn { background: var(--bg2); border: 1px solid var(--dim2); color: var(--dim); padding: 0.45rem 0.85rem; font-family: var(--font); font-size: 0.72rem; font-weight: 600; cursor: pointer; text-transform: uppercase; border-radius: 6px; transition: all 0.15s; }
+.filter-btn.active, .filter-btn:hover { border-color: var(--am); color: #ffffff; background: var(--bg3); }
 .analysis-factor-list { list-style: none; margin: 0.5rem 0; }
 .analysis-factor-list li { font-size: 0.76rem; margin-bottom: 0.35rem; line-height: 1.5; }
 .analysis-factor-list li::before { content: '▸ '; color: var(--am); }
 
 /* Screener & Rekommendationskort */
-.screener-grid { display: grid; grid-template-columns: 1fr; gap: 0.85rem; }
+.screener-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
 @media(min-width: 768px) { .screener-grid { grid-template-columns: repeat(2, 1fr); } }
 @media(min-width: 1100px) { .screener-grid { grid-template-columns: repeat(3, 1fr); } }
-.screener-card { background: var(--bg2); border: 1px solid var(--dim2); padding: 0.9rem 1rem; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
-.screener-card:hover { border-color: var(--am); background: var(--bg3); }
+.screener-card { background: var(--bg2); border: 1px solid var(--dim2); border-radius: 8px; padding: 1rem 1.1rem; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
+.screener-card:hover { border-color: var(--am); background: var(--bg3); box-shadow: 0 6px 18px rgba(0,194,116,0.12); }
 .screener-card.prime { border-top: 3px solid var(--grn); }
-.screener-card.bra   { border-top: 3px solid #22c55e; }
-.screener-card.vanta { border-top: 3px solid var(--am); }
+.screener-card.bra   { border-top: 3px solid #00C274; }
+.screener-card.vanta { border-top: 3px solid var(--gold); }
 .screener-card.undvik{ border-top: 3px solid var(--red); }
-.score-bar-wrap { width: 100%; height: 4px; background: var(--dim2); margin: 0.4rem 0 0.7rem; border-radius: 2px; overflow: hidden; }
-.score-bar-fill { height: 100%; background: var(--am); }
-.quick-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: -0.75rem; margin-bottom: 1.25rem; }
-.quick-tag { font-size: 0.62rem; background: var(--bg2); border: 1px solid var(--dim2); color: var(--dim); padding: 0.2rem 0.5rem; cursor: pointer; text-transform: uppercase; }
-.quick-tag:hover { color: var(--am); border-color: var(--am); }
+.score-bar-wrap { width: 100%; height: 5px; background: var(--bg); margin: 0.4rem 0 0.7rem; border-radius: 3px; overflow: hidden; }
+.score-bar-fill { height: 100%; background: var(--am); border-radius: 3px; }
+.quick-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: -0.4rem; margin-bottom: 1.25rem; }
+.quick-tag { font-size: 0.68rem; background: var(--bg2); border: 1px solid var(--dim2); color: var(--dim); padding: 0.25rem 0.65rem; cursor: pointer; text-transform: uppercase; border-radius: 12px; font-weight: 600; }
+.quick-tag:hover { color: var(--grn); border-color: var(--grn); background: var(--bg3); }
 .sync-status-badge { font-size: 0.65rem; color: var(--dim); margin-left: 0.5rem; }
 
-.card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; }
-.card-sym { font-weight: 700; font-size: 1.05rem; color: var(--brt); letter-spacing: 0.04em; }
-.card-name { font-size: 0.72rem; color: var(--dim); margin-top: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+.card-sym { font-weight: 700; font-size: 1.1rem; color: var(--brt); letter-spacing: 0.02em; }
+.card-name { font-size: 0.75rem; color: var(--dim); margin-top: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 175px; }
 .card-price-row { display: flex; justify-content: space-between; align-items: baseline; margin: 0.4rem 0 0.6rem; }
-.card-price { font-size: 1.15rem; font-weight: 600; color: var(--brt); }
-.card-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; background: var(--bg); padding: 0.5rem; border: 1px solid var(--dim2); margin-bottom: 0.6rem; font-size: 0.7rem; }
+.card-price { font-size: 1.2rem; font-weight: 700; color: var(--brt); font-variant-numeric: tabular-nums; }
+.card-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; background: var(--bg); padding: 0.55rem; border: 1px solid var(--dim2); border-radius: 6px; margin-bottom: 0.65rem; font-size: 0.72rem; }
 .card-metric-col { display: flex; flex-direction: column; }
-.card-metric-lbl { font-size: 0.55rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
-.card-metric-val { font-weight: 600; margin-top: 0.15rem; }
-.card-reasons { list-style: none; margin: 0.3rem 0 0.75rem; min-height: 2.4rem; }
-.card-reasons li { font-size: 0.7rem; color: var(--dim); margin-bottom: 0.2rem; line-height: 1.35; }
+.card-metric-lbl { font-size: 0.58rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.card-metric-val { font-weight: 600; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
+.card-reasons { list-style: none; margin: 0.3rem 0 0.75rem; min-height: 2.2rem; }
+.card-reasons li { font-size: 0.72rem; color: var(--dim); margin-bottom: 0.25rem; line-height: 1.4; }
 .card-reasons li::before { content: '▸ '; color: var(--am); }
-.card-recipe { background: rgba(245,158,11,0.04); border: 1px dashed var(--am-l); padding: 0.5rem 0.65rem; margin-bottom: 0.75rem; font-size: 0.72rem; }
+.card-recipe { background: rgba(0,194,116,0.04); border: 1px dashed rgba(0,194,116,0.3); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.74rem; }
 .card-recipe-row { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
 .card-recipe-row:last-child { margin-bottom: 0; }
 .card-recipe-row label { color: var(--dim); }
-.card-recipe-row span { font-weight: 500; }
+.card-recipe-row span { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Positionskalkylator Bar */
+.capital-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; background: var(--bg2); border: 1px solid var(--dim2); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
+.capital-input { background: var(--bg); border: 1px solid var(--dim2); color: var(--brt); border-radius: 4px; padding: 0.35rem 0.6rem; font-size: 0.82rem; font-weight: 600; font-family: var(--font); }
+.capital-input:focus { border-color: var(--am); outline: none; }
+.pos-sizing-box { background: var(--bg); border: 1px solid var(--dim2); border-radius: 6px; padding: 0.45rem 0.65rem; margin-bottom: 0.65rem; font-size: 0.72rem; display: flex; justify-content: space-between; align-items: center; }
 </style>
 </head>
 <body>
@@ -523,6 +544,30 @@ tbody tr:hover td { background: var(--bg3); }
 
   <!-- DASHBOARD TAB (SCREENER & REKOMMENDATIONER) -->
   <div id="tab-dashboard" class="tab-pane active">
+
+    <!-- PORTFÖLJKALKYLATOR & RISKINSTÄLLNINGAR -->
+    <div class="capital-bar">
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <span style="font-size:0.78rem;font-weight:700;color:var(--brt);letter-spacing:0.02em;">💰 DINA INVESTERINGSINSTÄLLNINGAR</span>
+        <div style="display:flex;align-items:center;gap:0.35rem;">
+          <span style="font-size:0.7rem;color:var(--dim);">PORTFÖLJKAPITAL:</span>
+          <input type="number" id="user-capital" class="capital-input" style="width:115px;" value="100000" step="5000" onchange="window.saveUserSettings()" oninput="window.updateCapitalPreview()">
+          <span style="font-size:0.72rem;color:var(--dim);">SEK</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.35rem;">
+          <span style="font-size:0.7rem;color:var(--dim);">RISK PER AFFÄR:</span>
+          <select id="user-risk" class="capital-input" onchange="window.saveUserSettings()">
+            <option value="1.0">1.0% (Defensiv)</option>
+            <option value="1.5" selected>1.5% (Balanserad)</option>
+            <option value="2.0">2.0% (Aktiv)</option>
+            <option value="3.0">3.0% (Hög risk)</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:0.75rem;color:var(--dim);">
+        Max förlust vid Stop Loss: <strong id="calc-max-risk" style="color:var(--gold);">1 500 kr</strong>
+      </div>
+    </div>
 
     <div class="search-bar">
       <input type="text" id="symbol-search-input" placeholder="SÖK AKTIE ELLER TICKER (T.EX. INVESTOR, VOLVO, SAAB, NVIDIA, APPLE, BITCOIN)..." onkeydown="if(event.key==='Enter') window.analyzeStock()">
@@ -609,6 +654,25 @@ tbody tr:hover td { background: var(--bg3); }
             <div id="bt-trades" class="bt-v">—</div>
           </div>
         </div>
+
+        <!-- VISUELL AVKASTNINGSKURVA (EQUITY CURVE) -->
+        <div id="bt-chart-card" style="display:none;margin-top:1.25rem;background:var(--bg);border:1px solid var(--dim2);border-radius:8px;padding:1rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
+            <div class="sec-hdr" style="margin-bottom:0;border:none;font-size:0.72rem;">AVKASTNINGSKURVA // STRATEGI VS INDEX</div>
+            <div style="display:flex;gap:1rem;font-size:0.72rem;">
+              <span style="display:flex;align-items:center;gap:0.35rem;color:var(--grn);font-weight:600;">
+                <span style="display:inline-block;width:12px;height:3px;background:var(--grn);border-radius:2px;"></span> Strategi
+              </span>
+              <span style="display:flex;align-items:center;gap:0.35rem;color:#0088FF;font-weight:600;">
+                <span style="display:inline-block;width:12px;height:3px;background:#0088FF;border-radius:2px;"></span> Index (B&H)
+              </span>
+            </div>
+          </div>
+          <div id="bt-chart-svg-wrap" style="width:100%;height:220px;position:relative;">
+            <!-- Rendered by window.renderEquitySvg -->
+          </div>
+        </div>
+
         <div id="bt-trade-log" style="display:none;margin-top:1.25rem;">
           <div class="sec-hdr" style="font-size:0.75rem;margin-bottom:0.5rem;">GENOMFÖRDA AFFÄRER I SIMULERINGEN</div>
           <div class="tbl-wrap" style="max-height:350px;overflow-y:auto;">
@@ -846,6 +910,142 @@ function closeModals() {
 window.screenerData = [];
 window.syncInterval = null;
 
+// User capital & risk settings (Stored in localStorage)
+window.getUserCapital = function() {
+  const v = parseFloat(localStorage.getItem('aktieanalys_capital'));
+  return (!isNaN(v) && v > 0) ? v : 100000;
+};
+window.getUserRisk = function() {
+  const v = parseFloat(localStorage.getItem('aktieanalys_risk'));
+  return (!isNaN(v) && v > 0) ? v : 1.5;
+};
+window.saveUserSettings = function() {
+  const capInput = document.getElementById('user-capital');
+  const riskInput = document.getElementById('user-risk');
+  if (capInput) {
+    const val = parseFloat(capInput.value) || 100000;
+    localStorage.setItem('aktieanalys_capital', val);
+  }
+  if (riskInput) {
+    const val = parseFloat(riskInput.value) || 1.5;
+    localStorage.setItem('aktieanalys_risk', val);
+  }
+  window.updateCapitalPreview();
+  if (window.screenerData && window.screenerData.length) {
+    window.renderScreenerCards(window.screenerData);
+  }
+};
+window.updateCapitalPreview = function() {
+  const cap = window.getUserCapital();
+  const risk = window.getUserRisk();
+  const maxRisk = Math.round(cap * (risk / 100));
+  const el = document.getElementById('calc-max-risk');
+  if (el) el.textContent = `${fmt(maxRisk)} kr`;
+  const capInput = document.getElementById('user-capital');
+  if (capInput && document.activeElement !== capInput) capInput.value = cap;
+  const riskInput = document.getElementById('user-risk');
+  if (riskInput) riskInput.value = risk.toFixed(1);
+};
+
+window.recalcModalPosition = function(buyLimit, slTrigger, curr='kr') {
+  const cap = parseFloat(document.getElementById('modal-calc-cap') ? document.getElementById('modal-calc-cap').value : 0) || window.getUserCapital();
+  const riskPct = parseFloat(document.getElementById('modal-calc-risk') ? document.getElementById('modal-calc-risk').value : 0) || window.getUserRisk();
+  const resEl = document.getElementById('modal-calc-result');
+  if (!resEl) return;
+
+  const bl = Number(buyLimit) || 1;
+  const sl = Number(slTrigger) || (bl * 0.95);
+  const maxRiskSek = cap * (riskPct / 100);
+  const riskPerShare = Math.max(0.01, bl - sl);
+  const qty = Math.max(1, Math.floor(maxRiskSek / riskPerShare));
+  const totalOrder = Math.round(qty * bl);
+  const actualRisk = Math.round(qty * riskPerShare);
+
+  resEl.innerHTML = `
+    <div style="background:var(--bg3);padding:0.5rem;border-radius:4px;">
+      <div style="font-size:0.58rem;color:var(--dim);letter-spacing:0.06em;text-transform:uppercase;">ANTAL AKTIER</div>
+      <div style="font-size:1.05rem;font-weight:700;color:var(--brt);margin-top:0.15rem;">${fmt(qty)} st</div>
+    </div>
+    <div style="background:var(--bg3);padding:0.5rem;border-radius:4px;">
+      <div style="font-size:0.58rem;color:var(--dim);letter-spacing:0.06em;text-transform:uppercase;">TOTALBELOPP</div>
+      <div style="font-size:1.05rem;font-weight:700;color:var(--am);margin-top:0.15rem;">${fmt(totalOrder)} ${esc(curr)}</div>
+    </div>
+    <div style="background:var(--bg3);padding:0.5rem;border-radius:4px;">
+      <div style="font-size:0.58rem;color:var(--dim);letter-spacing:0.06em;text-transform:uppercase;">MAX RISK VID SL</div>
+      <div style="font-size:1.05rem;font-weight:700;color:var(--gold);margin-top:0.15rem;">-${fmt(actualRisk)} kr</div>
+    </div>
+  `;
+};
+
+window.renderEquitySvg = function(container, points, indexName) {
+  if (!container || !points || points.length < 2) return;
+  const W = 700, H = 220;
+  const pad = { top: 20, right: 35, bottom: 30, left: 70 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  const stratVals = points.map(p => Number(p.strategy) || 0);
+  const idxVals = points.map(p => Number(p.index) || 0);
+  let minVal = Math.min(...stratVals, ...idxVals);
+  let maxVal = Math.max(...stratVals, ...idxVals);
+  const diff = Math.max(1, maxVal - minVal);
+  minVal = Math.max(0, Math.floor(minVal - diff * 0.05));
+  maxVal = Math.ceil(maxVal + diff * 0.05);
+
+  const getX = i => pad.left + (i / (points.length - 1)) * cw;
+  const getY = v => pad.top + ch - ((v - minVal) / (maxVal - minVal)) * ch;
+
+  let gridLines = '';
+  for (let step = 0; step <= 3; step++) {
+    const val = minVal + step * (maxVal - minVal) / 3;
+    const y = getY(val);
+    gridLines += `
+      <line x1="${pad.left}" y1="${y}" x2="${W - pad.right}" y2="${y}" stroke="var(--dim2)" stroke-dasharray="3,3" stroke-width="1"/>
+      <text x="${pad.left - 8}" y="${y + 3.5}" text-anchor="end" fill="var(--dim)" font-size="10" font-family="sans-serif">${fmt(Math.round(val))} kr</text>
+    `;
+  }
+
+  let dateLabels = '';
+  const dateSteps = Math.min(5, points.length);
+  for (let s = 0; s < dateSteps; s++) {
+    const idx = Math.floor(s * (points.length - 1) / (dateSteps - 1));
+    const pt = points[idx];
+    const x = getX(idx);
+    const dStr = pt.date ? pt.date.slice(2) : '';
+    dateLabels += `<text x="${x}" y="${H - 10}" text-anchor="middle" fill="var(--dim)" font-size="10" font-family="sans-serif">${dStr}</text>`;
+  }
+
+  const stratCoords = points.map((p, i) => `${getX(i).toFixed(1)},${getY(p.strategy).toFixed(1)}`);
+  const idxCoords = points.map((p, i) => `${getX(i).toFixed(1)},${getY(p.index).toFixed(1)}`);
+  const stratPath = 'M ' + stratCoords.join(' L ');
+  const idxPath = 'M ' + idxCoords.join(' L ');
+  const stratArea = `M ${stratCoords[0]} L ${stratCoords.join(' L ')} L ${getX(points.length - 1).toFixed(1)},${(pad.top + ch).toFixed(1)} L ${getX(0).toFixed(1)},${(pad.top + ch).toFixed(1)} Z`;
+
+  const lastI = points.length - 1;
+  const lastStratX = getX(lastI);
+  const lastStratY = getY(points[lastI].strategy);
+  const lastIdxX = getX(lastI);
+  const lastIdxY = getY(points[lastI].index);
+
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%;display:block;" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="stratAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#00C274" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="#00C274" stop-opacity="0.0"/>
+        </linearGradient>
+      </defs>
+      ${gridLines}
+      ${dateLabels}
+      <path d="${stratArea}" fill="url(#stratAreaGrad)"/>
+      <path d="${idxPath}" fill="none" stroke="#0088FF" stroke-width="2" stroke-dasharray="4,4"/>
+      <path d="${stratPath}" fill="none" stroke="#00C274" stroke-width="2.5"/>
+      <circle cx="${lastIdxX}" cy="${lastIdxY}" r="3.5" fill="#0088FF" stroke="#ffffff" stroke-width="1.5"/>
+      <circle cx="${lastStratX}" cy="${lastStratY}" r="4.5" fill="#00C274" stroke="#ffffff" stroke-width="1.5"/>
+    </svg>
+  `;
+};
+
 window.copyRecipe = function(sym, limit, sl, tp, curr='kr') {
   const c = curr || 'kr';
   const text = `AVANZA ORDER: ${sym}\nKöp Limit: ${fmt(limit,2)} ${c}\nStop Loss Trigger: ${fmt(sl,2)} ${c}\nStop Loss Limit: ${fmt(sl*0.995,2)} ${c}\nDelvinst (TP1): ${fmt(tp,2)} ${c}`;
@@ -924,11 +1124,16 @@ window.renderScreenerCards = function(list) {
     return;
   }
 
+  const userCap = window.getUserCapital();
+  const userRiskPct = window.getUserRisk();
+  const maxRiskSek = userCap * (userRiskPct / 100);
+
   container.innerHTML = list.map(s => {
     const r = s.recipe || {};
     const chg = s.change_pct ?? 0;
     const chgSign = chg > 0 ? '+' : '';
     const chgClass = chg >= 0 ? 'pos' : 'neg';
+    const curr = s.currency || 'kr';
 
     let badgeClass = 'badge-am';
     if (s.rek && s.rek.includes('KÖP (STARK)')) badgeClass = 'badge-grn';
@@ -940,6 +1145,26 @@ window.renderScreenerCards = function(list) {
     const rsiClass = s.rsi < 35 ? 'pos' : s.rsi > 70 ? 'neg' : '';
     const reasonsHtml = (s.reasons || []).slice(0, 3).map(reason => `<li>${esc(reason)}</li>`).join('');
 
+    const confScore = s.confluence_score ?? s.score ?? 50;
+    const confLabel = s.confluence_label || (s.rek && s.rek.includes('KÖP') ? 'KÖP' : 'BEVAKA');
+    const confBadge = s.confluence_badge || badgeClass;
+
+    // Dynamisk portionsberäkning
+    const buyLimit = Number(r.buy_limit) || Number(s.close) || 1;
+    const slTrigger = Number(r.stop_loss_trigger) || (buyLimit * 0.95);
+    const riskPerShare = Math.max(0.01, buyLimit - slTrigger);
+    const qty = Math.max(1, Math.floor(maxRiskSek / riskPerShare));
+    const totalOrder = Math.round(qty * buyLimit);
+    const calculatedRisk = Math.round(qty * riskPerShare);
+
+    const tagsHtml = (s.confluence_tags || []).map(t => {
+      const isWarn = t.includes('Rapport') || t.includes('⚠️');
+      const bg = isWarn ? 'rgba(255,77,77,0.15)' : 'rgba(0,194,116,0.1)';
+      const col = isWarn ? 'var(--red)' : 'var(--grn)';
+      const border = isWarn ? 'rgba(255,77,77,0.3)' : 'rgba(0,194,116,0.25)';
+      return `<span class="badge" style="background:${bg};color:${col};border:1px solid ${border};font-size:0.58rem;padding:0.12rem 0.4rem;margin-right:0.25rem;margin-bottom:0.25rem;">${esc(t)}</span>`;
+    }).join('');
+
     return `
       <div class="screener-card ${borderClass}">
         <div>
@@ -949,25 +1174,27 @@ window.renderScreenerCards = function(list) {
               <div class="card-name" title="${esc(s.name)}">${esc(s.name)}</div>
             </div>
             <div style="text-align:right;">
-              <span class="badge ${badgeClass}">${esc(s.rek || 'BEVAKA')}</span>
-              <div style="font-size:0.6rem;color:var(--dim);margin-top:0.2rem;">${esc(s.market)}</div>
+              <span class="badge ${confBadge}" style="font-weight:700;">⭐ ${esc(confLabel)} (${confScore})</span>
+              <div style="font-size:0.62rem;color:var(--dim);margin-top:0.25rem;">${esc(s.market)}</div>
             </div>
           </div>
 
           <div class="card-price-row">
-            <span class="card-price">${fmt(s.close, 2)} kr</span>
-            <span class="${chgClass}" style="font-size:0.82rem;font-weight:600;">
+            <span class="card-price">${fmt(s.close, 2)} ${esc(curr)}</span>
+            <span class="${chgClass}" style="font-size:0.85rem;font-weight:700;">
               ${chgSign}${fmt(chg, 2)}%
             </span>
           </div>
 
           <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--dim);margin-bottom:0.2rem;">
-            <span>SCORE</span>
-            <strong style="color:var(--am);">${esc(s.score)}/100</strong>
+            <span>KONFLUENS-SCORE</span>
+            <strong style="color:var(--am);">${confScore}/100</strong>
           </div>
           <div class="score-bar-wrap">
-            <div class="score-bar-fill" style="width:${Math.max(5, Math.min(100, s.score))}%;"></div>
+            <div class="score-bar-fill" style="width:${Math.max(5, Math.min(100, confScore))}%;background:${confScore >= 70 ? 'var(--grn)' : confScore >= 45 ? 'var(--gold)' : 'var(--red)'};"></div>
           </div>
+
+          ${tagsHtml ? `<div style="display:flex;flex-wrap:wrap;margin-bottom:0.5rem;">${tagsHtml}</div>` : ''}
 
           <div class="card-metrics">
             <div class="card-metric-col">
@@ -985,31 +1212,37 @@ window.renderScreenerCards = function(list) {
           </div>
 
           <ul class="card-reasons">
-            ${reasonsHtml || '<li style="color:var(--dim);">Neutral konsolidering</li>'}
+            ${reasonsHtml || '<li style="color:var(--dim);">Konsoliderar vid tekniskt stöd</li>'}
           </ul>
         </div>
 
         <div>
+          <!-- Avanza Portionskalkylator Snabbvy -->
+          <div class="pos-sizing-box">
+            <span>Köp ca <strong>${fmt(qty)} st</strong> (${fmt(totalOrder)} ${esc(curr)})</span>
+            <span style="color:var(--dim);">Max risk: <strong style="color:var(--gold);">${fmt(calculatedRisk)} kr</strong> (${userRiskPct}%)</span>
+          </div>
+
           <div class="card-recipe">
             <div class="card-recipe-row">
               <label>KÖP (LIMIT):</label>
-              <strong style="color:var(--am);">${fmt(r.buy_limit, 2)} kr</strong>
+              <strong style="color:var(--am);">${fmt(r.buy_limit, 2)} ${esc(curr)}</strong>
             </div>
             <div class="card-recipe-row">
               <label>STOP LOSS:</label>
-              <span style="color:var(--red);">${fmt(r.stop_loss_trigger, 2)} kr</span>
+              <span style="color:var(--red);">${fmt(r.stop_loss_trigger, 2)} ${esc(curr)}</span>
             </div>
             <div class="card-recipe-row">
               <label>DELVINST (TP):</label>
-              <strong style="color:var(--grn);">${fmt(r.take_profit_1, 2)} kr</strong>
+              <strong style="color:var(--grn);">${fmt(r.take_profit_1, 2)} ${esc(curr)}</strong>
             </div>
           </div>
 
           <div style="display:flex;gap:0.4rem;">
-            <button class="btn btn-am" style="flex:1;padding:0.5rem;" onclick="window.analyzeStock('${esc(s.symbol)}')">
+            <button class="btn btn-am" style="flex:1;padding:0.55rem;" onclick="window.analyzeStock('${esc(s.symbol)}')">
               🔍 DJUPANALYS
             </button>
-            <button class="btn btn-ghost" style="padding:0.5rem 0.65rem;" title="Kopiera Avanza-recept" onclick="window.copyRecipe('${esc(s.symbol)}', ${num(r.buy_limit)}, ${num(r.stop_loss_trigger)}, ${num(r.take_profit_1)})">
+            <button class="btn btn-ghost" style="padding:0.55rem 0.75rem;" title="Kopiera Avanza-recept" onclick="window.copyRecipe('${esc(s.symbol)}', ${num(r.buy_limit)}, ${num(r.stop_loss_trigger)}, ${num(r.take_profit_1)}, '${esc(curr)}')">
               📋
             </button>
           </div>
@@ -1127,6 +1360,16 @@ window.runBacktest = async function() {
     const ddEl = document.getElementById('bt-maxdd');
     if (ddEl) ddEl.textContent = '-' + fmt(d.max_drawdown, 1) + '%';
     document.getElementById('bt-trades').textContent = d.trades + ' ST';
+
+    // Rendera Avkastningskurva (Equity Chart)
+    const chartCard = document.getElementById('bt-chart-card');
+    const chartWrap = document.getElementById('bt-chart-svg-wrap');
+    if (chartCard && chartWrap && d.equity_chart && d.equity_chart.length > 1) {
+      window.renderEquitySvg(chartWrap, d.equity_chart, d.index_name || 'Index');
+      chartCard.style.display = 'block';
+    } else if (chartCard) {
+      chartCard.style.display = 'none';
+    }
 
     // Rendera affärslogg
     const tradeLogEl = document.getElementById('bt-trade-log');
@@ -1402,13 +1645,79 @@ window.analyzeStock = async function(symbol=null) {
     const bulls = (data.bull_factors || []).map(f => `<li>${esc(f)}</li>`).join('');
     const bears = (data.bear_factors || []).map(f => `<li>${esc(f)}</li>`).join('');
     const rec = data.avanza_recipe || {};
-
     const cur = data.currency || 'kr';
+
+    // 1. Rapportvarning
+    const earn = data.earnings || {};
+    const earnWarningHtml = (earn.warning || (earn.days_left != null && earn.days_left >= 0 && earn.days_left <= 14)) ? `
+      <div style="background:rgba(255,184,0,0.12);border:1px solid var(--gold);border-radius:6px;padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:0.75rem;">
+        <span style="font-size:1.4rem;line-height:1;">⚠️</span>
+        <div>
+          <div style="font-weight:700;color:var(--gold);font-size:0.85rem;">RAPPORTVARNING: Kvartalsrapport om ${earn.days_left} dagar (${esc(earn.date)})</div>
+          <div style="font-size:0.72rem;color:var(--txt);margin-top:0.2rem;line-height:1.4;">
+            Bolaget rapporterar inom kort vilket ofta medför kraftiga kursgap. Amatörinvesterare rekommenderas att avvakta eller halvera positionsstorleken vid utbrottsköp inför rapport.
+          </div>
+        </div>
+      </div>
+    ` : '';
+
+    // 2. Konfluens-sektion
+    const conf = data.confluence || {};
+    const confScore = conf.score ?? data.score ?? 50;
+    const confLabel = conf.label || data.decision || 'BEVAKA';
+    const confBadge = conf.badge || 'badge-am';
+    const confFactors = (conf.factors || []).map(f => `<span style="background:var(--bg);border:1px solid var(--dim2);padding:0.2rem 0.5rem;border-radius:4px;font-size:0.72rem;color:var(--txt);">✓ ${esc(f)}</span>`).join('');
+
+    const confluenceHtml = `
+      <div style="background:var(--bg3);border:1px solid var(--dim2);border-radius:6px;padding:0.75rem 1rem;margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+          <span style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;color:var(--dim);text-transform:uppercase;">MULTI-FAKTOR KONFLUENS-SCORE</span>
+          <span class="badge ${confBadge}" style="font-size:0.72rem;padding:0.25rem 0.6rem;">
+            ⭐ ${esc(confLabel)} (${confScore}/100)
+          </span>
+        </div>
+        <div class="score-bar-wrap" style="height:6px;margin-bottom:0.6rem;">
+          <div class="score-bar-fill" style="width:${Math.max(5, Math.min(100, confScore))}%;background:${confScore >= 70 ? 'var(--grn)' : confScore >= 45 ? 'var(--gold)' : 'var(--red)'};"></div>
+        </div>
+        <div style="display:flex;gap:0.75rem;margin-bottom:0.5rem;font-size:0.72rem;flex-wrap:wrap;">
+          <span style="color:var(--dim);">FI Insynsköp: <strong style="color:var(--brt);">${conf.insider_buys || 0} st</strong></span>
+          <span style="color:var(--dim);">Kongress USA: <strong style="color:var(--brt);">${conf.congress_buys || 0} köp</strong></span>
+          <span style="color:var(--dim);">Blankning: <strong style="color:var(--brt);">${conf.short_pct != null ? conf.short_pct + '%' : 'Låg'}</strong></span>
+        </div>
+        ${confFactors ? `<div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem;">${confFactors}</div>` : ''}
+      </div>
+    `;
+
+    // 3. Interaktiv Positionskalkylator
+    const userCap = window.getUserCapital();
+    const userRisk = window.getUserRisk();
+
+    const calcHtml = `
+      <div style="background:var(--bg);border:1px solid rgba(0,194,116,0.3);border-radius:6px;padding:0.85rem 1rem;margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;">
+          <span style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;color:var(--am);text-transform:uppercase;">// AVANZA PORTIONSKALKYLATOR</span>
+          <span style="font-size:0.65rem;color:var(--dim);">Anpassad portionsstorlek</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.75rem;">
+          <div>
+            <label style="font-size:0.62rem;color:var(--dim);display:block;margin-bottom:0.2rem;font-weight:600;">DITT PORTFÖLJKAPITAL (SEK)</label>
+            <input type="number" id="modal-calc-cap" class="capital-input" style="width:100%;" value="${userCap}" step="5000" oninput="window.recalcModalPosition(${rec.buy_limit}, ${rec.stop_loss_trigger}, '${esc(cur)}')">
+          </div>
+          <div>
+            <label style="font-size:0.62rem;color:var(--dim);display:block;margin-bottom:0.2rem;font-weight:600;">RISK PER AFFÄR (%)</label>
+            <input type="number" id="modal-calc-risk" class="capital-input" style="width:100%;" value="${userRisk}" step="0.1" min="0.5" max="5" oninput="window.recalcModalPosition(${rec.buy_limit}, ${rec.stop_loss_trigger}, '${esc(cur)}')">
+          </div>
+        </div>
+        <div id="modal-calc-result" style="display:grid;grid-template-columns:repeat(3, 1fr);gap:0.4rem;text-align:center;">
+          <!-- Populerad via window.recalcModalPosition -->
+        </div>
+      </div>
+    `;
 
     body.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;border-bottom:1px solid var(--dim2);padding-bottom:0.75rem;">
         <div>
-          <span style="font-size:1.4rem;font-weight:700;color:var(--brt);">${esc(cur)} ${fmt(data.close, 2)}</span>
+          <span style="font-size:1.4rem;font-weight:700;color:var(--brt);">${fmt(data.close, 2)} ${esc(cur)}</span>
           <span style="font-size:0.85rem;margin-left:0.5rem;" class="${data.change_pct >= 0 ? 'pos' : 'neg'}">
             ${data.change_pct > 0 ? '+' : ''}${fmt(data.change_pct, 2)}%
           </span>
@@ -1420,14 +1729,17 @@ window.analyzeStock = async function(symbol=null) {
         </div>
       </div>
 
+      ${earnWarningHtml}
+      ${confluenceHtml}
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
-        <div style="background:var(--bg3);padding:0.75rem;border-left:2px solid var(--grn);">
+        <div style="background:var(--bg3);padding:0.75rem;border-left:2px solid var(--grn);border-radius:4px;">
           <div class="sec-hdr" style="color:var(--grn);font-size:0.6rem;margin-bottom:0.4rem;">STYRKOR & KATALYSATORER</div>
           <ul class="analysis-factor-list" style="margin:0;">
             ${bulls || '<li style="color:var(--dim)">Inga specifika styrkefaktorer.</li>'}
           </ul>
         </div>
-        <div style="background:var(--bg3);padding:0.75rem;border-left:2px solid var(--red);">
+        <div style="background:var(--bg3);padding:0.75rem;border-left:2px solid var(--red);border-radius:4px;">
           <div class="sec-hdr" style="color:var(--red);font-size:0.6rem;margin-bottom:0.4rem;">RISKER & SVAGHETER</div>
           <ul class="analysis-factor-list" style="margin:0;">
             ${bears || '<li style="color:var(--dim)">Inga överhängande risker identifierade.</li>'}
@@ -1435,7 +1747,9 @@ window.analyzeStock = async function(symbol=null) {
         </div>
       </div>
 
-      <div class="step-blk" style="border-color:var(--am);margin-bottom:0.75rem;">
+      ${calcHtml}
+
+      <div class="step-blk" style="border-color:rgba(0,194,116,0.4);margin-bottom:0.75rem;">
         <div class="step-tag">// AVANZA ORDERRECEPT</div>
         <div class="step-row"><label>REKOMMENDERAD KÖPKURS (LIMIT)</label><strong style="color:var(--am)">${fmt(rec.buy_limit, 2)} ${esc(cur)}</strong></div>
         <div class="step-row"><label>STOP LOSS (TRIGGER HOS AVANZA)</label><span style="color:var(--red)">${fmt(rec.stop_loss_trigger, 2)} ${esc(cur)}</span></div>
@@ -1456,6 +1770,10 @@ window.analyzeStock = async function(symbol=null) {
       </div>
       <button class="btn-cancel" onclick="closeModals()">STÄNG</button>
     `;
+
+    setTimeout(() => {
+      window.recalcModalPosition(rec.buy_limit, rec.stop_loss_trigger, cur);
+    }, 10);
   } catch(e) {
     body.innerHTML = `<div style="padding:1.5rem;color:var(--red);text-align:center;">Analysfel: ${esc(e.message)}</div>`;
   }
@@ -1467,6 +1785,7 @@ document.querySelectorAll('.modal').forEach(m =>
   m.addEventListener('click', e => { if (e.target === m) closeModals(); })
 );
 window.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+window.updateCapitalPreview();
 window.refreshPortal();
 </script>
 </body>
