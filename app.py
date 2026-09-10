@@ -1,40 +1,35 @@
 from flask import Flask, render_template
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
+
 from src.api.routes import api_bp
 from src.core.data import init_db, sync_all_stocks
-from apscheduler.schedulers.background import BackgroundScheduler
-import os
+from src.core.settings import RUN_SCHEDULER
 
 app = Flask(__name__)
+init_db()
 
-if not os.path.exists('data'):
-    os.makedirs('data')
 
-with app.app_context():
-    init_db()
-
-# --- AUTOMATISKA BAKGRUNDSJOBB ---
-
-def nightly_sync_full():
-    """Total genomgång av alla marknader (natt och tidig morgon)."""
-    print("AUTONOMOUS JOB: Startar fullständig marknadssynk...")
+def _nightly_sync():
+    print("Nattsynk: hämtar marknadsdata…")
     sync_all_stocks()
-    print("AUTONOMOUS JOB: Marknadssynk klar.")
+    print("Nattsynk: klar.")
 
-# --- SCHEMALÄGGARE ---
-scheduler = BackgroundScheduler()
 
-# Full synk vid stängning och innan öppning
-scheduler.add_job(nightly_sync_full, 'cron', hour=23, minute=30)
-scheduler.add_job(nightly_sync_full, 'cron', hour=4, minute=0)
+if RUN_SCHEDULER:
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler.add_job(_nightly_sync, "cron", hour=23, minute=30)
+    scheduler.add_job(_nightly_sync, "cron", hour=4, minute=0)
+    scheduler.start()
+    atexit.register(lambda: scheduler.shutdown(wait=False))
 
-scheduler.start()
+app.register_blueprint(api_bp, url_prefix="/api/portal")
 
-# --- ROUTES ---
-app.register_blueprint(api_bp, url_prefix='/api/portal')
 
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=4000)
+
+if __name__ == "__main__":
+    app.run(debug=False, host="0.0.0.0", port=4000)

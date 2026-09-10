@@ -8,6 +8,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
+# App-inställningar (se src/core/settings.py)
+ENV AKTIEANALYS_DB=/app/data/trading.db
+ENV RUN_SCHEDULER=1
+
 WORKDIR /app
 
 # Install dependencies first (separate layer for cache efficiency)
@@ -18,15 +22,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY src/ src/
 COPY templates/ templates/
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
-# Data dir for watchlist.json and portfolio.json (mount a volume here)
+# Data dir for the SQLite database (mount a volume here)
 RUN mkdir -p /app/data
-
 VOLUME /app/data
 EXPOSE 4000
 
-ENTRYPOINT ["/entrypoint.sh"]
-# gunicorn: 2 workers, 120s timeout (yfinance calls can be slow)
+# gunicorn: 2 workers, 120s timeout (yfinance calls can be slow).
+# Nattsynken skyddas av ett fillås i data.sync_all_stocks mot dubbelkörning.
 CMD ["gunicorn", "--bind", "0.0.0.0:4000", "--workers", "2", "--timeout", "120", "app:app"]
