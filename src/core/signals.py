@@ -43,6 +43,27 @@ def run_market_screener(market="all"):
     if market in ("all", "nasdaq"):
         tickers_to_scan.update({sym: (name, "NASDAQ") for sym, name in NASDAQ_100.items()})
 
+    # Hämta insyns- och kongressköp för konfluensbedömning (från cache)
+    insider_symbols = {}
+    try:
+        from src.core.insider import fetch_all_insider_buys
+        insider_trades, _ = fetch_all_insider_buys(days=60, action="buy")
+        for t in (insider_trades or []):
+            if t.get("ticker"):
+                insider_symbols.setdefault(t["ticker"], []).append(t)
+    except Exception:
+        pass
+
+    congress_symbols = {}
+    try:
+        from src.core.congress import scan_congress_trades
+        cg = scan_congress_trades(months=3, txn_type="buy")
+        for t in (cg.get("trades", []) or []):
+            if t.get("ticker"):
+                congress_symbols.setdefault(t["ticker"], []).append(t)
+    except Exception:
+        pass
+
     results = []
     
     for sym, (name, mkt) in tickers_to_scan.items():
@@ -106,8 +127,36 @@ def run_market_screener(market="all"):
 
         score = max(5, min(95, score))
 
+        # Konfluens-beräkning (Teknik + Insyn/Kongress)
+        insider_hits = insider_symbols.get(sym, [])
+        congress_hits = congress_symbols.get(sym, [])
+        conf_score = int(score * 0.5)
+        conf_tags = []
+
+        if insider_hits:
+            conf_score += 25
+            tot_insider = sum(x.get("amount", 0) for x in insider_hits)
+            conf_tags.append(f"Insynsköp ({tot_insider:,.0f} kr)")
+        if congress_hits:
+            conf_score += 20
+            conf_tags.append(f"Kongressköp ({len(congress_hits)} st)")
+
+        conf_score = max(10, min(99, conf_score))
+        if conf_score >= 80:
+            conf_label = "SUPER-KONFLUENS"
+            conf_badge = "badge-grn"
+        elif conf_score >= 65:
+            conf_label = "STARK KONFLUENS"
+            conf_badge = "badge-grn"
+        elif conf_score >= 45:
+            conf_label = "MÅTTLIG KONFLUENS"
+            conf_badge = "badge-am"
+        else:
+            conf_label = "LÅG KONFLUENS"
+            conf_badge = "badge-red"
+
         # Rekommendations-nivå
-        if score >= 70:
+        if score >= 70 or conf_score >= 80:
             rek = "KÖP (STARK)"
             rek_class = "prime"
         elif score >= 55:
@@ -130,12 +179,17 @@ def run_market_screener(market="all"):
             "symbol": sym,
             "name": name,
             "market": mkt,
+            "currency": "$" if mkt == "NASDAQ" else "kr",
             "close": close,
             "change_pct": change_pct,
             "rsi": rsi,
             "ma50": ma50,
             "ma200": ma200,
             "score": score,
+            "confluence_score": conf_score,
+            "confluence_label": conf_label,
+            "confluence_badge": conf_badge,
+            "confluence_tags": conf_tags,
             "rek": rek,
             "rek_class": rek_class,
             "reasons": reasons,
@@ -151,8 +205,8 @@ def run_market_screener(market="all"):
             }
         })
 
-    # Sortera primärt på Score fallande
-    results.sort(key=lambda x: x["score"], reverse=True)
+    # Sortera primärt på sammantagen konfluens och score fallande
+    results.sort(key=lambda x: (x["score"] + x["confluence_score"]), reverse=True)
     return results
 
 def generate_daily_orders():

@@ -351,6 +351,27 @@ def run_crypto_backtest(years=3):
         dd = (peak - v) / peak * 100
         if dd > max_dd: max_dd = dd
 
+    # Generera visualisering av kurva (ca 35 punkter)
+    n_pts = 35
+    step = max(1, len(all_dates) // n_pts)
+    chart_points = []
+    for i in range(0, len(all_dates), step):
+        d_cur = all_dates[i]
+        strat_v = equity_curve[min(i, len(equity_curve) - 1)]
+        b_val = float(dfs["BTC-USD"].loc[d_cur]["Close"])
+        idx_v = initial_cap * (b_val / btc_first)
+        chart_points.append({
+            "date": d_cur,
+            "strategy": round(strat_v, 0),
+            "index": round(idx_v, 0)
+        })
+    if chart_points and chart_points[-1]["date"] != all_dates[-1]:
+        chart_points.append({
+            "date": all_dates[-1],
+            "strategy": round(final_cap, 0),
+            "index": round(initial_cap * (1 + btc_return / 100.0), 0)
+        })
+
     return {
         "trades": len(trades),
         "return": total_return,
@@ -360,6 +381,7 @@ def run_crypto_backtest(years=3):
         "alpha": alpha,
         "max_drawdown": round(max_dd, 2),
         "profit_factor": profit_factor,
+        "equity_chart": chart_points,
         "trade_list": trades[::-1]
     }
 
@@ -509,6 +531,33 @@ def run_backtest_local(market="omxs", years=5):
         dd = (peak - v) / peak * 100
         if dd > max_dd: max_dd = dd
 
+    # Generera visualisering av kurva (ca 35 punkter)
+    n_pts = 35
+    step = max(1, len(dates[start_idx:]) // n_pts)
+    chart_points = []
+    idx_first_row = conn.execute("SELECT close FROM history WHERE symbol = ? AND date = ?", (idx_ticker, dates[start_idx])).fetchone()
+    idx_first_close = float(idx_first_row["close"]) if (idx_first_row and idx_first_row["close"]) else None
+
+    for i in range(0, len(dates[start_idx:]), step):
+        d_cur = dates[start_idx + i]
+        strat_v = equity_curve[min(i, len(equity_curve) - 1)]
+        idx_v = initial_cap
+        if idx_first_close:
+            r = conn.execute("SELECT close FROM history WHERE symbol = ? AND date = ?", (idx_ticker, d_cur)).fetchone()
+            if r and r["close"]:
+                idx_v = initial_cap * (float(r["close"]) / idx_first_close)
+        chart_points.append({
+            "date": d_cur,
+            "strategy": round(strat_v, 0),
+            "index": round(idx_v, 0)
+        })
+    if chart_points and chart_points[-1]["date"] != dates[-1]:
+        chart_points.append({
+            "date": dates[-1],
+            "strategy": round(final_cap, 0),
+            "index": round(initial_cap * (1 + index_return / 100.0), 0)
+        })
+
     return {
         "trades": len(trades),
         "return": total_return,
@@ -518,5 +567,6 @@ def run_backtest_local(market="omxs", years=5):
         "alpha": alpha,
         "max_drawdown": round(max_dd, 2),
         "profit_factor": profit_factor,
+        "equity_chart": chart_points,
         "trade_list": trades[::-1][:100]
     }
