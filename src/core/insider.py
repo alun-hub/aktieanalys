@@ -165,8 +165,12 @@ def fetch_all_insider_buys(days=30, action="all", force=False):
 
     return filtered_trades, None
 
-def get_insider_buys_for_symbol(symbol, days=60):
-    """Returnerar insynsköp för en specifik symbol under senaste N dagarna."""
-    all_trades, _ = fetch_all_insider_buys(days=days)
+def get_insider_transactions_for_symbol(symbol, days=120):
+    """Returnerar insynstransaktioner (både KÖP och SÄLJ) för en symbol, senaste N dagar.
+
+    Ren information – ingen värdering, ingen poäng.
+    """
+    all_trades, _ = fetch_all_insider_buys(days=days, action="all")
     matches = [t for t in all_trades if t.get("ticker") == symbol]
-    return matches
+    matches.sort(key=lambda t: t.get("pub_date", ""), reverse=True)
+    return matches[:15]
