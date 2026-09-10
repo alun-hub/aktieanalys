@@ -42,7 +42,9 @@ def get_crypto_df(symbol, period="1y"):
         return None
 
 def analyze_crypto_symbol(symbol):
-    """Utför full analys på ett kryptopar och sätter betyg och nivåer."""
+    """Teknisk trend + volatilitet för ett kryptopar. Ingen köp-/säljsignal."""
+    from src.core.signals import trend_score, trend_label
+
     df = get_crypto_df(symbol, period="1y")
     if df is None or df.empty:
         return None
@@ -51,96 +53,41 @@ def analyze_crypto_symbol(symbol):
     prev = df.iloc[-2]
     close = round(float(last["Close"]), 2)
     rsi = round(float(last["RSI"]), 1) if not pd.isna(last["RSI"]) else None
-    rsi_prev = round(float(prev["RSI"]), 1) if not pd.isna(prev["RSI"]) else None
     ma50 = round(float(last["MA50"]), 2) if not pd.isna(last["MA50"]) else None
     ma200 = round(float(last["MA200"]), 2) if not pd.isna(last["MA200"]) else None
     atr = float(last["ATR"]) if not pd.isna(last["ATR"]) else close * 0.05
 
-    # Mönsteridentifiering på senaste 30 dagarna
-    patterns = detect_patterns(df.tail(30))
+    daily = df["Close"].pct_change().dropna().tail(90)
+    vol_pct = round(float(daily.std() * (365 ** 0.5) * 100), 0) if len(daily) > 5 else None
 
-    # Signal & Poäng
-    score = 50
+    tscore = trend_score(close, ma50, ma200, rsi)
+    tlabel, tclass = trend_label(tscore)
+
     reasons = []
-
-    # Trendbedömning
-    if ma50 and close > ma50:
-        score += 15
-        reasons.append("Över MA50 (kortsiktig trend upp)")
-    elif ma50 and close < ma50:
-        score -= 15
-        reasons.append("Under MA50 (kortsiktig svaghet)")
-
-    if ma200 and close > ma200:
-        score += 15
-        reasons.append("Över MA200 (långsiktig bull-marknad)")
-    elif ma200 and close < ma200:
-        score -= 15
-        reasons.append("Under MA200 (långsiktig bear-marknad)")
-
-    # RSI Vändning / Momentum
-    if rsi:
-        if rsi < 35 and rsi_prev and rsi > rsi_prev:
-            score += 20
-            reasons.append(f"RSI vändning upp från översålt läge ({rsi})")
-        elif rsi > 70:
-            score -= 15
-            reasons.append(f"RSI överköpt ({rsi}), risk för rekyl")
-        elif 45 <= rsi <= 60:
-            score += 5
-            reasons.append(f"RSI i sunt momentum ({rsi})")
-
-    # Mönsterbekräftelse
-    if patterns:
-        last_pattern = patterns[-1]
-        if last_pattern["bullish"] is True:
-            score += 15
-            reasons.append(f"Mönster: {last_pattern['pattern']} (Bullish)")
-        elif last_pattern["bullish"] is False:
-            score -= 15
-            reasons.append(f"Mönster: {last_pattern['pattern']} (Bearish)")
-
-    # Gränser
-    score = max(5, min(95, score))
-
-    if score >= 75:
-        signal = "STARK KÖP"
-        signal_class = "prime"
-    elif score >= 60:
-        signal = "KÖP"
-        signal_class = "bra"
-    elif score <= 35:
-        signal = "SÄLJ"
-        signal_class = "undvik"
-    else:
-        signal = "NEUTRAL"
-        signal_class = "vanta"
-
-    # Riskhantering: Stop loss och Take profit
-    sl = round(close - (2.5 * atr), 2)
-    tp1 = round(close + (2.5 * atr * 1.5), 2) # 1.5x R:R
-    tp2 = round(close + (2.5 * atr * 2.5), 2) # 2.5x R:R
+    if ma50:
+        reasons.append(f"{'Över' if close > ma50 else 'Under'} MA50")
+    if ma200:
+        reasons.append(f"{'Över' if close > ma200 else 'Under'} MA200")
+    if rsi is not None:
+        reasons.append(f"RSI {rsi:g}" + (" (överköpt)" if rsi > 75 else " (översålt)" if rsi < 30 else ""))
+    if vol_pct:
+        reasons.append(f"Årlig volatilitet ~{vol_pct:g} %")
 
     return {
         "symbol": symbol,
         "name": CRYPTO_LIST.get(symbol, symbol),
         "price": close,
-        "change_24h": round(((close / float(prev["Close"])) - 1) * 100, 2),
-        "rsi": rsi,
-        "ma50": ma50,
-        "ma200": ma200,
-        "score": score,
-        "signal": signal,
-        "signal_class": signal_class,
-        "sl": sl,
-        "tp1": tp1,
-        "tp2": tp2,
+        "change_24h": round((close / float(prev["Close"]) - 1) * 100, 2),
+        "rsi": rsi, "ma50": ma50, "ma200": ma200,
+        "trend_score": tscore, "trend": tlabel, "trend_class": tclass,
+        "volatility_pct": vol_pct,
+        "stop_suggestion": round(close - 2.5 * atr, 2),
         "reasons": reasons,
-        "patterns": patterns
+        "patterns": detect_patterns(df.tail(30)),
     }
 
 def get_crypto_screener(force=False):
-    """Hämtar och cachar screener för alla kryptovalutor."""
+    """Hämtar och cachar trendöversikt för alla kryptovalutor."""
     global _crypto_cache
     now = time.time()
     if not force and _crypto_cache["screener"] and (now - _crypto_cache["ts"] < 600):
@@ -152,6 +99,6 @@ def get_crypto_screener(force=False):
         if data:
             results.append(data)
 
-    results.sort(key=lambda x: x["score"], reverse=True)
+    results.sort(key=lambda x: x["trend_score"], reverse=True)
     _crypto_cache = {"screener": results, "ts": now}
     return results

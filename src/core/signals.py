@@ -1,217 +1,109 @@
+"""Marknadsläge – teknisk trendbild för bevakade aktier.
+
+Detta är INTE köp-/säljrekommendationer. Det säger bara om priset just nu ligger
+i en uppåt- eller nedåttrend enligt glidande medelvärden och RSI. Insyns- och
+kongressköp påverkar ingenting här – de visas som ren information i bolagsvyn.
+"""
 import sqlite3
-import pandas as pd
 from src.core.data import get_db
 from src.core.config import OMXS_50, NASDAQ_100
 
-# --- Konstanterna för strategin ---
-OMX_ATR_MULT     = 4.5
-NASDAQ_ATR_MULT  = 3.5
-MA_MARGIN        = 0.993
-MA_ENTRY_MARGIN  = 1.005
-VOLUME_SURGE     = 1.6
-RSI_OVERBOUGHT   = 78
-RSI_OVERSOLD     = 45
-BREAKOUT_DAYS    = 40
-OMX_MAX_DAYS     = 27
-BUY_LIMIT_MARGIN = 1.003
+ATR_STOP_MULT = 3.0   # samma multipel som bolagsvyns nivåkalkyl
 
-def check_exit(close, low, rsi, ma50, ma200, stop_loss, is_omx, max_days=None, days=0):
-    """Returnerar (exit_pris, anledning) eller (None, None) om ingen exit."""
-    if low is not None and stop_loss is not None and low <= stop_loss:
-        return stop_loss, "Stop loss utlöst"
-    if rsi is not None and rsi > RSI_OVERBOUGHT:
-        return close, f"Vinsthemtagning (RSI > {RSI_OVERBOUGHT})"
-    if is_omx and close is not None and ma50 is not None and close < ma50 * MA_MARGIN:
-        return close, "Trendbrott GM50"
-    if not is_omx and close is not None and ma200 is not None and close < ma200 * MA_MARGIN:
-        return close, "Trendbrott GM200"
-    md = max_days if max_days is not None else (OMX_MAX_DAYS if is_omx else None)
-    if md is not None and days >= md:
-        return close, f"Timeout ({md} dagar)"
-    return None, None
+
+def trend_score(close, ma50, ma200, rsi):
+    """0–100 där 50 = neutralt. Symmetriskt: death cross straffar lika mycket
+    som golden cross belönar. RSI vägs in kontinuerligt."""
+    s = 50.0
+    if ma200:
+        s += 18 if close > ma200 else -18
+    if ma50:
+        s += 12 if close > ma50 else -12
+    if ma50 and ma200:
+        s += 8 if ma50 > ma200 else -8
+    if rsi is not None:
+        s += (rsi - 50) * 0.3
+        if rsi > 75:
+            s -= (rsi - 75) * 1.0          # överköpt = risk, inte styrka
+        elif rsi < 25:
+            s -= (25 - rsi) * 0.4          # kraftigt översålt = svaghet
+    return max(2.0, min(98.0, round(s, 1)))
+
+
+def trend_label(score):
+    if score >= 68:
+        return "Stark uppåttrend", "up-strong"
+    if score >= 55:
+        return "Svag uppåttrend", "up"
+    if score > 45:
+        return "Neutral / oklart", "neutral"
+    if score > 32:
+        return "Svag nedåttrend", "down"
+    return "Stark nedåttrend", "down-strong"
+
+
+def _reasons(close, ma50, ma200, rsi, curr):
+    out = []
+    if ma200:
+        out.append(f"{'Över' if close > ma200 else 'Under'} 200-dagars medelvärde ({ma200:g} {curr})")
+    if ma50 and ma200:
+        out.append("Golden cross (MA50 > MA200)" if ma50 > ma200 else "Death cross (MA50 < MA200)")
+    if rsi is not None:
+        if rsi > 75:
+            out.append(f"RSI {rsi:g} – överköpt")
+        elif rsi < 30:
+            out.append(f"RSI {rsi:g} – översålt")
+        else:
+            out.append(f"RSI {rsi:g}")
+    return out
+
 
 def run_market_screener(market="all"):
-    """Kör komplett marknadsscreener och returnerar rekommendationer för alla bevakade aktier.
-    market: 'all', 'omx', eller 'nasdaq'
-    """
     db = get_db()
     db.row_factory = sqlite3.Row
 
-    tickers_to_scan = {}
-    if market in ("all", "omx"):
-        tickers_to_scan.update({sym: (name, "OMX") for sym, name in OMXS_50.items()})
+    tickers = {}
+    if market in ("all", "omx", "omxs"):
+        tickers.update({s: (n, "OMX") for s, n in OMXS_50.items()})
     if market in ("all", "nasdaq"):
-        tickers_to_scan.update({sym: (name, "NASDAQ") for sym, name in NASDAQ_100.items()})
-
-    # Hämta insyns- och kongressköp för konfluensbedömning (från cache)
-    insider_symbols = {}
-    try:
-        from src.core.insider import fetch_all_insider_buys
-        insider_trades, _ = fetch_all_insider_buys(days=60, action="buy")
-        for t in (insider_trades or []):
-            if t.get("ticker"):
-                insider_symbols.setdefault(t["ticker"], []).append(t)
-    except Exception:
-        pass
-
-    congress_symbols = {}
-    try:
-        from src.core.congress import scan_congress_trades
-        cg = scan_congress_trades(months=3, txn_type="buy")
-        for t in (cg.get("trades", []) or []):
-            if t.get("ticker"):
-                congress_symbols.setdefault(t["ticker"], []).append(t)
-    except Exception:
-        pass
+        tickers.update({s: (n, "NASDAQ") for s, n in NASDAQ_100.items()})
 
     results = []
-    
-    for sym, (name, mkt) in tickers_to_scan.items():
-        rows = db.execute("""
-            SELECT date, close, open, high, low, volume, ma50, ma200, rsi, atr
-            FROM history WHERE symbol = ? ORDER BY date DESC LIMIT 2
-        """, (sym,)).fetchall()
-
-        if not rows or len(rows) < 1 or rows[0]["close"] is None:
+    for sym, (name, mkt) in tickers.items():
+        rows = db.execute(
+            "SELECT date, close, open, ma50, ma200, rsi, atr FROM history "
+            "WHERE symbol = ? ORDER BY date DESC LIMIT 2", (sym,)).fetchall()
+        if not rows or rows[0]["close"] is None:
             continue
+        now, prev = rows[0], (rows[1] if len(rows) > 1 else rows[0])
+        close = float(now["close"])
+        prev_close = float(prev["close"]) if prev["close"] else close
+        curr = "$" if mkt == "NASDAQ" else "kr"
 
-        r_now = rows[0]
-        r_prev = rows[1] if len(rows) > 1 else rows[0]
+        rsi = round(float(now["rsi"]), 1) if now["rsi"] is not None else None
+        ma50 = round(float(now["ma50"]), 2) if now["ma50"] is not None else None
+        ma200 = round(float(now["ma200"]), 2) if now["ma200"] is not None else None
+        atr = float(now["atr"]) if now["atr"] is not None else close * 0.03
 
-        close = float(r_now["close"])
-        prev_close = float(r_prev["close"]) if r_prev["close"] else close
-        change_pct = round(((close / prev_close) - 1) * 100, 2) if prev_close else 0.0
-
-        rsi = round(float(r_now["rsi"]), 1) if r_now["rsi"] is not None else None
-        rsi_prev = round(float(r_prev["rsi"]), 1) if r_prev["rsi"] is not None else None
-        ma50 = round(float(r_now["ma50"]), 2) if r_now["ma50"] is not None else None
-        ma200 = round(float(r_now["ma200"]), 2) if r_now["ma200"] is not None else None
-        atr = float(r_now["atr"]) if r_now["atr"] is not None else (close * 0.03)
-
-        # ── Teknisk Poängsättning ──
-        score = 50
-        reasons = []
-
-        # 1. Trend MA200 & MA50
-        if ma200:
-            if close > ma200:
-                score += 20
-                reasons.append("Över MA200 (bullish)")
-            else:
-                score -= 20
-                reasons.append("Under MA200 (bearish)")
-
-        if ma50:
-            if close > ma50:
-                score += 15
-                reasons.append("Över MA50")
-            else:
-                score -= 15
-                reasons.append("Under MA50")
-
-            if ma200 and ma50 > ma200:
-                score += 10
-                reasons.append("Golden Cross")
-
-        # 2. RSI Momentum
-        if rsi:
-            if rsi < 40 and rsi_prev and rsi > rsi_prev:
-                score += 25
-                reasons.append(f"RSI-vändning upp ({rsi})")
-            elif rsi > 72:
-                score -= 15
-                reasons.append(f"Överköpt RSI ({rsi})")
-            elif 45 <= rsi <= 65:
-                score += 15
-                reasons.append(f"Starkt momentum ({rsi})")
-
-        score = max(5, min(95, score))
-
-        # Konfluens-beräkning (Teknik + Insyn/Kongress)
-        insider_hits = insider_symbols.get(sym, [])
-        congress_hits = congress_symbols.get(sym, [])
-        conf_score = int(score * 0.5)
-        conf_tags = []
-
-        if insider_hits:
-            conf_score += 25
-            tot_insider = sum(x.get("amount", 0) for x in insider_hits)
-            conf_tags.append(f"Insynsköp ({tot_insider:,.0f} kr)")
-        if congress_hits:
-            conf_score += 20
-            conf_tags.append(f"Kongressköp ({len(congress_hits)} st)")
-
-        conf_score = max(10, min(99, conf_score))
-        if conf_score >= 80:
-            conf_label = "SUPER-KONFLUENS"
-            conf_badge = "badge-grn"
-        elif conf_score >= 65:
-            conf_label = "STARK KONFLUENS"
-            conf_badge = "badge-grn"
-        elif conf_score >= 45:
-            conf_label = "MÅTTLIG KONFLUENS"
-            conf_badge = "badge-am"
-        else:
-            conf_label = "LÅG KONFLUENS"
-            conf_badge = "badge-red"
-
-        # Rekommendations-nivå
-        if score >= 70 or conf_score >= 80:
-            rek = "KÖP (STARK)"
-            rek_class = "prime"
-        elif score >= 55:
-            rek = "KÖP"
-            rek_class = "bra"
-        elif score <= 38:
-            rek = "SÄLJ"
-            rek_class = "undvik"
-        else:
-            rek = "BEVAKA"
-            rek_class = "vanta"
-
-        # Riskhantering / Avanza-recept
-        sl = round(close - (3.0 * atr), 2)
-        risk = max(0.1, close - sl)
-        tp1 = round(close + (1.8 * risk), 2)
-        tp2 = round(close + (3.2 * risk), 2)
+        score = trend_score(close, ma50, ma200, rsi)
+        label, tclass = trend_label(score)
+        stop = round(close - ATR_STOP_MULT * atr, 2)
 
         results.append({
-            "symbol": sym,
-            "name": name,
-            "market": mkt,
-            "currency": "$" if mkt == "NASDAQ" else "kr",
-            "close": close,
-            "change_pct": change_pct,
-            "rsi": rsi,
-            "ma50": ma50,
-            "ma200": ma200,
-            "score": score,
-            "confluence_score": conf_score,
-            "confluence_label": conf_label,
-            "confluence_badge": conf_badge,
-            "confluence_tags": conf_tags,
-            "rek": rek,
-            "rek_class": rek_class,
-            "reasons": reasons,
-            "recipe": {
-                "type": "Standard Köp",
-                "buy_limit": round(close * BUY_LIMIT_MARGIN, 2),
-                "stop_loss_trigger": sl,
-                "stop_loss_limit": round(sl * 0.995, 2),
-                "take_profit_1": tp1,
-                "take_profit_2": tp2,
-                "risk_reward": "1:1.8",
-                "courtage_tip": "Mini vid order <15 000 kr, annars Small"
-            }
+            "symbol": sym, "name": name, "market": mkt, "currency": curr,
+            "close": round(close, 2),
+            "change_pct": round((close / prev_close - 1) * 100, 2) if prev_close else 0.0,
+            "rsi": rsi, "ma50": ma50, "ma200": ma200,
+            "trend_score": score, "trend_label": label, "trend_class": tclass,
+            "reasons": _reasons(close, ma50, ma200, rsi, curr),
+            "levels": {
+                "atr": round(atr, 2),
+                "atr_pct": round(atr / close * 100, 1),
+                "stop_suggestion": stop,
+                "stop_pct": round((stop / close - 1) * 100, 1),
+            },
         })
 
-    # Sortera primärt på sammantagen konfluens och score fallande
-    results.sort(key=lambda x: (x["score"] + x["confluence_score"]), reverse=True)
+    db.close()
+    results.sort(key=lambda x: x["trend_score"], reverse=True)
     return results
-
-def generate_daily_orders():
-    """Bakåtkompatibilitet för äldre anrop."""
-    results = run_market_screener(market="all")
-    buys = [r for r in results if "KÖP" in r.get("rek", "")]
-    sells = [r for r in results if "SÄLJ" in r.get("rek", "")]
-    return {"buy": buys, "sell": sells, "all": results}
