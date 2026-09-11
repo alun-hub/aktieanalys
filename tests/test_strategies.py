@@ -39,5 +39,15 @@ class TestStrategies(unittest.TestCase):
         self.assertIn("entry_sig", res.columns)
         self.assertTrue(bool(res.iloc[-1]["entry_sig"]))
 
+    def test_dip_panic_dump_filtered(self):
+        # Om volymen på dippen är extrem (panikförsäljning, 5x snittet), ska signalen filtreras bort
+        self.df.loc[self.df.index[-1], "rsi"] = 30
+        self.df.loc[self.df.index[-1], "volume"] = 60000  # 6x mot 10000
+        self.df.loc[self.df.index[-1], "close"] = 120.0
+        self.df.loc[self.df.index[-1], "open"] = 135.0   # kraftigt röd stapel
+        res = prep_strategy_signals(self.df, "dip")
+        self.assertFalse(bool(res.iloc[-1]["entry_sig"]))
+
+
 if __name__ == "__main__":
     unittest.main()
