@@ -182,7 +182,7 @@ def _run_engine(hist, index_close, dates, params, market):
         for sym in list(holdings):
             h = holdings[sym]
             r = row(sym, date)
-            if r is None:
+            if r is None or pd.isna(r["close"]):
                 continue
             if h["days"] >= 1 and not pd.isna(r["low"]) and float(r["low"]) <= h["stop"]:
                 fill = min(float(r["open"]), h["stop"])

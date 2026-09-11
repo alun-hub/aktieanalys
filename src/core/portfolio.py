@@ -61,7 +61,8 @@ def _meta(symbol):
 
     conn = get_db()
     row = conn.execute(
-        "SELECT close FROM history WHERE symbol = ? ORDER BY date DESC LIMIT 1", (symbol,)).fetchone()
+        "SELECT close FROM history WHERE symbol = ? AND close IS NOT NULL "
+        "ORDER BY date DESC LIMIT 1", (symbol,)).fetchone()
     conn.close()
     if row and row["close"] is not None:
         meta["price"] = float(row["close"])
