@@ -11,22 +11,45 @@ from src.core.config import OMXS_50, NASDAQ_100
 ATR_STOP_MULT = 3.0   # samma multipel som bolagsvyns nivåkalkyl
 
 
-def trend_score(close, ma50, ma200, rsi):
+def trend_score(close, ma50, ma200, rsi, ma200_slope=None, ema20=None, macd_hist=None):
     """0–100 där 50 = neutralt. Symmetriskt: death cross straffar lika mycket
-    som golden cross belönar. RSI vägs in kontinuerligt."""
+    som golden cross belönar. Tar hänsyn till MA200-lutning, EMA20 och MACD-histogram."""
     s = 50.0
-    if ma200:
-        s += 18 if close > ma200 else -18
-    if ma50:
-        s += 12 if close > ma50 else -12
+
+    # Långsiktig trend (MA200 & dess lutning)
+    if ma200_slope is not None:
+        if ma200:
+            s += 14 if close > ma200 else -14
+        s += 5 if ma200_slope > 0 else (-5 if ma200_slope < 0 else 0)
+    else:
+        if ma200:
+            s += 18 if close > ma200 else -18
+
+    # Kortsiktigt & medellångt momentum (MA50 & EMA20)
+    if ema20 is not None:
+        if ma50:
+            s += 8 if close > ma50 else -8
+        s += 5 if close > ema20 else -5
+    else:
+        if ma50:
+            s += 12 if close > ma50 else -12
+
+    # Golden / Death cross
     if ma50 and ma200:
-        s += 8 if ma50 > ma200 else -8
+        s += 7 if ma50 > ma200 else -7
+
+    # MACD momentum-bekräftelse
+    if macd_hist is not None:
+        s += 4 if macd_hist > 0 else (-4 if macd_hist < 0 else 0)
+
+    # RSI (Wilder's)
     if rsi is not None:
-        s += (rsi - 50) * 0.3
+        s += (rsi - 50) * 0.25
         if rsi > 75:
             s -= (rsi - 75) * 1.0          # överköpt = risk, inte styrka
         elif rsi < 25:
             s -= (25 - rsi) * 0.4          # kraftigt översålt = svaghet
+
     return max(2.0, min(98.0, round(s, 1)))
 
 
@@ -42,12 +65,21 @@ def trend_label(score):
     return "Stark nedåttrend", "down-strong"
 
 
-def _reasons(close, ma50, ma200, rsi, curr):
+def _reasons(close, ma50, ma200, rsi, curr, ma200_slope=None, ema20=None, macd_hist=None, bb_squeeze=False):
     out = []
     if ma200:
-        out.append(f"{'Över' if close > ma200 else 'Under'} 200-dagars medelvärde ({ma200:g} {curr})")
+        slope_txt = ""
+        if ma200_slope is not None:
+            slope_txt = " (stigande)" if ma200_slope > 0 else " (fallande)"
+        out.append(f"{'Över' if close > ma200 else 'Under'} 200-dagars medelvärde{slope_txt} ({ma200:g} {curr})")
+    if ema20:
+        out.append(f"{'Över' if close > ema20 else 'Under'} kortsiktigt stöd EMA20 ({ema20:g} {curr})")
     if ma50 and ma200:
         out.append("Golden cross (MA50 > MA200)" if ma50 > ma200 else "Death cross (MA50 < MA200)")
+    if macd_hist is not None:
+        out.append(f"MACD {'positivt' if macd_hist > 0 else 'negativt'} momentum ({macd_hist:+.2f})")
+    if bb_squeeze:
+        out.append("Bollinger Squeeze (volatilitet komprimerad inför utbrott)")
     if rsi is not None:
         if rsi > 75:
             out.append(f"RSI {rsi:g} – överköpt")
@@ -74,7 +106,7 @@ def run_market_screener(market="all"):
         # ofullständig bar från en synk mitt under handelsdagen hos Yahoo).
         rows = db.execute(
             "SELECT date, close, open, ma50, ma200, rsi, atr FROM history "
-            "WHERE symbol = ? AND close IS NOT NULL ORDER BY date DESC LIMIT 2", (sym,)).fetchall()
+            "WHERE symbol = ? AND close IS NOT NULL ORDER BY date DESC LIMIT 25", (sym,)).fetchall()
         if not rows:
             continue
         now, prev = rows[0], (rows[1] if len(rows) > 1 else rows[0])
@@ -87,7 +119,11 @@ def run_market_screener(market="all"):
         ma200 = round(float(now["ma200"]), 2) if now["ma200"] is not None else None
         atr = float(now["atr"]) if now["atr"] is not None else close * 0.03
 
-        score = trend_score(close, ma50, ma200, rsi)
+        ma200_slope = None
+        if len(rows) >= 20 and now["ma200"] is not None and rows[19]["ma200"] is not None:
+            ma200_slope = float(now["ma200"]) - float(rows[19]["ma200"])
+
+        score = trend_score(close, ma50, ma200, rsi, ma200_slope=ma200_slope)
         label, tclass = trend_label(score)
         stop = round(close - ATR_STOP_MULT * atr, 2)
 
@@ -97,7 +133,7 @@ def run_market_screener(market="all"):
             "change_pct": round((close / prev_close - 1) * 100, 2) if prev_close else 0.0,
             "rsi": rsi, "ma50": ma50, "ma200": ma200,
             "trend_score": score, "trend_label": label, "trend_class": tclass,
-            "reasons": _reasons(close, ma50, ma200, rsi, curr),
+            "reasons": _reasons(close, ma50, ma200, rsi, curr, ma200_slope=ma200_slope),
             "levels": {
                 "atr": round(atr, 2),
                 "atr_pct": round(atr / close * 100, 1),

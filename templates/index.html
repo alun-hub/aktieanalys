@@ -971,6 +971,11 @@ async function analyze(sym) {
         <h3>Teknisk analys & Signaler</h3>
         <p><span class="pill ${t.trend_class}">${esc(t.trend_label)}</span> <span class="muted">${t.trend_score}/100</span></p>
         <div class="bar"><i style="width:${t.trend_score}%"></i></div>
+        <div style="display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.75rem 0 0.5rem 0;">
+          ${t.ema20 ? `<span class="pill ${d.close >= t.ema20 ? 'up' : 'down'}" style="font-size:0.8rem;">EMA20: ${money(t.ema20, d.currency)}</span>` : ''}
+          ${t.macd && t.macd.hist != null ? `<span class="pill ${t.macd.hist > 0 ? 'up' : 'down'}" style="font-size:0.8rem;">MACD: ${t.macd.hist > 0 ? '▲ +' + t.macd.hist : '▼ ' + t.macd.hist}</span>` : ''}
+          ${t.bollinger && t.bollinger.squeeze ? `<span class="pill info" style="font-size:0.8rem;">⚡ Bollinger Squeeze</span>` : ''}
+        </div>
         <ul class="clean muted">${(t.notes || []).map(n => `<li>${withTerms(n)}</li>`).join("")}</ul>
       </div>
     </div>
