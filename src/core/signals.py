@@ -148,18 +148,22 @@ def run_market_screener(market="all"):
 
 
 def calculate_trade_levels(close: float, atr: float, strategy: str = "dip") -> dict:
-    """Beräknar konkreta handelsnivåer baserat på vald strategi och ATR."""
+    """Beräknar konkreta handelsnivåer baserat på vald strategi, ATR och dynamisk 50% TP1/TP2."""
     if strategy == "dip":
         stop_dist = 2.2 * atr
+        tp1_dist = 2.2 * atr
         target_dist = 3.5 * atr
     elif strategy == "momentum":
         stop_dist = 2.5 * atr
+        tp1_dist = 2.5 * atr
         target_dist = 5.0 * atr
     else:  # trend
         stop_dist = 3.0 * atr
+        tp1_dist = 3.0 * atr
         target_dist = 6.5 * atr
 
     stop_loss = round(close - stop_dist, 2)
+    tp1 = round(close + tp1_dist, 2)
     target_price = round(close + target_dist, 2)
     risk_pct = round((close - stop_loss) / close * 100.0, 1)
     reward_pct = round((target_price - close) / close * 100.0, 1)
@@ -169,6 +173,9 @@ def calculate_trade_levels(close: float, atr: float, strategy: str = "dip") -> d
         "entry_price": round(close, 2),
         "stop_loss": stop_loss,
         "target_price": target_price,
+        "tp1": tp1,
+        "tp2": target_price,
+        "trailing_desc": "Vid Delmål 1 säkras 50% vinst och stop-loss flyttas till breakeven (ingångskurs). Resterande 50% rids med glidande trailing stop mot Mål 2.",
         "risk_pct": risk_pct,
         "reward_pct": reward_pct,
         "risk_reward_ratio": rr,
@@ -177,8 +184,9 @@ def calculate_trade_levels(close: float, atr: float, strategy: str = "dip") -> d
 
 
 def scan_opportunities(market="all", strategy_filter="all"):
-    """Skannar alla bolag för dagens datum efter köpmöjligheter."""
+    """Skannar alla bolag för dagens datum efter köpmöjligheter med kvalitetsspärr och relativ styrka."""
     from src.core.backtest import prep_strategy_signals, simulate_stock_trades, STRATEGIES
+    from src.core.relative_strength import get_stock_relative_strength
     import pandas as pd
 
     db = get_db()
@@ -206,6 +214,9 @@ def scan_opportunities(market="all", strategy_filter="all"):
         df = df.set_index("date")
         curr = "$" if mkt == "NASDAQ" else "kr"
 
+        # Relativ Styrka mot marknadsindex
+        rs = get_stock_relative_strength(sym, market=mkt)
+
         for strat in strategies_to_check:
             df_sig = prep_strategy_signals(df, strategy=strat)
             last_row = df_sig.iloc[-1]
@@ -219,13 +230,21 @@ def scan_opportunities(market="all", strategy_filter="all"):
                 sub_df = df_sig.tail(252 * 5)
                 _, _, stats = simulate_stock_trades(sub_df, strategy=strat)
 
+                # Statistisk kvalitetsspärr:
+                # Om det finns tillräckligt med historiska affärer (>=5), kräv sund win-rate och vinstfaktor
+                if stats["trades_count"] >= 5:
+                    if stats["win_rate"] < 50.0 or stats["profit_factor"] < 1.3:
+                        continue
+
                 # Motivering i klarspråk
                 if strat == "dip":
                     reason = f"Översåld dipp (RSI {last_row.get('rsi', 0):.0f}) i långsiktig upptrend över MA200."
                 elif strat == "momentum":
-                    reason = "Utbrott mot nytt fleraveckorshögsta med förhöjd handelsvolym."
+                    reason = "Utbrott mot nytt fleraveckorshögsta med förhöjd handelsvolym och OBV-bekräftelse."
                 else:
                     reason = "Stark upptrend bekräftad av Golden Cross och stängning över MA200."
+
+                score_val = round(stats["win_rate"] * stats["profit_factor"] + max(0.0, float(rs.get("mrs") or 0)), 1)
 
                 opportunities.append({
                     "symbol": sym,
@@ -237,13 +256,14 @@ def scan_opportunities(market="all", strategy_filter="all"):
                     "strategy_name": STRATEGIES[strat]["name"],
                     "reason": reason,
                     "levels": levels,
+                    "relative_strength": rs,
                     "edge": {
                         "win_rate": stats["win_rate"],
                         "trades_count": stats["trades_count"],
                         "profit_factor": stats["profit_factor"],
                         "avg_gain_pct": stats["avg_gain_pct"],
                     },
-                    "score": round(stats["win_rate"] * stats["profit_factor"], 1),
+                    "score": score_val,
                 })
 
     db.close()
