@@ -361,6 +361,21 @@ def analyze_any_stock(symbol):
             "avanza_query": name or symbol,
         }
 
+        # Historisk edge för strategierna
+        edge_summary = {}
+        if not is_crypto and len(df) >= 100:
+            from src.core.backtest import prep_strategy_signals, simulate_stock_trades
+            for s_key in ("dip", "momentum", "trend"):
+                df_sig = prep_strategy_signals(df, strategy=s_key)
+                _, _, s_stats = simulate_stock_trades(df_sig, strategy=s_key)
+                edge_summary[s_key] = {
+                    "win_rate": s_stats["win_rate"],
+                    "profit_factor": s_stats["profit_factor"],
+                    "trades_count": s_stats["trades_count"],
+                    "total_return": s_stats["total_return"],
+                    "active_signal": bool(df_sig.iloc[-1].get("entry_sig", False)),
+                }
+
         return {
             "symbol": symbol, "name": name, "currency": curr,
             "asset_type": "krypto" if is_crypto else "aktie",
@@ -377,6 +392,7 @@ def analyze_any_stock(symbol):
             "risk": risk,
             "context": calc_context(symbol, is_crypto, is_us),
             "levels": levels,
+            "edge_summary": edge_summary,
         }
     except Exception as e:
         return {"error": f"Fel vid analys av {symbol}: {e}"}

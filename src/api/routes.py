@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request
 import threading
 
-from src.core.signals import run_market_screener
-from src.core.backtest import run_backtest_local, optimize_omx
+from src.core.signals import run_market_screener, scan_opportunities
+from src.core.backtest import run_backtest_local, optimize_omx, run_single_stock_backtest
 from src.core.data import sync_all_stocks, get_sync_status
 from src.core.analysis import search_symbols, analyze_any_stock, get_market_overview
 from src.core.crypto import get_crypto_screener
@@ -19,6 +19,14 @@ def _err(fn):
         return jsonify(fn())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/opportunities')
+def opportunities_route():
+    market = request.args.get('market', 'all')
+    strategy = request.args.get('strategy', 'all')
+    opps = scan_opportunities(market=market, strategy_filter=strategy)
+    return jsonify({"opportunities": opps, "total": len(opps)})
 
 
 @api_bp.route('/market_overview')
@@ -69,7 +77,19 @@ def congress_route():
 @api_bp.route('/backtest', methods=['POST'])
 def run_backtest():
     data = request.json or {}
-    return jsonify(run_backtest_local(data.get('market', 'omxs'), int(data.get('years', 10))))
+    market = data.get('market', 'omxs')
+    years = int(data.get('years', 10))
+    strategy = data.get('strategy', 'dip')
+    return jsonify(run_backtest_local(market=market, years=years, strategy=strategy))
+
+
+@api_bp.route('/backtest/stock', methods=['POST'])
+def backtest_stock_route():
+    data = request.json or {}
+    sym = data.get('symbol', '').strip().upper()
+    strat = data.get('strategy', 'dip')
+    years = int(data.get('years', 5))
+    return jsonify(run_single_stock_backtest(sym, strategy=strat, years=years))
 
 
 @api_bp.route('/optimize', methods=['POST'])

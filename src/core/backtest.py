@@ -70,9 +70,80 @@ def _load_history(conn, symbols):
     return out
 
 
-def _prep_signals(g, p):
+STRATEGIES = {
+    "dip": {
+        "name": "Kvalitets-dipp i upptrend",
+        "desc": "Köp starka bolag i upptrend vid tillfällig rekyl (RSI <= 38 eller test av MA50)",
+        "default_rsi_exit": 65,
+        "default_max_days": 20,
+        "atr_stop_mult": 2.5,
+    },
+    "momentum": {
+        "name": "Momentum & Utbrott",
+        "desc": "Köp vid 20/50-dagars utbrott med volymökning och Close > MA50 > MA200",
+        "default_rsi_exit": 78,
+        "default_max_days": 25,
+        "atr_stop_mult": 2.5,
+    },
+    "trend": {
+        "name": "Långsiktig Trendföljare",
+        "desc": "Position i stark trend över MA200 med Golden Cross",
+        "default_rsi_exit": 85,
+        "default_max_days": 252,
+        "atr_stop_mult": 3.5,
+    }
+}
+
+
+def prep_strategy_signals(g, strategy="dip", **custom_params):
     g = g.copy()
-    if p["entry"] == "breakout":
+    g.columns = [str(col).lower() for col in g.columns]
+    c = g["close"]
+    ma50 = g.get("ma50") if "ma50" in g.columns else c.rolling(50).mean()
+    ma200 = g.get("ma200") if "ma200" in g.columns else c.rolling(200).mean()
+    rsi = g.get("rsi") if "rsi" in g.columns else pd.Series(50, index=g.index)
+    vol = g["volume"]
+    prior_vol = vol.rolling(20).mean().shift(1)
+
+    if strategy == "dip":
+        # Upptrend + tillfällig rekyl + vändning
+        in_uptrend = (ma200.notna()) & (c > ma200 * 0.99) & (ma200 >= ma200.shift(20) * 0.995)
+        is_dipping = (rsi <= 40) | (g["low"] <= ma50 * 1.015)
+        turnaround = (c > g["low"].shift(1)) | (c > g["open"])
+        g["entry_sig"] = in_uptrend & is_dipping & turnaround
+        g["entry_rank"] = 50.0 - rsi.fillna(50)  # Lägre RSI = starkare köpläge
+
+    elif strategy == "momentum":
+        # 20-dagars högsta + volym + trendhierarki
+        prior_high_20 = g["high"].rolling(20).max().shift(1)
+        breakout = (c > prior_high_20)
+        vol_surge = (vol > prior_vol * 1.3)
+        trend_ok = (ma50.notna()) & (ma200.notna()) & (c > ma50) & (ma50 > ma200 * 0.99)
+        g["entry_sig"] = breakout & vol_surge & trend_ok
+        g["entry_rank"] = (vol / prior_vol.replace(0, np.nan)).fillna(1.0)
+
+    elif strategy == "trend":
+        # Golden Cross eller etablerad stängning över stigande MA200
+        golden_cross = (ma50 > ma200) & (c > ma200)
+        g["entry_sig"] = golden_cross
+        g["entry_rank"] = ((c / ma200.replace(0, np.nan)) - 1.0).fillna(0.0)
+
+    else:
+        # Fallback till tidigare standard
+        g["entry_sig"] = False
+        g["entry_rank"] = 0.0
+
+    return g
+
+
+def _prep_signals(g, p):
+    if isinstance(p, str):
+        return prep_strategy_signals(g, strategy=p)
+    if isinstance(p, dict) and "strategy" in p:
+        return prep_strategy_signals(g, strategy=p["strategy"], **{k: v for k, v in p.items() if k != "strategy"})
+
+    g = g.copy()
+    if p.get("entry") == "breakout":
         n = int(p["breakout_days"])
         prior_high = g["high"].rolling(n).max().shift(1)
         prior_vol = g["volume"].rolling(20).mean().shift(1)
@@ -355,14 +426,23 @@ def _index_ticker(market):
     return "^OMX" if market == "omxs" else "^NDX"
 
 
-def run_backtest_local(market="omxs", years=5):
+def run_backtest_local(market="omxs", years=5, strategy="dip"):
     if market == "crypto":
         return run_crypto_backtest(years=years)
 
     conn = get_db()
     idx_ticker = _index_ticker(market)
     symbols = _stock_universe(market)
-    params = DEFAULT_PARAMS[market]
+    params = dict(DEFAULT_PARAMS.get(market, DEFAULT_PARAMS["omxs"]))
+
+    if strategy and strategy != "breakout" and strategy in STRATEGIES:
+        strat_cfg = STRATEGIES[strategy]
+        if "default_rsi_exit" in strat_cfg:
+            params["rsi_exit"] = strat_cfg["default_rsi_exit"]
+        if "default_max_days" in strat_cfg:
+            params["max_days"] = strat_cfg["default_max_days"]
+        if "atr_stop_mult" in strat_cfg:
+            params["atr_mult"] = strat_cfg["atr_stop_mult"]
 
     hist_raw = _load_history(conn, symbols + [idx_ticker])
     conn.close()
@@ -378,12 +458,18 @@ def run_backtest_local(market="omxs", years=5):
     start_idx = max(0, len(all_dates) - requested * TRADING_DAYS)
     dates = all_dates[start_idx:]
 
-    hist = {s: _prep_signals(g, params) for s, g in hist_raw.items() if len(g) > 200}
+    if strategy and strategy != "breakout" and strategy in STRATEGIES:
+        hist = {s: prep_strategy_signals(g, strategy=strategy) for s, g in hist_raw.items() if len(g) > 200}
+    else:
+        hist = {s: _prep_signals(g, params) for s, g in hist_raw.items() if len(g) > 200}
+
     curve, trades = _run_engine(hist, index_close, dates, params, market)
     result = _summarise(curve, trades, hist, index_close, market)
     result["market"] = "OMXS30" if market == "omxs" else "Nasdaq 100"
     result["requested_years"] = requested
     result["actual_years"] = result["years"]
+    result["strategy"] = strategy
+    result["strategy_name"] = STRATEGIES.get(strategy, {}).get("name", strategy)
     if result["years"] < requested - 0.5:
         result["notes"].insert(0, f"Begärde {requested} år men bara {result['years']} år data finns – kör på det som finns.")
     return result
@@ -466,3 +552,202 @@ def optimize_omx(years=8):
         "note": "Rankad på CAGR i testperioden (out-of-sample). Stor skillnad mellan "
                 "train och test = överanpassning. Detta är inte en prognos.",
     }
+
+
+def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct=0.0015):
+    """Kör en isolerad handelssimulering för en enskild aktie."""
+    if df is None or df.empty:
+        return [], [], {
+            "trades_count": 0,
+            "win_rate": 0.0,
+            "profit_factor": 1.0,
+            "total_return": 0.0,
+            "buy_and_hold_return": 0.0,
+            "avg_gain_pct": 0.0,
+            "avg_loss_pct": 0.0,
+            "avg_days_held": 0.0,
+        }
+
+    df = df.copy()
+    df.columns = [str(col).lower() for col in df.columns]
+
+    strat_cfg = STRATEGIES.get(strategy, STRATEGIES["dip"])
+    rsi_exit = strat_cfg.get("default_rsi_exit", 70)
+    max_days = strat_cfg.get("default_max_days", 20)
+    atr_mult = strat_cfg.get("atr_stop_mult", 2.5)
+
+    dates = list(df.index)
+    trades = []
+    cash = float(initial_capital)
+    position = None
+    curve = []
+
+    for i, date in enumerate(dates):
+        r = df.iloc[i]
+        px_open = float(r["open"]) if ("open" in r and not pd.isna(r["open"])) else float(r["close"])
+        px_close = float(r["close"])
+        atr = float(r["atr"]) if ("atr" in r and not pd.isna(r["atr"])) else px_close * 0.02
+
+        # 1. Hantera öppen position (check exit)
+        if position:
+            position["days"] += 1
+            low = float(r["low"]) if ("low" in r and not pd.isna(r["low"])) else px_close
+            high = float(r["high"]) if ("high" in r and not pd.isna(r["high"])) else px_close
+            rsi_val = float(r["rsi"]) if ("rsi" in r and not pd.isna(r["rsi"])) else 50.0
+
+            exit_now = False
+            exit_price = px_close
+            exit_reason = ""
+
+            # Stop loss
+            if low <= position["stop_loss"]:
+                exit_now = True
+                exit_price = min(px_open, position["stop_loss"])
+                exit_reason = "Stop loss"
+            # Vinstmål / RSI-exit
+            elif rsi_val >= rsi_exit:
+                exit_now = True
+                exit_price = px_close
+                exit_reason = f"RSI-exit ({int(rsi_val)})"
+            # Target exit
+            elif high >= position["target"]:
+                exit_now = True
+                exit_price = position["target"]
+                exit_reason = "Målkurs nådd"
+            # Max holding period
+            elif position["days"] >= max_days:
+                exit_now = True
+                exit_price = px_close
+                exit_reason = f"Tids-exit ({max_days} d)"
+
+            if exit_now:
+                gross = position["qty"] * exit_price
+                cost = gross * fee_pct
+                net_val = gross - cost
+                cash += net_val
+                pnl = net_val - position["cost_basis"]
+                ret_pct = (net_val / position["cost_basis"] - 1.0) * 100.0
+
+                trades.append({
+                    "entry_date": position["entry_date"],
+                    "exit_date": date,
+                    "entry_price": round(float(position["entry_price"]), 2),
+                    "exit_price": round(float(exit_price), 2),
+                    "days_held": int(position["days"]),
+                    "return_pct": round(float(ret_pct), 2),
+                    "profit": round(float(pnl), 2),
+                    "exit_reason": exit_reason,
+                    "open": False,
+                })
+                position = None
+
+        # 2. Hantera ny köpsignal om vi saknar position
+        if position is None and bool(r.get("entry_sig", False)):
+            qty = int((cash * 0.95) // px_close)
+            if qty > 0:
+                cost_basis = qty * px_close * (1.0 + fee_pct)
+                cash -= cost_basis
+                stop_loss = px_close - atr_mult * atr
+                # Target: 2.0x risk
+                risk = px_close - stop_loss
+                target = px_close + max(risk * 1.8, atr * 3.0)
+
+                position = {
+                    "entry_date": date,
+                    "entry_price": px_close,
+                    "qty": qty,
+                    "cost_basis": cost_basis,
+                    "stop_loss": stop_loss,
+                    "target": target,
+                    "days": 0,
+                }
+
+        # Värdera portfölj idag
+        total_equity = cash + (position["qty"] * px_close if position else 0.0)
+        curve.append({"date": date, "equity": round(float(total_equity), 1)})
+
+    # Om position kvar vid slut
+    if position:
+        last_px = float(df.iloc[-1]["close"])
+        gross = position["qty"] * last_px
+        pnl = gross - position["cost_basis"]
+        trades.append({
+            "entry_date": position["entry_date"],
+            "exit_date": dates[-1],
+            "entry_price": round(float(position["entry_price"]), 2),
+            "exit_price": round(float(last_px), 2),
+            "days_held": int(position["days"]),
+            "return_pct": round(float((gross / position["cost_basis"] - 1.0) * 100.0), 2),
+            "profit": round(float(pnl), 2),
+            "exit_reason": "Öppen position",
+            "open": True,
+        })
+
+    # Beräkna statistik
+    closed = [t for t in trades if not t["open"]]
+    wins = [t for t in closed if t["profit"] > 0]
+    losses = [t for t in closed if t["profit"] <= 0]
+    win_rate = round(len(wins) / len(closed) * 100.0, 1) if closed else 0.0
+    tot_win = sum(t["profit"] for t in wins)
+    tot_loss = abs(sum(t["profit"] for t in losses))
+    profit_factor = round(tot_win / tot_loss, 2) if tot_loss > 0 else (round(float(tot_win), 2) if tot_win > 0 else 1.0)
+
+    # Buy & hold jämförelse för samma aktie
+    first_px = float(df.iloc[0]["close"])
+    last_px = float(df.iloc[-1]["close"])
+    bh_return = round((last_px / first_px - 1.0) * 100.0, 2) if first_px > 0 else 0.0
+    strat_return = round((curve[-1]["equity"] / initial_capital - 1.0) * 100.0, 2) if curve else 0.0
+
+    stats = {
+        "trades_count": len(closed),
+        "win_rate": float(win_rate),
+        "profit_factor": float(profit_factor),
+        "total_return": float(strat_return),
+        "buy_and_hold_return": float(bh_return),
+        "avg_gain_pct": round(float(np.mean([t["return_pct"] for t in wins])), 2) if wins else 0.0,
+        "avg_loss_pct": round(float(np.mean([t["return_pct"] for t in losses])), 2) if losses else 0.0,
+        "avg_days_held": round(float(np.mean([t["days_held"] for t in closed])), 1) if closed else 0.0,
+    }
+
+    return trades, curve, stats
+
+
+def run_single_stock_backtest(symbol, strategy="dip", years=5):
+    """Hämtar data och kör enskilt aktiebacktest."""
+    try:
+        conn = get_db()
+        df = pd.read_sql_query(
+            "SELECT date, open, high, low, close, volume, ma50, ma200, rsi, atr "
+            "FROM history WHERE symbol = ? AND close IS NOT NULL ORDER BY date",
+            conn, params=[symbol]
+        )
+        conn.close()
+    except Exception as e:
+        return {"error": f"Kunde inte hämta historik för {symbol}."}
+
+    if df.empty or len(df) < 50:
+        return {"error": f"För lite historik för {symbol}."}
+
+    df = df.set_index("date")
+    cutoff = max(0, len(df) - int(years) * 252)
+    df_sub = df.iloc[cutoff:].copy()
+
+    df_signals = prep_strategy_signals(df_sub, strategy=strategy)
+    trades, curve, stats = simulate_stock_trades(df_signals, strategy=strategy)
+
+    # Nedskalad graf (max 50 punkter)
+    step = max(1, len(curve) // 45)
+    chart = [curve[i] for i in range(0, len(curve), step)]
+    if chart and chart[-1]["date"] != curve[-1]["date"]:
+        chart.append(curve[-1])
+
+    return {
+        "symbol": symbol,
+        "strategy": strategy,
+        "strategy_name": STRATEGIES.get(strategy, {}).get("name", strategy),
+        "years": int(years),
+        "stats": stats,
+        "trades": trades[::-1],
+        "chart": chart,
+    }
+
