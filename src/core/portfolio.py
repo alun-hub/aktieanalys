@@ -13,11 +13,54 @@ import yfinance as yf
 
 from src.core.data import get_db
 from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS
+from src.core.signals import trend_score
 
 _meta_cache = {}   # symbol -> (ts, {price, sector, country, currency, dividend_yield})
 _META_TTL = 3600
+_fx_cache = {}
+_FX_TTL = 3600
 
 CONCENTRATION_WARN = 20.0   # % av portföljen i ett enda innehav
+
+
+def get_exchange_rate(currency):
+    """Hämtar växelkurs till SEK (t.ex. USD -> SEK, EUR -> SEK)."""
+    curr = (currency or "SEK").upper().strip()
+    if curr in ("SEK", "KR", ""):
+        return 1.0
+    now = time.time()
+    hit = _fx_cache.get(curr)
+    if hit and now - hit[0] < _FX_TTL:
+        return hit[1]
+
+    fallbacks = {
+        "USD": 9.70,
+        "EUR": 10.80,
+        "NOK": 0.95,
+        "DKK": 1.45,
+        "GBP": 12.80,
+        "GBX": 0.128,
+        "CAD": 7.10,
+        "CHF": 11.20,
+    }
+    rate = fallbacks.get(curr, 1.0)
+    try:
+        lookup_curr = curr
+        mult = 1.0
+        if curr in ("GBX", "GBP"):
+            lookup_curr = "GBP"
+            if curr == "GBX":
+                mult = 0.01
+        t = yf.Ticker(f"{lookup_curr}SEK=X")
+        fi = getattr(t, "fast_info", {}) or {}
+        p = fi.get("last_price") or fi.get("lastPrice")
+        if p and p > 0:
+            rate = float(p) * mult
+    except Exception:
+        pass
+
+    _fx_cache[curr] = (now, rate)
+    return rate
 
 
 def _known_name(symbol):
@@ -102,6 +145,40 @@ def list_holdings():
     return rows
 
 
+def _holding_recommendation(symbol, kind, m, row):
+    """Genererar en kort rekommendation: Köp, Behåll eller Sälj med orsak."""
+    if kind == "fond" or symbol.startswith("MANUAL:"):
+        return {"action": "Behåll", "badge": "hold", "reason": "Långsiktigt fondsparande"}
+
+    close = m.get("price")
+    ma50 = (row.get("ma50") if row else None) or m.get("ma50")
+    ma200 = (row.get("ma200") if row else None) or m.get("ma200")
+    rsi = (row.get("rsi") if row else None)
+
+    score = None
+    if close and (ma50 or ma200):
+        score = trend_score(close, ma50, ma200, rsi or 50.0)
+
+    rec_key = (m.get("rec_key") or "").lower()
+
+    if score is not None:
+        if score >= 65:
+            reason = "Stark teknisk upptrend"
+            return {"action": "Köp", "badge": "buy", "reason": reason}
+        elif score <= 38:
+            reason = "Nedåttrend under medelvärden"
+            return {"action": "Sälj", "badge": "sell", "reason": reason}
+        else:
+            return {"action": "Behåll", "badge": "hold", "reason": "Konsolidering / neutral trend"}
+
+    if rec_key in ("strong_buy", "buy"):
+        return {"action": "Köp", "badge": "buy", "reason": "Analytikerkonsensus: Köp"}
+    elif rec_key in ("sell", "underperform"):
+        return {"action": "Sälj", "badge": "sell", "reason": "Analytikerkonsensus: Sälj"}
+
+    return {"action": "Behåll", "badge": "hold", "reason": "Stabil nivå / saknar stark säljsignal"}
+
+
 def _meta(symbol):
     if symbol.startswith("MANUAL:"):
         return {"price": None, "sector": "Fond", "country": "Global",
@@ -112,7 +189,8 @@ def _meta(symbol):
         return hit[1]
 
     meta = {"price": None, "sector": None, "country": None,
-            "currency": None, "dividend_yield": None}
+            "currency": None, "dividend_yield": None,
+            "rec_key": None, "ma50": None, "ma200": None}
 
     if symbol in POPULAR_ETFS:
         meta["sector"] = POPULAR_ETFS[symbol].get("sector")
@@ -120,11 +198,15 @@ def _meta(symbol):
 
     conn = get_db()
     row = conn.execute(
-        "SELECT close FROM history WHERE symbol = ? AND close IS NOT NULL "
+        "SELECT close, ma50, ma200, rsi FROM history WHERE symbol = ? AND close IS NOT NULL "
         "ORDER BY date DESC LIMIT 1", (symbol,)).fetchone()
     conn.close()
     if row and row["close"] is not None:
         meta["price"] = float(row["close"])
+        if row["ma50"] is not None:
+            meta["ma50"] = float(row["ma50"])
+        if row["ma200"] is not None:
+            meta["ma200"] = float(row["ma200"])
 
     try:
         t = yf.Ticker(symbol)
@@ -134,6 +216,11 @@ def _meta(symbol):
         if not meta["country"]:
             meta["country"] = info.get("country") or ("Sverige" if symbol.endswith(".ST") else None)
         meta["currency"] = info.get("currency")
+        meta["rec_key"] = info.get("recommendationKey")
+        if not meta["ma50"]:
+            meta["ma50"] = info.get("fiftyDayAverage")
+        if not meta["ma200"]:
+            meta["ma200"] = info.get("twoHundredDayAverage")
         dy = info.get("dividendYield")
         if dy and 0 < dy < 25:
             meta["dividend_yield"] = float(dy)
@@ -145,6 +232,8 @@ def _meta(symbol):
 
     if meta["country"] is None:
         meta["country"] = "Sverige" if symbol.endswith(".ST") else ("USA" if not symbol.endswith("-USD") else "—")
+    if meta["currency"] is None:
+        meta["currency"] = "SEK" if symbol.endswith(".ST") else ("USD" if not symbol.endswith("-USD") else "USD")
 
     _meta_cache[symbol] = (time.time(), meta)
     return meta
@@ -191,35 +280,61 @@ def portfolio_health():
                 pass
 
         if h["symbol"].startswith("MANUAL:") or is_manual:
+            curr = "SEK"
+            fx_rate = 1.0
             value = float(note_data.get("current_value", h["qty"] * h["avg_price"]))
             cost = float(note_data.get("cost", h["qty"] * h["avg_price"]))
+            raw_value = value
+            raw_cost = cost
             price = round(value / h["qty"], 2) if h["qty"] else round(value, 2)
             region = _region(note_data.get("region") or "Global")
             sector = note_data.get("sector") or ("Fond - " + region if h["kind"] == "fond" else "Övrigt")
             price_stale = False
             div_yield = None
+            rec = {"action": "Behåll", "badge": "hold", "reason": "Långsiktigt fondsparande"}
         else:
             m = _meta(h["symbol"])
-            price = m["price"] or h["avg_price"]
-            value = price * h["qty"]
-            cost = h["avg_price"] * h["qty"]
+            curr = (m.get("currency") or ("SEK" if h["symbol"].endswith(".ST") else "USD")).upper()
+            fx_rate = get_exchange_rate(curr)
+
+            raw_price = m["price"] or h["avg_price"]
+            raw_cost = h["avg_price"] * h["qty"]
+            raw_value = raw_price * h["qty"]
+
+            price = raw_price
+            value = raw_value * fx_rate
+            cost = raw_cost * fx_rate
+
             sector = m["sector"] or "Okänd"
             region = _region(m["country"])
             price_stale = m["price"] is None
             div_yield = m["dividend_yield"]
+
+            conn = get_db()
+            hist_row = conn.execute(
+                "SELECT close, ma50, ma200, rsi FROM history WHERE symbol = ? AND close IS NOT NULL "
+                "ORDER BY date DESC LIMIT 1", (h["symbol"],)).fetchone()
+            conn.close()
+            rec = _holding_recommendation(h["symbol"], h["kind"], m, dict(hist_row) if hist_row else None)
 
         total_value += value
         total_cost += cost
         positions.append({
             "symbol": h["symbol"], "name": h["name"] or h["symbol"],
             "kind": h["kind"], "qty": h["qty"], "avg_price": round(h["avg_price"], 2),
-            "price": round(price, 2), "value": value, "cost": cost,
-            "pl": value - cost, "pl_pct": round((value / cost - 1) * 100, 1) if cost else 0.0,
+            "price": round(price, 2),
+            "currency": curr,
+            "fx_rate": round(fx_rate, 4),
+            "value": round(value, 2), "cost": round(cost, 2),
+            "raw_value": round(raw_value, 2), "raw_cost": round(raw_cost, 2),
+            "pl": round(value - cost, 2),
+            "pl_pct": round((value / cost - 1) * 100, 1) if cost else 0.0,
             "fee_pct": h["fee_pct"] or 0.0,
             "sector": sector, "region": region,
             "dividend_yield": div_yield,
             "price_stale": price_stale,
             "is_manual": is_manual or h["symbol"].startswith("MANUAL:"),
+            "recommendation": rec,
         })
 
     for p in positions:
