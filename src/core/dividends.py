@@ -75,7 +75,7 @@ def score_dividend_stock(
     final_score = round(max(0.0, min(100.0, tot)), 1)
 
     # Omdöme i klarspråk
-    if yield_pct > 12.0 and p_score < 40.0:
+    if (yield_pct > 12.0 and p_score <= 40.0) or (yield_pct > 8.0 and p_score <= 20.0):
         verdict = "Varning för utdelningsfälla (ohållbar utdelningsandel)"
     elif final_score >= 80.0:
         verdict = "Stark kvalitetsutdelare med sund trend"
@@ -96,17 +96,82 @@ def score_dividend_stock(
     }
 
 
+def _fetch_single_stock_dividend(sym: str, name: str, mkt: str, tech_row: dict) -> dict | None:
+    """Hjälpfunktion för att hämta fundamenta och beräkna score för en enskild aktie."""
+    try:
+        close = float(tech_row["close"])
+        ma50 = float(tech_row["ma50"]) if tech_row["ma50"] is not None else None
+        ma200 = float(tech_row["ma200"]) if tech_row["ma200"] is not None else None
+        rsi = float(tech_row["rsi"]) if tech_row["rsi"] is not None else None
+
+        tscore = trend_score(close, ma50, ma200, rsi)
+
+        t = yf.Ticker(sym)
+        info = t.info or {}
+        raw_yield = info.get("dividendYield")
+        if not raw_yield:
+            return None
+
+        # yfinance returnerar procent (t.ex. 5.4) eller decimal (0.054)
+        yield_pct = float(raw_yield)
+        if yield_pct < 0.25:
+            yield_pct = yield_pct * 100.0
+
+        raw_payout = info.get("payoutRatio")
+        if raw_payout is not None:
+            payout_pct = float(raw_payout)
+            # yfinance returnerar decimalratio t.ex. 0.50 (50%) eller 2.5 (250%)
+            if payout_pct <= 10.0:
+                payout_pct = payout_pct * 100.0
+        else:
+            payout_pct = None
+
+        raw_pe = info.get("trailingPE")
+        pe = float(raw_pe) if raw_pe is not None and raw_pe == raw_pe else None
+
+        score_data = score_dividend_stock(yield_pct, payout_pct, pe, tscore)
+        curr = "$" if mkt == "NASDAQ" else "kr"
+
+        return {
+            "symbol": sym,
+            "name": name,
+            "market": mkt,
+            "currency": curr,
+            "close": round(close, 2),
+            "dividend_yield": round(yield_pct, 2),
+            "payout_ratio": round(payout_pct, 1) if payout_pct is not None else None,
+            "pe": round(pe, 1) if pe is not None else None,
+            "trend_score": tscore,
+            "dividend_score": score_data["dividend_score"],
+            "yield_score": score_data["yield_score"],
+            "payout_score": score_data["payout_score"],
+            "valuation_score": score_data["valuation_score"],
+            "verdict": score_data["verdict"],
+        }
+    except Exception as e:
+        logger.debug(f"Kunde inte hämta utdelningsdata för {sym}: {e}")
+        return None
+
+
 def get_top_dividend_stocks(
     market: str = "all", limit: int = 10, force_refresh: bool = False
 ) -> dict:
     """Hämtar och rankar de bästa utdelningsaktierna för angiven marknad."""
+    from concurrent.futures import ThreadPoolExecutor
+
     global _DIVIDEND_CACHE
     now = time.time()
     market = (market or "all").lower()
 
     cached = _DIVIDEND_CACHE.get(market)
     if not force_refresh and cached and (now - cached["ts"] < _CACHE_TTL):
-        return cached["data"]
+        all_stocks = cached["all_stocks"]
+        top_slice = all_stocks[:limit]
+        return {
+            "market": market,
+            "updated_at": cached["updated_at"],
+            "stocks": [{**s, "rank": idx} for idx, s in enumerate(top_slice, 1)],
+        }
 
     db = get_db()
     tickers = {}
@@ -115,89 +180,44 @@ def get_top_dividend_stocks(
     if market in ("all", "nasdaq"):
         tickers.update({s: (n, "NASDAQ") for s, n in NASDAQ_100.items()})
 
-    scored_stocks = []
-
+    items_to_fetch = []
     try:
         for sym, (name, mkt) in tickers.items():
-            # Hämta senaste tekniska data från SQLite
             row = db.execute(
                 "SELECT close, ma50, ma200, rsi, atr FROM history "
                 "WHERE symbol = ? AND close IS NOT NULL ORDER BY date DESC LIMIT 1",
                 (sym,),
             ).fetchone()
-            if not row:
-                continue
-
-            close = float(row["close"])
-            ma50 = float(row["ma50"]) if row["ma50"] is not None else None
-            ma200 = float(row["ma200"]) if row["ma200"] is not None else None
-            rsi = float(row["rsi"]) if row["rsi"] is not None else None
-
-            tscore = trend_score(close, ma50, ma200, rsi)
-
-            # Hämta fundamenta via yfinance
-            try:
-                t = yf.Ticker(sym)
-                info = t.info or {}
-                raw_yield = info.get("dividendYield")
-                if not raw_yield:
-                    continue
-
-                # yfinance returnerar procent (t.ex. 5.4) eller decimal (0.054)
-                yield_pct = float(raw_yield)
-                if yield_pct < 0.25:
-                    yield_pct = yield_pct * 100.0
-
-                raw_payout = info.get("payoutRatio")
-                if raw_payout is not None:
-                    payout_pct = float(raw_payout)
-                    if payout_pct <= 2.0:
-                        payout_pct = payout_pct * 100.0
-                else:
-                    payout_pct = None
-
-                raw_pe = info.get("trailingPE")
-                pe = float(raw_pe) if raw_pe is not None and raw_pe == raw_pe else None
-
-                score_data = score_dividend_stock(yield_pct, payout_pct, pe, tscore)
-                curr = "$" if mkt == "NASDAQ" else "kr"
-
-                scored_stocks.append(
-                    {
-                        "symbol": sym,
-                        "name": name,
-                        "market": mkt,
-                        "currency": curr,
-                        "close": round(close, 2),
-                        "dividend_yield": round(yield_pct, 2),
-                        "payout_ratio": round(payout_pct, 1) if payout_pct is not None else None,
-                        "pe": round(pe, 1) if pe is not None else None,
-                        "trend_score": tscore,
-                        "dividend_score": score_data["dividend_score"],
-                        "yield_score": score_data["yield_score"],
-                        "payout_score": score_data["payout_score"],
-                        "valuation_score": score_data["valuation_score"],
-                        "verdict": score_data["verdict"],
-                    }
-                )
-            except Exception:
-                continue
+            if row:
+                items_to_fetch.append((sym, name, mkt, dict(row)))
     finally:
         db.close()
 
+    scored_stocks = []
+    # Använd trådpool för att hämta fundamenta parallellt och snabba upp scanning
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(_fetch_single_stock_dividend, sym, name, mkt, row)
+            for sym, name, mkt, row in items_to_fetch
+        ]
+        for f in futures:
+            res = f.result()
+            if res:
+                scored_stocks.append(res)
+
     # Sortera på dividend_score fallande
     scored_stocks.sort(key=lambda x: x["dividend_score"], reverse=True)
-    top_stocks = scored_stocks[:limit]
 
-    # Tilldela rank
-    for idx, s in enumerate(top_stocks, 1):
-        s["rank"] = idx
-
-    result = {
-        "market": market,
-        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "stocks": top_stocks,
+    updated_at_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    _DIVIDEND_CACHE[market] = {
+        "all_stocks": scored_stocks,
+        "updated_at": updated_at_str,
+        "ts": now,
     }
 
-    _DIVIDEND_CACHE[market] = {"data": result, "ts": now}
-    return result
+    top_slice = scored_stocks[:limit]
+    return {
+        "market": market,
+        "updated_at": updated_at_str,
+        "stocks": [{**s, "rank": idx} for idx, s in enumerate(top_slice, 1)],
+    }
