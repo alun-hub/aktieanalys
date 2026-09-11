@@ -30,9 +30,25 @@ def get_db():
     conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
+def _archive_legacy_holdings(conn):
+    """Den borttagna handelssimulatorn hade en 'holdings'-tabell med andra
+    kolumner (entry_price/stop_loss/...) än dagens portfölj-hälsokoll
+    (avg_price/kind/...). 'CREATE TABLE IF NOT EXISTS' skulle annars tyst
+    lämna den gamla tabellen orörd och krascha portfölj-funktionerna.
+    Arkivera den gamla tabellen under nytt namn i stället för att skriva
+    över eller tappa datan."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(holdings)")}
+    if cols and "avg_price" not in cols:
+        conn.execute("ALTER TABLE holdings RENAME TO holdings_legacy_tradesim")
+        conn.commit()
+        print("OBS: äldre 'holdings'-tabell (handelssimulator) hittades och "
+              "arkiverades som 'holdings_legacy_tradesim' – ej borttagen.")
+
+
 def init_db():
     """Skapar alla tabeller från schema.sql (history + portfölj-tabeller)."""
     conn = get_db()
+    _archive_legacy_holdings(conn)
     with open(_SCHEMA_PATH, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
     conn.commit()
