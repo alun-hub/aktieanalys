@@ -75,6 +75,45 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertNotIn("Det här är information, inte en köp- eller säljrekommendation", res.get("summary", ""))
         self.assertTrue(res.get("summary", "").startswith("Rekommendation:"))
 
+    @patch("src.api.routes.get_top_dividend_stocks")
+    def test_top_dividends_route(self, mock_get_top):
+        mock_get_top.return_value = {
+            "market": "all",
+            "updated_at": "2026-09-11 22:30",
+            "stocks": [
+                {
+                    "rank": 1,
+                    "symbol": "VOLV-B.ST",
+                    "name": "Volvo B",
+                    "market": "OMX",
+                    "dividend_score": 85.0,
+                    "dividend_yield": 5.5,
+                }
+            ],
+        }
+        res = self.client.get("/api/portal/top-dividends")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("stocks", data)
+        self.assertIn("updated_at", data)
+        self.assertEqual(data["market"], "all")
+        self.assertEqual(len(data["stocks"]), 1)
+        mock_get_top.assert_called_with(market="all", limit=10, force_refresh=False)
+
+    @patch("src.api.routes.get_top_dividend_stocks")
+    def test_top_dividends_route_with_params(self, mock_get_top):
+        mock_get_top.return_value = {
+            "market": "omx",
+            "updated_at": "2026-09-11 22:30",
+            "stocks": [],
+        }
+        res = self.client.get("/api/portal/top-dividends?market=omx&limit=5&refresh=true")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["market"], "omx")
+        mock_get_top.assert_called_with(market="omx", limit=5, force_refresh=True)
+
 
 if __name__ == "__main__":
     unittest.main()
+

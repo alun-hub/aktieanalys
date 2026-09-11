@@ -10,6 +10,7 @@ from src.core.insider import fetch_all_insider_buys
 from src.core.congress import scan_congress_trades
 from src.core.projection import project
 from src.core import portfolio as pf
+from src.core.dividends import get_top_dividend_stocks
 
 api_bp = Blueprint('api', __name__)
 
@@ -19,6 +20,22 @@ def _err(fn):
         return jsonify(fn())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/top-dividends')
+@api_bp.route('/top_dividends')
+def top_dividends_route():
+    market = request.args.get('market', 'all')
+    try:
+        limit = int(request.args.get('limit', 10))
+    except (ValueError, TypeError):
+        limit = 10
+    refresh = request.args.get('refresh', 'false').lower() in ('true', '1')
+    try:
+        data = get_top_dividend_stocks(market=market, limit=limit, force_refresh=refresh)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e), "stocks": [], "updated_at": ""}), 500
 
 
 @api_bp.route('/opportunities')
