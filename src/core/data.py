@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 import sqlite3
 import os
+import json
 import fcntl
 from datetime import datetime
 from src.core.config import OMXS_50, NASDAQ_100, INDEX_TICKERS
@@ -10,18 +11,32 @@ from src.core.settings import DB_PATH, DATA_DIR, HISTORY_PERIOD
 
 _SCHEMA_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "schema.sql")
 _LOCK_PATH = os.path.join(DATA_DIR, ".sync.lock")
+_STATUS_PATH = os.path.join(DATA_DIR, "sync_status.json")
 
-_sync_status = {
-    "running": False,
-    "progress": 0,
-    "total": 0,
-    "current": "",
-    "last_synced": None,
-    "error": None
-}
+_DEFAULT_STATUS = {"running": False, "progress": 0, "total": 0,
+                   "current": "", "last_synced": None, "error": None}
+
+
+def _read_status():
+    # Filbaserad status, inte en processlokal dict: appen kör flera
+    # gunicorn-workers (separata processer) och en in-memory dict skulle visa
+    # olika (och fel) status beroende på vilken worker som svarar på anropet.
+    try:
+        with open(_STATUS_PATH) as f:
+            return json.load(f)
+    except Exception:
+        return dict(_DEFAULT_STATUS)
+
+
+def _write_status(status):
+    tmp = _STATUS_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(status, f)
+    os.replace(tmp, _STATUS_PATH)
+
 
 def get_sync_status():
-    return _sync_status
+    return _read_status()
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=15)
@@ -99,10 +114,10 @@ def sync_all_stocks():
     """Total synkronisering av marknaden med realtidsstatus.
 
     Skyddad av ett fillås så att flera processer (gunicorn-workers) inte kan
-    köra synken samtidigt.
+    köra synken samtidigt. Statusen skrivs till en delad fil, inte en
+    processlokal dict, så alla workers ser samma (korrekta) förlopp.
     """
-    global _sync_status
-    if _sync_status["running"]:
+    if _read_status().get("running"):
         return
 
     lock_file = open(_LOCK_PATH, "w")
@@ -115,30 +130,31 @@ def sync_all_stocks():
 
     try:
         all_tickers = {**OMXS_50, **NASDAQ_100, **INDEX_TICKERS}
-        total = len(all_tickers)
-        _sync_status = {
-            "running": True,
-            "progress": 0,
-            "total": total,
-            "current": "Startar…",
-            "last_synced": _sync_status.get("last_synced"),
-            "error": None
+        status = {
+            "running": True, "progress": 0, "total": len(all_tickers),
+            "current": "Startar…", "last_synced": _read_status().get("last_synced"),
+            "error": None,
         }
+        _write_status(status)
 
         count = 0
         for symbol in all_tickers.keys():
             try:
-                _sync_status["current"] = symbol
+                status["current"] = symbol
                 update_stock_data(symbol)
                 count += 1
-                _sync_status["progress"] = count
+                status["progress"] = count
             except Exception as e:
                 print(f"Fel vid synk av {symbol}: {e}")
+            _write_status(status)
 
-        _sync_status["running"] = False
-        _sync_status["current"] = "Klar"
-        _sync_status["last_synced"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        status["running"] = False
+        status["current"] = "Klar"
+        status["last_synced"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        _write_status(status)
     finally:
-        _sync_status["running"] = False
+        status = _read_status()
+        status["running"] = False
+        _write_status(status)
         fcntl.flock(lock_file, fcntl.LOCK_UN)
         lock_file.close()
