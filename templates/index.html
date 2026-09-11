@@ -185,6 +185,35 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
     <div id="pf-out"></div>
   </section>
 
+  <!-- ============ AFFÄRSMÖJLIGHETER ============ -->
+  <section class="pane" id="pane-opportunities">
+    <div class="card">
+      <h2>Dagens Affärsmöjligheter</h2>
+      <p class="muted">Aktier som ger köpsignal idag baserat på statistiskt beprövade strategier. Varje läge redovisar historisk träffsäkerhet (edge) samt konkreta nivåer för ingång, stop-loss och vinstmål.</p>
+      <div class="row">
+        <div class="field"><label>Marknad</label>
+          <select id="opp-market" onchange="loadOpportunities()">
+            <option value="all">Alla marknader</option>
+            <option value="omxs">Stockholm (OMXS)</option>
+            <option value="nasdaq">USA (Nasdaq)</option>
+          </select>
+        </div>
+        <div class="field"><label>Strategi</label>
+          <select id="opp-strategy" onchange="loadOpportunities()">
+            <option value="all">Alla strategier</option>
+            <option value="dip">Kvalitets-dipp i upptrend</option>
+            <option value="momentum">Momentum & Utbrott</option>
+            <option value="trend">Långsiktig Trendföljare</option>
+          </select>
+        </div>
+        <div class="field" style="align-self:end;">
+          <button class="btn btn-primary" onclick="loadOpportunities()">Uppdatera lägen</button>
+        </div>
+      </div>
+    </div>
+    <div id="opp-container" class="grid cols-2" style="margin-top:1rem;"></div>
+  </section>
+
   <!-- ============ ANALYSERA BOLAG ============ -->
   <section class="pane" id="pane-analyze">
     <div class="card">
@@ -215,16 +244,51 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
   <!-- ============ BACKTEST ============ -->
   <section class="pane" id="pane-backtest">
     <div class="card">
-      <h2>Backtest – hur en enkel swing-strategi hade gått</h2>
-      <p class="muted">En regelstyrd strategi (köp vid utbrott / RSI-vändning i uppåttrend, stop-loss, vinsthemtagning) simuleras dag för dag mot historiken. Köp fylls på nästa dags öppningskurs och courtage, spread och valutaväxling dras av. Jämförs med att bara köpa alla bolagen och behålla.</p>
-      <div class="row">
-        <div class="field"><label>Marknad</label><select id="bt-market"><option value="omxs">Stockholm (OMXS)</option><option value="nasdaq">USA (Nasdaq)</option><option value="crypto">Krypto (BTC/ETH/SOL)</option></select></div>
+      <h2>Backtest – Testa strategier mot historisk data</h2>
+      <p class="muted">Simulera beprövade strategier ärligt: antingen på en <b>enskild aktie</b> (för att se dess specifika edge och alla historiska affärer) eller som en <b>hel marknadsportfölj</b>. Köp fylls på nästa dags öppningskurs och courtage dras av.</p>
+
+      <div class="row" style="margin-bottom:1rem;">
+        <button class="btn btn-primary" id="bt-mode-stock-btn" onclick="setBtMode('stock')">Enskild aktie</button>
+        <button class="btn" id="bt-mode-market-btn" onclick="setBtMode('market')">Hela marknaden (portfölj)</button>
+      </div>
+
+      <!-- Enskild aktie kontroller -->
+      <div id="bt-ctrls-stock" class="row">
+        <div class="field"><label>Aktie / Ticker</label><input type="text" id="bt-stock-sym" value="INVE-B.ST" placeholder="t.ex. INVE-B.ST eller AAPL"></div>
+        <div class="field"><label>Strategi</label>
+          <select id="bt-stock-strategy">
+            <option value="dip">Kvalitets-dipp i upptrend</option>
+            <option value="momentum">Momentum & Utbrott</option>
+            <option value="trend">Långsiktig Trendföljare</option>
+          </select>
+        </div>
+        <div class="field"><label>Antal år</label><input type="number" id="bt-stock-years" value="5" min="1" max="15"></div>
+        <div class="field" style="align-self:end;"><button class="btn btn-primary" onclick="runStockBacktest()">Kör aktiebacktest</button></div>
+      </div>
+
+      <!-- Hela marknaden kontroller -->
+      <div id="bt-ctrls-market" class="row hidden">
+        <div class="field"><label>Marknad</label>
+          <select id="bt-market">
+            <option value="omxs">Stockholm (OMXS)</option>
+            <option value="nasdaq">USA (Nasdaq)</option>
+            <option value="crypto">Krypto (BTC/ETH/SOL)</option>
+          </select>
+        </div>
+        <div class="field"><label>Strategi</label>
+          <select id="bt-market-strategy">
+            <option value="dip">Kvalitets-dipp i upptrend</option>
+            <option value="momentum">Momentum & Utbrott</option>
+            <option value="trend">Långsiktig Trendföljare</option>
+          </select>
+        </div>
         <div class="field"><label>Antal år</label><input type="number" id="bt-years" value="10" min="1" max="20"></div>
         <div class="field" style="align-self:end;"><button class="btn btn-primary" onclick="runBacktest()">Kör simulering</button></div>
       </div>
-      <div id="bt-out" class="hidden" style="margin-top:1rem;"></div>
+
+      <div id="bt-out" class="hidden" style="margin-top:1.5rem;"></div>
     </div>
-    <div class="card">
+    <div class="card" id="bt-walkforward-card">
       <h3>Walk-forward – testar strategin på data den inte "tränats" på</h3>
       <p class="muted">Tio parameteruppsättningar körs på en tidig period (train) och bedöms sedan på en senare (test). Stor skillnad = överanpassning. Detta är ingen prognos.</p>
       <button class="btn" onclick="runOptimize()">Kör walk-forward</button>
@@ -325,9 +389,9 @@ function withTerms(text) {
 
 // ---------- tabs ----------
 const TABS = [
-  ["plan", "Din plan"], ["portfolio", "Min portfölj"], ["analyze", "Analysera bolag"],
-  ["market", "Marknadsläge"], ["backtest", "Backtest"], ["insider", "Insyn"],
-  ["congress", "Kongress"], ["crypto", "Krypto"], ["glossary", "Ordlista"],
+  ["plan", "Din plan"], ["portfolio", "Min portfölj"], ["opportunities", "Möjligheter"],
+  ["analyze", "Analysera bolag"], ["market", "Marknadsläge"], ["backtest", "Backtest"],
+  ["insider", "Insyn"], ["congress", "Kongress"], ["crypto", "Krypto"], ["glossary", "Ordlista"],
 ];
 const loaded = {};
 function showTab(id) {
@@ -482,6 +546,35 @@ async function analyze(sym) {
   const perShareRisk = Math.max(0.01, d.close - lv.stop_suggestion);
   const posQty = Math.floor((cap * riskPct / 100) / perShareRisk);
 
+  let edgeCard = "";
+  if (d.edge_summary && Object.keys(d.edge_summary).length) {
+    const stratNames = {
+      dip: "Kvalitets-dipp",
+      momentum: "Momentum & Utbrott",
+      trend: "Långsiktig Trendföljare"
+    };
+    const rows = Object.entries(d.edge_summary).map(([k, s]) => `
+      <tr>
+        <td><b>${esc(stratNames[k] || k)}</b></td>
+        <td>${s.active_signal ? '<span class="pill up">KÖPSIGNAL IDAG</span>' : '<span class="muted">Ingen signal</span>'}</td>
+        <td class="num">${s.win_rate}%</td>
+        <td class="num">${s.trades_count} st</td>
+        <td class="num">${s.profit_factor}</td>
+        <td class="num ${cls(s.total_return)}">${pct(s.total_return)}</td>
+        <td><button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem;" onclick="openStockBacktest('${esc(d.symbol)}', '${k}')">Testa</button></td>
+      </tr>
+    `).join("");
+    edgeCard = `
+      <div class="card tbl-wrap">
+        <h3>Statistisk Edge & Strategier <small>– historiskt utfall i ${esc(d.name)}</small></h3>
+        <table>
+          <thead><tr><th>Strategi</th><th>Signal idag</th><th class="num">Träffsäkerhet</th><th class="num">Affärer</th><th class="num">Vinstfaktor</th><th class="num">Avkastning</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   out.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
@@ -506,6 +599,8 @@ async function analyze(sym) {
         <ul class="clean muted">${(t.notes || []).map(n => `<li>${withTerms(n)}</li>`).join("")}</ul>
       </div>
     </div>
+
+    ${edgeCard}
 
     ${f ? `<div class="card"><h3>Om bolaget</h3>
       <p class="muted">${esc(f.sector || "")}${f.industry ? " · " + esc(f.industry) : ""}${f.country ? " · " + esc(f.country) : ""}${f.market_cap ? " · börsvärde " + kr(f.market_cap) : ""}</p>
@@ -560,7 +655,167 @@ async function loadMarket(m, btn) {
     </tr>`).join("")}</tbody></table></div>`;
 }
 
+// ---------- AFFÄRSMÖJLIGHETER ----------
+async function loadOpportunities() {
+  const container = $("#opp-container");
+  container.innerHTML = '<div class="card" style="grid-column:1/-1;"><p class="muted">Skannar marknaden efter köplägen…</p></div>';
+  const mkt = $("#opp-market") ? $("#opp-market").value : "all";
+  const strat = $("#opp-strategy") ? $("#opp-strategy").value : "all";
+  const d = await getJSON(`/api/portal/opportunities?market=${encodeURIComponent(mkt)}&strategy=${encodeURIComponent(strat)}`);
+  if (d.error) {
+    container.innerHTML = `<div class="card" style="grid-column:1/-1;"><p class="neg">${esc(d.error)}</p></div>`;
+    return;
+  }
+  const list = d.opportunities || [];
+  if (!list.length) {
+    container.innerHTML = `
+      <div class="card" style="grid-column:1/-1;">
+        <p class="muted">Inga aktier uppfyller kriterierna just idag. Tålamod och disciplin är nyckeln till framgångsrika investeringar.</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(op => {
+    const stratClass = op.strategy === "dip" ? "up" : (op.strategy === "momentum" ? "info" : "neutral");
+    return `
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+          <div>
+            <h3 style="margin-bottom:0.3rem;">${esc(op.name)} <small class="muted">${esc(op.symbol)}</small></h3>
+            <span class="pill ${stratClass}">${esc(op.strategy_name)}</span>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:1.3rem; font-weight:bold;">${money(op.close, op.currency)}</div>
+            <small class="muted">${esc(op.market)}</small>
+          </div>
+        </div>
+        <p style="margin:0.7rem 0 0.5rem 0; font-size:0.95rem;">${esc(op.reason)}</p>
+
+        <div class="callout info" style="margin:0.5rem 0; padding:0.6rem;">
+          <b>Historisk edge (5 år):</b> ${op.edge.win_rate} % vinstaffärer (${op.edge.trades_count} st), vinstfaktor ${op.edge.profit_factor}
+          ${op.edge.avg_gain_pct ? ` · Snittvinst <b>+${op.edge.avg_gain_pct}%</b>` : ""}
+        </div>
+
+        <div class="grid cols-3" style="margin-top:0.6rem; background:rgba(255,255,255,0.03); padding:0.6rem; border-radius:6px;">
+          <div><small class="muted">Entry</small><br><b>${money(op.levels.entry_price, op.currency)}</b></div>
+          <div><small class="muted">Stop-loss</small><br><b class="neg">${money(op.levels.stop_loss, op.currency)}</b> <small>(${op.levels.risk_pct}%)</small></div>
+          <div><small class="muted">Målkurs</small><br><b class="up">${money(op.levels.target_price, op.currency)}</b> <small>(+${op.levels.reward_pct}%)</small></div>
+        </div>
+        <div style="margin-top:0.4rem; font-size:0.85rem; color:var(--text-dim);">Risk/Reward-kvot: <b>${esc(op.levels.rr_label)}</b></div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.9rem;">
+          <button class="btn btn-primary" onclick="showTab('analyze'); $('#an-q').value='${esc(op.symbol)}'; analyze('${esc(op.symbol)}')">Analysera bolag</button>
+          <button class="btn" onclick="openStockBacktest('${esc(op.symbol)}', '${esc(op.strategy)}')">Visa historiska affärer</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
 // ---------- BACKTEST ----------
+let btMode = "stock";
+function setBtMode(mode) {
+  btMode = mode;
+  if (mode === "stock") {
+    $("#bt-mode-stock-btn").classList.add("btn-primary");
+    $("#bt-mode-market-btn").classList.remove("btn-primary");
+    $("#bt-ctrls-stock").classList.remove("hidden");
+    $("#bt-ctrls-market").classList.add("hidden");
+  } else {
+    $("#bt-mode-market-btn").classList.add("btn-primary");
+    $("#bt-mode-stock-btn").classList.remove("btn-primary");
+    $("#bt-ctrls-market").classList.remove("hidden");
+    $("#bt-ctrls-stock").classList.add("hidden");
+  }
+}
+
+async function runStockBacktest(symParam, stratParam, yrsParam) {
+  const sym = (symParam || $("#bt-stock-sym").value).trim().toUpperCase();
+  const strat = stratParam || $("#bt-stock-strategy").value;
+  const yrs = yrsParam || +$("#bt-stock-years").value || 5;
+  if (!sym) return;
+
+  const out = $("#bt-out");
+  out.classList.remove("hidden");
+  out.innerHTML = `<p class="muted">Kör aktiebacktest för ${esc(sym)} (${esc(strat)})…</p>`;
+
+  const d = await getJSON("/api/portal/backtest/stock", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol: sym, strategy: strat, years: yrs }),
+  });
+
+  if (d.error) {
+    out.innerHTML = `<p class="neg">${esc(d.error)}</p>`;
+    return;
+  }
+
+  const s = d.stats || {};
+  const isBetter = s.total_return >= s.buy_and_hold_return;
+  const verdict = isBetter
+    ? `Strategin gav <b>+${s.total_return}%</b> mot Buy & Hold <b>${pct(s.buy_and_hold_return)}</b> i samma aktie.`
+    : `Strategin gav <b>${pct(s.total_return)}</b> medan Buy & Hold gav <b>+${s.buy_and_hold_return}%</b>.`;
+
+  let chartSvg = "";
+  if (d.chart && d.chart.length > 1) {
+    const vals = d.chart.map(p => p.equity);
+    const minVal = Math.min(...vals), maxVal = Math.max(...vals);
+    const W = 640, H = 200;
+    chartSvg = `
+      <svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <path d="${linePath(vals, W, H, minVal, maxVal)}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+      </svg>
+      <div class="chart-legend"><span><i style="background:var(--accent)"></i>Strategiportfölj (${esc(d.symbol)})</span></div>
+    `;
+  }
+
+  const trades = d.trades || [];
+  const tradeRows = trades.map(t => `
+    <tr>
+      <td>${esc(t.entry_date)}</td>
+      <td>${esc(t.exit_date)}</td>
+      <td class="num">${money(t.entry_price)}</td>
+      <td class="num">${money(t.exit_price)}</td>
+      <td class="num ${cls(t.return_pct)}">${pct(t.return_pct)}</td>
+      <td class="num">${t.days_held} d</td>
+      <td>${t.open ? '<span class="pill up">Öppen</span>' : esc(t.exit_reason)}</td>
+    </tr>
+  `).join("");
+
+  out.innerHTML = `
+    <h3>${esc(d.symbol)} · ${esc(d.strategy_name)} (${d.years} år)</h3>
+    <div class="callout ${isBetter ? "info" : ""}">${verdict}</div>
+    <div class="grid cols-4" style="margin: 1rem 0;">
+      <div class="stat"><div class="lbl">Strategi Avkastning</div><div class="val sm ${cls(s.total_return)}">${pct(s.total_return)}</div></div>
+      <div class="stat"><div class="lbl">Buy & Hold (Aktien)</div><div class="val sm ${cls(s.buy_and_hold_return)}">${pct(s.buy_and_hold_return)}</div></div>
+      <div class="stat"><div class="lbl">Träffsäkerhet</div><div class="val sm ${s.win_rate >= 60 ? "pos" : ""}">${s.win_rate}%</div></div>
+      <div class="stat"><div class="lbl">Vinstfaktor</div><div class="val sm ${s.profit_factor >= 1.5 ? "pos" : ""}">${s.profit_factor}</div></div>
+      <div class="stat"><div class="lbl">Antal affärer</div><div class="val sm">${s.trades_count} st</div></div>
+      <div class="stat"><div class="lbl">Snittvinst vid vinst</div><div class="val sm pos">+${s.avg_gain_pct}%</div></div>
+      <div class="stat"><div class="lbl">Snittförlust vid förlust</div><div class="val sm neg">${s.avg_loss_pct}%</div></div>
+      <div class="stat"><div class="lbl">Snittinnehav</div><div class="val sm">${s.avg_days_held} d</div></div>
+    </div>
+    ${chartSvg}
+    <details style="margin-top:1rem;" ${trades.length <= 10 ? "open" : ""}>
+      <summary>Alla ${trades.length} historiska affärer i ${esc(d.symbol)}</summary>
+      <div class="tbl-wrap" style="margin-top:0.5rem;">
+        <table>
+          <thead><tr><th>Köpdatum</th><th>Säljdatum</th><th class="num">Köp</th><th class="num">Sälj</th><th class="num">Avkastning</th><th class="num">Innehav</th><th>Orsak</th></tr></thead>
+          <tbody>${tradeRows || '<tr><td colspan="7" class="muted">Inga affärer genomfördes under perioden.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </details>
+  `;
+}
+
+function openStockBacktest(sym, strat) {
+  showTab('backtest');
+  setBtMode('stock');
+  if (sym) $("#bt-stock-sym").value = sym;
+  if (strat) $("#bt-stock-strategy").value = strat;
+  runStockBacktest(sym, strat);
+}
+
 function btChart(points) {
   const s = points.map(p => p.strategy), b = points.map(p => p.benchmark);
   const all = s.concat(b), max = Math.max(...all), min = Math.min(...all, 0), W = 640, H = 220;
@@ -572,9 +827,10 @@ function btChart(points) {
 async function runBacktest() {
   const out = $("#bt-out");
   out.classList.remove("hidden"); out.innerHTML = '<p class="muted">Simulerar…</p>';
+  const strat = $("#bt-market-strategy") ? $("#bt-market-strategy").value : "dip";
   const d = await getJSON("/api/portal/backtest", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ market: $("#bt-market").value, years: +$("#bt-years").value }),
+    body: JSON.stringify({ market: $("#bt-market").value, years: +$("#bt-years").value, strategy: strat }),
   });
   if (d.error) { out.innerHTML = `<p class="neg">${esc(d.error)}</p>`; return; }
   const bh = d.buy_hold_all || {};
@@ -665,6 +921,7 @@ $("#gl-list").innerHTML = Object.entries(GLOSSARY).map(([k, v]) =>
 
 // ---------- boot ----------
 const TABLOADERS = {
+  opportunities: loadOpportunities,
   portfolio: loadPortfolio, market: () => loadMarket("all"),
   insider: loadInsider, congress: loadCongress, crypto: loadCrypto,
 };
