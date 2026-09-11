@@ -16,7 +16,7 @@ CRYPTO_LIST = {
     "LINK-USD":  "Chainlink",
     "DOT-USD":   "Polkadot",
     "NEAR-USD":  "NEAR Protocol",
-    "SUI-USD":   "Sui"
+    "SUI20947-USD": "Sui"
 }
 
 _crypto_cache = {"screener": None, "ts": 0.0}

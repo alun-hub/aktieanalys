@@ -13,7 +13,7 @@ CRYPTO_NAMES = {
     "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
     "XRP-USD": "XRP", "BNB-USD": "BNB", "ADA-USD": "Cardano",
     "DOGE-USD": "Dogecoin", "AVAX-USD": "Avalanche", "LINK-USD": "Chainlink",
-    "DOT-USD": "Polkadot", "NEAR-USD": "NEAR Protocol", "SUI-USD": "Sui",
+    "DOT-USD": "Polkadot", "NEAR-USD": "NEAR Protocol", "SUI20947-USD": "Sui",
 }
 
 
@@ -60,7 +60,7 @@ def resolve_symbol(query):
         "avax": "AVAX-USD", "avalanche": "AVAX-USD",
         "link": "LINK-USD", "chainlink": "LINK-USD",
         "dot": "DOT-USD", "polkadot": "DOT-USD",
-        "near": "NEAR-USD", "sui": "SUI-USD",
+        "near": "NEAR-USD", "sui": "SUI20947-USD",
     }
     q_lower = q.lower()
     if q_lower in crypto_aliases:
