@@ -118,13 +118,60 @@ def portfolio_list_route():
 def portfolio_add_route():
     d = request.json or {}
     try:
-        raw_sym = str(d['symbol']).strip()
+        is_manual = bool(d.get('is_manual', False))
+        name = (d.get('name') or '').strip()
+        raw_sym = str(d.get('symbol') or '').strip()
+        value = d.get('value')
+        cost = d.get('cost')
+        region = d.get('region')
+
+        if not raw_sym and not name:
+            return jsonify({"error": "Varken symbol eller namn angivet"}), 400
+
+        # Manuellt innehav eller saknar ticker
+        if is_manual or raw_sym.startswith('MANUAL:') or (not raw_sym and name):
+            used_sym = pf.add_holding(
+                symbol=raw_sym or None,
+                qty=d.get('qty'),
+                avg_price=d.get('avg_price'),
+                name=name or raw_sym,
+                kind=d.get('kind', 'fond'),
+                fee_pct=d.get('fee_pct', 0),
+                note=d.get('note', ''),
+                value=value,
+                cost=cost,
+                is_manual=True,
+                region=region
+            )
+            return jsonify({"ok": True, "symbol": used_sym})
+
         resolved = resolve_symbol(raw_sym) or raw_sym.upper()
-        pf.add_holding(
-            symbol=resolved, qty=d['qty'], avg_price=d['avg_price'],
-            name=d.get('name'), kind=d.get('kind', 'aktie'),
-            fee_pct=d.get('fee_pct', 0), note=d.get('note', ''))
-        return jsonify({"ok": True, "symbol": resolved})
+        if value is not None or cost is not None:
+            used_sym = pf.add_holding(
+                symbol=resolved,
+                qty=d.get('qty'),
+                avg_price=d.get('avg_price'),
+                name=name or pf._known_name(resolved),
+                kind=d.get('kind', 'aktie'),
+                fee_pct=d.get('fee_pct', 0),
+                note=d.get('note', ''),
+                value=value,
+                cost=cost,
+                is_manual=False,
+                region=region
+            )
+        else:
+            used_sym = pf.add_holding(
+                symbol=resolved,
+                qty=d['qty'],
+                avg_price=d['avg_price'],
+                name=name or pf._known_name(resolved),
+                kind=d.get('kind', 'aktie'),
+                fee_pct=d.get('fee_pct', 0),
+                note=d.get('note', ''),
+                region=region
+            )
+        return jsonify({"ok": True, "symbol": used_sym})
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"error": f"Ogiltig indata: {e}"}), 400
 

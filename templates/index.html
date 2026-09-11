@@ -173,20 +173,61 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
   <section class="pane" id="pane-portfolio">
     <div class="card">
       <h2>Portfölj-hälsokoll</h2>
-      <p class="muted">Lägg in de innehav du äger. Du får tillbaka värde, vinst/förlust och – viktigast – hur riskerna är fördelade. Inget köps eller säljs här.</p>
-      <div class="row">
-        <div class="field" style="position:relative; flex:2;">
-          <label>Sök bolag eller ticker</label>
-          <input id="pf-sym" placeholder="t.ex. Investor, Volvo, Apple…" autocomplete="off">
-          <input type="hidden" id="pf-symbol-val">
-          <div id="pf-dropdown" class="hidden" style="position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; max-height:240px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,0.5); margin-top:3px;"></div>
-        </div>
-        <div class="field"><label>Antal</label><input type="number" id="pf-qty" step="1"></div>
-        <div class="field"><label>Snittpris (GAV)</label><input type="number" id="pf-gav" step="0.01"></div>
-        <div class="field"><label>Typ</label><select id="pf-kind"><option value="aktie">Aktie</option><option value="fond">Fond</option></select></div>
-        <div class="field"><label>Fondavgift (%)</label><input type="number" id="pf-fee" step="0.05" value="0"></div>
+      <p class="muted">Lägg in de innehav du äger. Du får tillbaka totalt värde, vinst/förlust och – viktigast – hur riskerna är fördelade (klumprisk, branscher, regioner och avgifter). Inget köps eller säljs här.</p>
+
+      <div class="row" style="margin-bottom:1.2rem; gap:0.5rem;">
+        <button class="btn btn-primary" id="pf-mode-shares-btn" onclick="setPfMode('shares')">Aktie / ETF (Antal & GAV)</button>
+        <button class="btn" id="pf-mode-kronor-btn" onclick="setPfMode('kronor')">Fond / Manuellt innehav (Kronor)</button>
       </div>
-      <button class="btn btn-primary" onclick="addHolding()">Lägg till / uppdatera</button>
+
+      <!-- Läge: Aktie / ETF (Antal & GAV) -->
+      <div id="pf-form-shares">
+        <div class="row">
+          <div class="field" style="position:relative; flex:2;">
+            <label>Sök aktie, ETF eller ticker</label>
+            <input id="pf-sym" placeholder="t.ex. Investor, Volvo, Xact, VWCE, Apple…" autocomplete="off">
+            <input type="hidden" id="pf-symbol-val">
+            <div id="pf-dropdown" class="hidden" style="position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; max-height:240px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,0.5); margin-top:3px;"></div>
+          </div>
+          <div class="field"><label>Antal</label><input type="number" id="pf-qty" step="any" placeholder="100"></div>
+          <div class="field"><label>Snittpris (GAV)</label><input type="number" id="pf-gav" step="0.01" placeholder="150.00"></div>
+          <div class="field"><label>Typ</label><select id="pf-kind"><option value="aktie">Aktie</option><option value="fond">ETF / Fond</option></select></div>
+          <div class="field"><label>Årlig avgift (%)</label><input type="number" id="pf-fee" step="0.05" value="0"></div>
+        </div>
+        <button class="btn btn-primary" onclick="addHolding()">Lägg till / uppdatera innehav</button>
+      </div>
+
+      <!-- Läge: Fond / Manuellt innehav (Kronor) -->
+      <div id="pf-form-kronor" class="hidden">
+        <div class="row">
+          <div class="field" style="position:relative; flex:2;">
+            <label>Fondens eller innehavets namn</label>
+            <input id="pf-fund-name" placeholder="t.ex. Länsförsäkringar Global Index, Spiltan, Avanza Zero…" autocomplete="off">
+            <input type="hidden" id="pf-fund-symbol-val">
+            <div id="pf-fund-dropdown" class="hidden" style="position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; max-height:240px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,0.5); margin-top:3px;"></div>
+          </div>
+          <div class="field"><label>Marknadsvärde (kr)</label><input type="number" id="pf-val-kr" step="100" placeholder="t.ex. 50000"></div>
+          <div class="field"><label>Investerat belopp (kr)</label><input type="number" id="pf-cost-kr" step="100" placeholder="t.ex. 40000"></div>
+          <div class="field"><label>Fondavgift (%)</label><input type="number" id="pf-fee-kr" step="0.01" placeholder="0.20" value="0.20"></div>
+          <div class="field"><label>Kategori / Region</label>
+            <select id="pf-region-kr">
+              <option value="Global">Global</option>
+              <option value="Sverige">Sverige</option>
+              <option value="USA">USA</option>
+              <option value="Europa">Europa</option>
+              <option value="Tillväxtmarknader">Tillväxtmarknader</option>
+              <option value="Norden">Norden</option>
+              <option value="Räntor">Räntefond / Obligation</option>
+              <option value="Råvaror">Råvaror / Guld</option>
+              <option value="Övrigt">Övrigt</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="align-items:center;">
+          <button class="btn btn-primary" onclick="addHolding()">Lägg till / uppdatera fond</button>
+          <small class="muted" style="margin-left:1rem;">Perfekt för svenska och onoterade fonder där du inte har antal/GAV utan bara totalt sparbelopp.</small>
+        </div>
+      </div>
     </div>
     <div id="pf-out"></div>
   </section>
@@ -468,10 +509,29 @@ async function runProjection() {
 }
 
 // ---------- MIN PORTFÖLJ ----------
+let pfMode = "shares";
 let pfSearchTimer = null;
+let currentPortfolioPositions = [];
+
+function setPfMode(mode) {
+  pfMode = mode;
+  const isShares = mode === "shares";
+  const sharesBtn = $("#pf-mode-shares-btn");
+  const kronorBtn = $("#pf-mode-kronor-btn");
+  const sharesForm = $("#pf-form-shares");
+  const kronorForm = $("#pf-form-kronor");
+  if (sharesBtn) sharesBtn.classList.toggle("btn-primary", isShares);
+  if (kronorBtn) kronorBtn.classList.toggle("btn-primary", !isShares);
+  if (sharesForm) sharesForm.classList.toggle("hidden", !isShares);
+  if (kronorForm) kronorForm.classList.toggle("hidden", isShares);
+  hidePfDropdown();
+}
+
 function hidePfDropdown() {
-  const d = $("#pf-dropdown");
-  if (d) d.classList.add("hidden");
+  const d1 = $("#pf-dropdown");
+  if (d1) d1.classList.add("hidden");
+  const d2 = $("#pf-fund-dropdown");
+  if (d2) d2.classList.add("hidden");
 }
 
 function selectPfStock(symbol, name) {
@@ -485,94 +545,231 @@ function selectPfStock(symbol, name) {
   }).catch(() => {});
 }
 
-function initPfSearch() {
-  const input = $("#pf-sym");
-  const dropdown = $("#pf-dropdown");
-  if (!input || !dropdown) return;
+function selectPfFund(symbol, name) {
+  $("#pf-fund-name").value = name;
+  $("#pf-fund-symbol-val").value = symbol;
+  hidePfDropdown();
+}
 
-  input.addEventListener("input", () => {
-    $("#pf-symbol-val").value = "";
-    clearTimeout(pfSearchTimer);
-    const q = input.value.trim();
-    if (q.length < 1) {
-      hidePfDropdown();
-      return;
-    }
-    pfSearchTimer = setTimeout(async () => {
-      const results = await getJSON(`/api/portal/search?q=${encodeURIComponent(q)}`);
-      if (!Array.isArray(results) || !results.length) {
-        dropdown.innerHTML = '<div style="padding:0.6rem 0.8rem; color:var(--text-dim); font-size:0.88rem;">Inga bolag hittades</div>';
-        dropdown.classList.remove("hidden");
+function initPfSearch() {
+  const inputStock = $("#pf-sym");
+  const dropStock = $("#pf-dropdown");
+  if (inputStock && dropStock) {
+    inputStock.addEventListener("input", () => {
+      $("#pf-symbol-val").value = "";
+      clearTimeout(pfSearchTimer);
+      const q = inputStock.value.trim();
+      if (q.length < 1) {
+        dropStock.classList.add("hidden");
         return;
       }
-      dropdown.innerHTML = results.slice(0, 8).map(r => `
-        <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
-             onclick="selectPfStock('${esc(r.symbol)}', '${esc(r.name)}')">
-          <div>
-            <b>${esc(r.name)}</b>
-            <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${esc(r.symbol)}</small>
+      pfSearchTimer = setTimeout(async () => {
+        const results = await getJSON(`/api/portal/search?q=${encodeURIComponent(q)}`);
+        if (!Array.isArray(results) || !results.length) {
+          dropStock.innerHTML = '<div style="padding:0.6rem 0.8rem; color:var(--text-dim); font-size:0.88rem;">Inga instrument hittades</div>';
+          dropStock.classList.remove("hidden");
+          return;
+        }
+        dropStock.innerHTML = results.slice(0, 8).map(r => `
+          <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
+               onclick="selectPfStock('${esc(r.symbol)}', '${esc(r.name)}')">
+            <div>
+              <b>${esc(r.name)}</b>
+              <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${esc(r.symbol)}</small>
+            </div>
+            <span class="pill sm" style="font-size:0.75rem;">${esc(r.type || "Aktie")}</span>
           </div>
-          <span class="pill sm" style="font-size:0.75rem;">${esc(r.type || "Aktie")}</span>
-        </div>
-      `).join("");
-      dropdown.classList.remove("hidden");
-    }, 180);
-  });
+        `).join("");
+        dropStock.classList.remove("hidden");
+      }, 180);
+    });
+
+    inputStock.addEventListener("keydown", e => {
+      if (e.key === "Escape") dropStock.classList.add("hidden");
+    });
+  }
+
+  const inputFund = $("#pf-fund-name");
+  const dropFund = $("#pf-fund-dropdown");
+  if (inputFund && dropFund) {
+    inputFund.addEventListener("input", () => {
+      $("#pf-fund-symbol-val").value = "";
+      clearTimeout(pfSearchTimer);
+      const q = inputFund.value.trim();
+      if (q.length < 2) {
+        dropFund.classList.add("hidden");
+        return;
+      }
+      pfSearchTimer = setTimeout(async () => {
+        const results = await getJSON(`/api/portal/search?q=${encodeURIComponent(q)}`);
+        if (!Array.isArray(results) || !results.length) {
+          dropFund.classList.add("hidden");
+          return;
+        }
+        dropFund.innerHTML = results.slice(0, 6).map(r => `
+          <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
+               onclick="selectPfFund('${esc(r.symbol)}', '${esc(r.name)}')">
+            <div>
+              <b>${esc(r.name)}</b>
+              <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${esc(r.symbol)}</small>
+            </div>
+            <span class="pill sm" style="font-size:0.75rem;">${esc(r.type || "Fond")}</span>
+          </div>
+        `).join("");
+        dropFund.classList.remove("hidden");
+      }, 180);
+    });
+
+    inputFund.addEventListener("keydown", e => {
+      if (e.key === "Escape") dropFund.classList.add("hidden");
+    });
+  }
 
   document.addEventListener("click", e => {
-    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-      hidePfDropdown();
+    if (inputStock && dropStock && !inputStock.contains(e.target) && !dropStock.contains(e.target)) {
+      dropStock.classList.add("hidden");
     }
-  });
-
-  input.addEventListener("keydown", e => {
-    if (e.key === "Escape") hidePfDropdown();
+    if (inputFund && dropFund && !inputFund.contains(e.target) && !dropFund.contains(e.target)) {
+      dropFund.classList.add("hidden");
+    }
   });
 }
 
 async function addHolding() {
-  const symVal = ($("#pf-symbol-val").value || $("#pf-sym").value).trim();
-  const b = {
-    symbol: symVal,
-    name: $("#pf-sym").value.trim(),
-    qty: +$("#pf-qty").value,
-    avg_price: +$("#pf-gav").value,
-    kind: $("#pf-kind").value,
-    fee_pct: +$("#pf-fee").value || 0,
-  };
-  if (!b.symbol || !b.qty || !b.avg_price) { alert("Fyll i bolag/ticker, antal och snittpris."); return; }
-  const r = await getJSON("/api/portal/portfolio", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b),
-  });
-  if (r.error) { alert(r.error); return; }
-  $("#pf-sym").value = $("#pf-symbol-val").value = $("#pf-qty").value = $("#pf-gav").value = "";
-  hidePfDropdown();
-  loadPortfolio();
+  if (pfMode === "kronor") {
+    const name = ($("#pf-fund-name").value || "").trim();
+    const val = +$("#pf-val-kr").value;
+    const cost = +$("#pf-cost-kr").value;
+    const fee = +$("#pf-fee-kr").value || 0;
+    const reg = $("#pf-region-kr").value || "Global";
+    const symVal = ($("#pf-fund-symbol-val").value || "").trim();
+
+    if (!name || isNaN(val) || val <= 0) {
+      alert("Fyll i fondens namn och nuvarande marknadsvärde i kronor.");
+      return;
+    }
+
+    const payload = {
+      name: name,
+      symbol: symVal || undefined,
+      value: val,
+      cost: isNaN(cost) || cost <= 0 ? val : cost,
+      fee_pct: fee,
+      region: reg,
+      kind: "fond",
+      is_manual: true
+    };
+
+    const r = await getJSON("/api/portal/portfolio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (r.error) { alert(r.error); return; }
+    $("#pf-fund-name").value = "";
+    $("#pf-fund-symbol-val").value = "";
+    $("#pf-val-kr").value = "";
+    $("#pf-cost-kr").value = "";
+    hidePfDropdown();
+    loadPortfolio();
+  } else {
+    const symVal = ($("#pf-symbol-val").value || $("#pf-sym").value).trim();
+    const qty = +$("#pf-qty").value;
+    const gav = +$("#pf-gav").value;
+    const kind = $("#pf-kind").value;
+    const fee = +$("#pf-fee").value || 0;
+
+    if (!symVal || isNaN(qty) || qty <= 0 || isNaN(gav) || gav <= 0) {
+      alert("Fyll i bolag/ticker, antal och snittpris (GAV).");
+      return;
+    }
+    const b = {
+      symbol: symVal,
+      name: $("#pf-sym").value.trim(),
+      qty: qty,
+      avg_price: gav,
+      kind: kind,
+      fee_pct: fee,
+    };
+    const r = await getJSON("/api/portal/portfolio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(b),
+    });
+    if (r.error) { alert(r.error); return; }
+    $("#pf-sym").value = $("#pf-symbol-val").value = $("#pf-qty").value = $("#pf-gav").value = "";
+    hidePfDropdown();
+    loadPortfolio();
+  }
 }
+
+function editHolding(sym) {
+  const p = (currentPortfolioPositions || []).find(item => item.symbol === sym);
+  if (!p) return;
+  const isManual = p.is_manual || (p.symbol && p.symbol.startsWith("MANUAL:"));
+  if (isManual) {
+    setPfMode("kronor");
+    $("#pf-fund-name").value = p.name;
+    $("#pf-fund-symbol-val").value = p.symbol;
+    $("#pf-val-kr").value = p.value;
+    $("#pf-cost-kr").value = p.cost;
+    $("#pf-fee-kr").value = p.fee_pct || 0;
+    if ($("#pf-region-kr")) $("#pf-region-kr").value = p.region || "Global";
+  } else {
+    setPfMode("shares");
+    $("#pf-sym").value = p.name;
+    $("#pf-symbol-val").value = p.symbol;
+    $("#pf-qty").value = p.qty;
+    $("#pf-gav").value = p.avg_price;
+    $("#pf-kind").value = p.kind || "aktie";
+    $("#pf-fee").value = p.fee_pct || 0;
+  }
+  const formEl = $("#pane-portfolio .card");
+  if (formEl) formEl.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 async function delHolding(sym) {
+  if (!confirm(`Vill du ta bort ${sym}?`)) return;
   await fetch("/api/portal/portfolio/" + encodeURIComponent(sym), { method: "DELETE" });
   loadPortfolio();
 }
+
 function breakdown(title, obj) {
   const rows = Object.entries(obj).map(([k, v]) =>
     `<div style="margin:.3rem 0"><div style="display:flex;justify-content:space-between;font-size:.88rem"><span>${esc(k)}</span><b>${v} %</b></div><div class="bar"><i style="width:${Math.min(100, v)}%"></i></div></div>`).join("");
   return `<div class="card"><h3>${title}</h3>${rows || '<p class="muted">–</p>'}</div>`;
 }
+
 async function loadPortfolio() {
   const h = await getJSON("/api/portal/portfolio/health");
   const out = $("#pf-out");
   if (h.empty) { out.innerHTML = '<div class="card muted">Inga innehav inlagda ännu.</div>'; return; }
+  currentPortfolioPositions = h.positions || [];
   const warn = (h.warnings || []).map(w => `<div class="callout">${esc(w)}</div>`).join("");
-  const rows = h.positions.map(p => `<tr>
-      <td><b>${esc(p.symbol)}</b><br><small>${esc(p.name)}</small></td>
-      <td class="num">${p.qty}</td>
-      <td class="num">${money(p.avg_price, "")}</td>
-      <td class="num">${money(p.price, "")}${p.price_stale ? " *" : ""}</td>
-      <td class="num">${kr(p.value)}</td>
+  const rows = h.positions.map(p => {
+    const isManual = p.is_manual || (p.symbol && p.symbol.startsWith("MANUAL:"));
+    const titleCol = isManual
+      ? `<b>${esc(p.name)}</b><br><span class="pill sm" style="font-size:0.75rem; background:var(--surface-3);">${esc(p.region || "Fond")} · Fond</span>`
+      : `<b>${esc(p.name || p.symbol)}</b><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
+    const qtyCol = isManual ? `<span class="muted">—</span>` : p.qty;
+    const gavCol = isManual ? kr(p.cost) : money(p.avg_price, "");
+    const priceCol = isManual ? `<span class="muted">—</span>` : `${money(p.price, "")}${p.price_stale ? " *" : ""}`;
+
+    return `<tr>
+      <td>${titleCol}</td>
+      <td class="num">${qtyCol}</td>
+      <td class="num">${gavCol}</td>
+      <td class="num">${priceCol}</td>
+      <td class="num"><b>${kr(p.value)}</b></td>
       <td class="num">${p.weight} %</td>
-      <td class="num ${cls(p.pl_pct)}">${pct(p.pl_pct)}</td>
-      <td class="num"><button class="btn" onclick="delHolding('${esc(p.symbol)}')">✕</button></td>
-    </tr>`).join("");
+      <td class="num ${cls(p.pl)}">${kr(p.pl)}<br><small class="${cls(p.pl_pct)}">${pct(p.pl_pct)}</small></td>
+      <td class="num" style="white-space:nowrap;">
+        <button class="btn sm" title="Ändra innehav" onclick="editHolding('${esc(p.symbol)}')">✎</button>
+        <button class="btn sm" title="Ta bort" onclick="delHolding('${esc(p.symbol)}')">✕</button>
+      </td>
+    </tr>`;
+  }).join("");
+
   out.innerHTML = `
     <div class="card"><div class="grid cols-4">
       <div class="stat"><div class="lbl">Värde</div><div class="val sm">${kr(h.total_value)}</div></div>
@@ -581,9 +778,9 @@ async function loadPortfolio() {
       <div class="stat"><div class="lbl">Vägd avgift / utdelning</div><div class="val sm">${h.weighted_fee_pct} % / ${h.weighted_dividend_yield} %</div></div>
     </div></div>
     ${warn ? `<div class="card">${warn}</div>` : '<div class="callout info">Ingen uppenbar klumprisk hittad. Bra spridning.</div>'}
-    <div class="grid cols-2">${breakdown("Per bransch", h.by_sector)}${breakdown("Per region", h.by_region)}</div>
+    <div class="grid cols-2">${breakdown("Per bransch / tillgång", h.by_sector)}${breakdown("Per region", h.by_region)}</div>
     <div class="card tbl-wrap"><table>
-      <thead><tr><th>Innehav</th><th class="num">Antal</th><th class="num">GAV</th><th class="num">Kurs</th><th class="num">Värde</th><th class="num">Vikt</th><th class="num">V/F</th><th></th></tr></thead>
+      <thead><tr><th>Innehav</th><th class="num">Antal</th><th class="num">GAV / Anskaffat</th><th class="num">Kurs</th><th class="num">Värde</th><th class="num">Vikt</th><th class="num">V/F</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table>
       <small>* kurs saknas i databasen – snittpriset används. Kör "Uppdatera kursdata".</small>
     </div>`;

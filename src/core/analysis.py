@@ -7,7 +7,7 @@ from src.core.indicators import calc_rsi, calc_atr
 from src.core.patterns import detect_patterns
 from src.core.short_interest import fetch_short_interest
 from src.core.signals import trend_score, trend_label
-from src.core.config import OMXS_50, NASDAQ_100
+from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS
 
 CRYPTO_NAMES = {
     "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
@@ -18,7 +18,7 @@ CRYPTO_NAMES = {
 
 
 def search_symbols(query):
-    """Söker efter tickers och bolagsnamn via OMX/Nasdaq-listor och Yahoo Finance."""
+    """Söker efter tickers och bolagsnamn via OMX/Nasdaq, kurerade ETF:er och Yahoo Finance."""
     query = query.strip()
     if not query:
         return []
@@ -26,26 +26,40 @@ def search_symbols(query):
     q_lower = query.lower()
     matches = []
 
+    # 1. Kurerade ETF:er (svenska & europeiska UCITS)
+    for sym, item in POPULAR_ETFS.items():
+        name = item["name"]
+        if q_lower in sym.lower() or q_lower in name.lower():
+            matches.append({"symbol": sym, "name": name, "type": "ETF"})
+
+    # 2. OMXS & Nasdaq aktier
     for sym, name in {**OMXS_50, **NASDAQ_100}.items():
         if q_lower in sym.lower() or q_lower in name.lower():
             matches.append({"symbol": sym, "name": name, "type": "Stock"})
 
+    # 3. Krypto
+    for sym, name in CRYPTO_NAMES.items():
+        if q_lower in sym.lower() or q_lower in name.lower():
+            matches.append({"symbol": sym, "name": name, "type": "Krypto"})
+
+    # 4. Yahoo Finance sökning för globala ETF:er, fonder och aktier
     try:
-        r = yf.Search(query, max_results=6).response
+        r = yf.Search(query, max_results=15).response
         for quote in r.get("quotes", []):
             sym = quote.get("symbol", "")
             name = quote.get("longname") or quote.get("shortname") or sym
             q_type = quote.get("quoteType", "EQUITY")
+            type_label = "ETF" if q_type == "ETF" else ("Fond" if q_type == "MUTUALFUND" else "Aktie")
             if sym and not any(m["symbol"] == sym for m in matches):
-                matches.append({"symbol": sym, "name": name, "type": q_type})
+                matches.append({"symbol": sym, "name": name, "type": type_label})
     except Exception:
         pass
 
-    return matches[:10]
+    return matches[:15]
 
 
 def resolve_symbol(query):
-    """Mappar en söksträng (t.ex. 'investor', 'volvo', 'bitcoin') till rätt ticker."""
+    """Mappar en söksträng (t.ex. 'investor', 'volvo', 'bitcoin', 'vwce', 'xact') till rätt ticker."""
     q = query.strip()
     if not q:
         return None
@@ -69,6 +83,16 @@ def resolve_symbol(query):
     q_upper = q.upper()
     if q_upper.endswith("-USD"):
         return q_upper
+
+    # Kolla ETF:er
+    if q_upper in POPULAR_ETFS:
+        return q_upper
+    if f"{q_upper}.ST" in POPULAR_ETFS:
+        return f"{q_upper}.ST"
+    for sym, item in POPULAR_ETFS.items():
+        name = item["name"].lower()
+        if q_lower == name or q_lower in name or name in q_lower:
+            return sym
 
     all_tickers = {**OMXS_50, **NASDAQ_100}
     if q_upper in all_tickers:
