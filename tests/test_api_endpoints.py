@@ -66,6 +66,15 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertIn("total_return", res["edge_summary"]["dip"])
         self.assertIn("active_signal", res["edge_summary"]["dip"])
 
+        # Kontrollera modig rekommendation och avsaknad av feg disclaimer
+        self.assertIn("recommendation", res)
+        rec = res["recommendation"]
+        self.assertIn(rec["action"], ("Köp", "Behåll", "Sälj"))
+        self.assertIn("horizon", rec)
+        self.assertIn("rationale", rec)
+        self.assertNotIn("Det här är information, inte en köp- eller säljrekommendation", res.get("summary", ""))
+        self.assertTrue(res.get("summary", "").startswith("Rekommendation:"))
+
 
 if __name__ == "__main__":
     unittest.main()

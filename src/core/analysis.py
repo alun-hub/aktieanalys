@@ -343,13 +343,167 @@ def calc_context(symbol, is_crypto, is_us):
     return ctx
 
 
-def _summary(name, tlabel, valuation, is_crypto):
-    parts = [f"{name} ligger just nu i en {tlabel.lower()}."]
-    if valuation.get("verdict") not in (None, "okänt"):
-        parts.append(f"Värderingen ser {valuation['verdict']} ut.")
-    parts.append("Det här är information, inte en köp- eller säljrekommendation.")
+def generate_recommendation(symbol, close, ma50, ma200, rsi, atr, tscore, valuation, info, edge_summary, is_crypto):
+    """Skapar en konkret och modig köp/sälj/behåll-rekommendation med tidshorisont baserad på teknisk analys och värdering."""
+    rec_key = (info.get("recommendationKey") or "").lower() if info else ""
+    target_analyst = info.get("targetMedianPrice") or info.get("targetMeanPrice") if info else None
+    atr_val = atr if (atr and atr > 0) else close * 0.03
+
+    # 1. Kontrollera aktiva signaler från strategimodellerna (dip, momentum, trend)
+    if edge_summary:
+        if edge_summary.get("dip", {}).get("active_signal"):
+            target = round(close + 3.2 * atr_val, 2)
+            stop = round(close - 2.2 * atr_val, 2)
+            return {
+                "action": "Köp",
+                "badge": "buy",
+                "horizon": "Kort sikt (2–4 veckor)",
+                "target_price": target,
+                "stop_loss": stop,
+                "strategy": "Kvalitets-dipp",
+                "rationale": "Aktiv köpsignal i dipp-strategin. Aktien rekylerar i en sund upptrend och visar tydliga tecken på vändning med god historisk träffsäkerhet.",
+            }
+        if edge_summary.get("momentum", {}).get("active_signal"):
+            target = round(close + 4.5 * atr_val, 2)
+            stop = round(close - 2.5 * atr_val, 2)
+            return {
+                "action": "Köp",
+                "badge": "buy",
+                "horizon": "Kort/Medellång sikt (3–6 veckor)",
+                "target_price": target,
+                "stop_loss": stop,
+                "strategy": "Momentum & Utbrott",
+                "rationale": "Aktivt momentumutbrott med ökad volym och positiv trendhierarki (Close > MA50 > MA200).",
+            }
+        if edge_summary.get("trend", {}).get("active_signal"):
+            target = round(close + 6.0 * atr_val, 2)
+            stop = round(close - 3.0 * atr_val, 2)
+            return {
+                "action": "Köp",
+                "badge": "buy",
+                "horizon": "Lång sikt (6–12 månader)",
+                "target_price": target,
+                "stop_loss": stop,
+                "strategy": "Långsiktig Trendföljare",
+                "rationale": "Stark långsiktig trendföljarsignal med etablerat Golden Cross över 200-dagars medelvärde.",
+            }
+
+    # 2. Krypto
     if is_crypto:
-        parts.append("Krypto är en mycket volatil och spekulativ tillgångsklass.")
+        if tscore >= 60:
+            return {
+                "action": "Köp",
+                "badge": "buy",
+                "horizon": "Kortsiktig swing (1–4 veckor)",
+                "target_price": round(close + 3.0 * atr_val, 2),
+                "stop_loss": round(close - 2.5 * atr_val, 2),
+                "strategy": "Krypto Momentum",
+                "rationale": "Positivt momentum och stigande trend över glidande medelvärden.",
+            }
+        elif tscore <= 40:
+            return {
+                "action": "Sälj",
+                "badge": "sell",
+                "horizon": "Kliv av omgående",
+                "target_price": round(close - 3.0 * atr_val, 2),
+                "stop_loss": round(close + 2.0 * atr_val, 2),
+                "strategy": "Teknisk Riskminimering",
+                "rationale": "Svagt momentum och fallande trend under medelvärden i högvolatil tillgång.",
+            }
+        else:
+            return {
+                "action": "Behåll",
+                "badge": "hold",
+                "horizon": "Avvakta (1–2 veckor)",
+                "target_price": round(close + 2.0 * atr_val, 2),
+                "stop_loss": round(close - 2.0 * atr_val, 2),
+                "strategy": "Neutral konsolidering",
+                "rationale": "Konsoliderar i sidledes kanal utan tydlig trendriktning.",
+            }
+
+    # 3. Aktier – teknisk trend + värdering och analytikerstöd
+    v_verdict = (valuation.get("verdict") or "").lower() if valuation else ""
+
+    if tscore >= 65:
+        if rec_key in ("sell", "underperform") or (rsi and rsi > 75):
+            return {
+                "action": "Behåll",
+                "badge": "hold",
+                "horizon": "Bevaka MA50 (1–2 månader)",
+                "target_price": round(target_analyst, 2) if target_analyst else round(close + 2.0 * atr_val, 2),
+                "stop_loss": round(close - 2.0 * atr_val, 2),
+                "strategy": "Vinstsäkring / Konsolidering",
+                "rationale": "Stark upptrend men kortsiktigt överköpt eller svag analytikersyn. Behåll med uppflyttad stop-loss men avvakta nya köp.",
+            }
+        target = round(target_analyst, 2) if (target_analyst and target_analyst > close) else round(close + 4.0 * atr_val, 2)
+        stop = round(close - 2.5 * atr_val, 2)
+        return {
+            "action": "Köp",
+            "badge": "buy",
+            "horizon": "Medellång sikt (2–6 månader)",
+            "target_price": target,
+            "stop_loss": stop,
+            "strategy": "Teknisk upptrend",
+            "rationale": "Stark teknisk upptrend ovanför MA50 och MA200 med bekräftat positivt momentum.",
+        }
+
+    if tscore >= 45:
+        if rec_key in ("strong_buy", "buy") or v_verdict in ("lågt", "rimligt"):
+            target = round(target_analyst, 2) if (target_analyst and target_analyst > close) else round(close + 4.0 * atr_val, 2)
+            stop = round(close - 2.5 * atr_val, 2)
+            return {
+                "action": "Köp",
+                "badge": "buy",
+                "horizon": "Lång sikt (6–12 månader)",
+                "target_price": target,
+                "stop_loss": stop,
+                "strategy": "Ackumulera / Basbygge",
+                "rationale": "Stabil konsolidering med attraktiv värdering och starkt analytikerstöd. Bra ingångsläge för en långsiktig position.",
+            }
+        else:
+            return {
+                "action": "Behåll",
+                "badge": "hold",
+                "horizon": "Avvakta utbrott (1–3 månader)",
+                "target_price": round(close + 2.5 * atr_val, 2),
+                "stop_loss": round(close - 2.5 * atr_val, 2),
+                "strategy": "Konsolidering",
+                "rationale": "Neutral trend i intervallhandel. Behåll befintligt innehav med stop-loss under MA200 men avvakta med nya köp.",
+            }
+
+    # tscore < 45
+    if rec_key in ("strong_buy", "buy") and v_verdict in ("lågt", "rimligt"):
+        return {
+            "action": "Behåll",
+            "badge": "hold",
+            "horizon": "1–3 månader (Invänta bottenkänning)",
+            "target_price": round(target_analyst, 2) if target_analyst else round(close + 3.0 * atr_val, 2),
+            "stop_loss": round(close - 3.0 * atr_val, 2),
+            "strategy": "Kvalitetsbolag i motvind",
+            "rationale": "Kortsiktig rekyl under medelvärden men stark fundamental bas och positiv analytikerkonsensus motiverar att behålla positionen.",
+        }
+
+    return {
+        "action": "Sälj",
+        "badge": "sell",
+        "horizon": "Kliv av omgående / Avvakta",
+        "target_price": round(close - 3.0 * atr_val, 2),
+        "stop_loss": round(close + 2.0 * atr_val, 2),
+        "strategy": "Teknisk nedåttrend",
+        "rationale": "Svag teknisk trend under MA50 och MA200 med fallande kurser. Sälj eller minska positionen för att skydda kapitalet.",
+    }
+
+
+def _summary(name, tlabel, valuation, rec, is_crypto):
+    action_str = f"Rekommendation: {rec['action'].upper()} ({rec['horizon'].lower()})."
+    desc = f"{name} ligger i en {tlabel.lower()}"
+    if valuation.get("verdict") not in (None, "okänt"):
+        desc += f" och värderingen ser {valuation['verdict']} ut."
+    else:
+        desc += "."
+    parts = [action_str, desc, rec["rationale"]]
+    if is_crypto:
+        parts.append("Krypto är en mycket volatil tillgångsklass.")
     return " ".join(parts)
 
 
@@ -442,11 +596,18 @@ def analyze_any_stock(symbol):
                     "active_signal": bool(df_sig.iloc[-1].get("entry_sig", False)),
                 }
 
+        rec = generate_recommendation(
+            symbol=symbol, close=close, ma50=ma50, ma200=ma200, rsi=rsi,
+            atr=atr, tscore=tscore, valuation=valuation, info=info,
+            edge_summary=edge_summary, is_crypto=is_crypto
+        )
+
         return {
             "symbol": symbol, "name": name, "currency": curr,
             "asset_type": "krypto" if is_crypto else "aktie",
             "close": close, "change_pct": change_pct,
-            "summary": _summary(name, tlabel, valuation, is_crypto),
+            "recommendation": rec,
+            "summary": _summary(name, tlabel, valuation, rec, is_crypto),
             "valuation": valuation,
             "fundamentals": _fundamentals(info, is_crypto),
             "technical": {
