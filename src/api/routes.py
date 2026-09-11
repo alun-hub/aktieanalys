@@ -4,7 +4,7 @@ import threading
 from src.core.signals import run_market_screener, scan_opportunities
 from src.core.backtest import run_backtest_local, optimize_omx, run_single_stock_backtest
 from src.core.data import sync_all_stocks, get_sync_status
-from src.core.analysis import search_symbols, analyze_any_stock, get_market_overview
+from src.core.analysis import search_symbols, analyze_any_stock, get_market_overview, resolve_symbol
 from src.core.crypto import get_crypto_screener
 from src.core.insider import fetch_all_insider_buys
 from src.core.congress import scan_congress_trades
@@ -118,11 +118,13 @@ def portfolio_list_route():
 def portfolio_add_route():
     d = request.json or {}
     try:
+        raw_sym = str(d['symbol']).strip()
+        resolved = resolve_symbol(raw_sym) or raw_sym.upper()
         pf.add_holding(
-            symbol=d['symbol'], qty=d['qty'], avg_price=d['avg_price'],
+            symbol=resolved, qty=d['qty'], avg_price=d['avg_price'],
             name=d.get('name'), kind=d.get('kind', 'aktie'),
             fee_pct=d.get('fee_pct', 0), note=d.get('note', ''))
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "symbol": resolved})
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"error": f"Ogiltig indata: {e}"}), 400
 
