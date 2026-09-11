@@ -511,10 +511,18 @@ def _summary(name, tlabel, valuation, rec, is_crypto):
 # Bolagsanalys
 # ─────────────────────────────────────────────────────────────────────────────
 
+_analysis_cache = {}
+_ANALYSIS_TTL = 900  # 15 minuter cache
+
+
 def analyze_any_stock(symbol):
     """Bolags-/tillgångsanalys: vad det är och hur det är värderat först, teknisk trend som kontext."""
     resolved = resolve_symbol(symbol)
     symbol = (resolved or symbol).strip().upper()
+    now = time.time()
+    hit = _analysis_cache.get(symbol)
+    if hit and (now - hit[0] < _ANALYSIS_TTL):
+        return hit[1]
     try:
         ticker = yf.Ticker(symbol)
         df = ticker.history(period="5y", auto_adjust=True)
@@ -602,7 +610,7 @@ def analyze_any_stock(symbol):
             edge_summary=edge_summary, is_crypto=is_crypto
         )
 
-        return {
+        result = {
             "symbol": symbol, "name": name, "currency": curr,
             "asset_type": "krypto" if is_crypto else "aktie",
             "close": close, "change_pct": change_pct,
@@ -621,6 +629,8 @@ def analyze_any_stock(symbol):
             "levels": levels,
             "edge_summary": edge_summary,
         }
+        _analysis_cache[symbol] = (now, result)
+        return result
     except Exception as e:
         return {"error": f"Fel vid analys av {symbol}: {e}"}
 
