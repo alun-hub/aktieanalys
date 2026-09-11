@@ -11,6 +11,7 @@ from src.core.congress import scan_congress_trades
 from src.core.projection import project
 from src.core import portfolio as pf
 from src.core.dividends import get_top_dividend_stocks
+from src.core.regime import get_market_regime
 
 api_bp = Blueprint('api', __name__)
 
@@ -43,7 +44,8 @@ def opportunities_route():
     market = request.args.get('market', 'all')
     strategy = request.args.get('strategy', 'all')
     opps = scan_opportunities(market=market, strategy_filter=strategy)
-    return jsonify({"opportunities": opps, "total": len(opps)})
+    regime = get_market_regime(market=market)
+    return jsonify({"opportunities": opps, "total": len(opps), "regime": regime})
 
 
 @api_bp.route('/market_overview')

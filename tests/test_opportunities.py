@@ -19,6 +19,9 @@ class TestTradeLevels(unittest.TestCase):
         self.assertEqual(levels["entry_price"], 100.0)
         self.assertEqual(levels["stop_loss"], 100.0 - 2.2 * 3.0)  # 93.4
         self.assertEqual(levels["target_price"], 100.0 + 3.5 * 3.0)  # 110.5
+        self.assertIn("tp1", levels)
+        self.assertIn("tp2", levels)
+        self.assertIn("trailing_desc", levels)
         self.assertTrue(levels["stop_loss"] < close)
         self.assertTrue(levels["target_price"] > close)
         self.assertTrue(levels["risk_reward_ratio"] > 1.0)
@@ -85,6 +88,7 @@ class TestScanOpportunities(unittest.TestCase):
         self.assertIn("score", opp)
         self.assertIn("win_rate", opp["edge"])
         self.assertIn("profit_factor", opp["edge"])
+        self.assertIn("relative_strength", opp)
 
     @patch("src.core.signals.get_db")
     @patch("src.core.signals.OMXS_50", {"ABB.ST": "ABB"})
