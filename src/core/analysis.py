@@ -3,7 +3,7 @@ import time
 import datetime
 import pandas as pd
 import yfinance as yf
-from src.core.indicators import calc_rsi, calc_atr
+from src.core.indicators import calc_rsi, calc_atr, calculate_indicators
 from src.core.patterns import detect_patterns
 from src.core.short_interest import fetch_short_interest
 from src.core.signals import trend_score, trend_label
@@ -284,13 +284,27 @@ def _fundamentals(info, is_crypto):
     }
 
 
-def _tech_notes(close, ma50, ma200, rsi, curr, patterns):
+def _tech_notes(close, ma50, ma200, rsi, curr, patterns, ema20=None, ma200_slope=None, macd_hist=None, bb=None):
     notes = []
     if ma200:
-        notes.append(f"{'Över' if close > ma200 else 'Under'} 200-dagars medelvärde ({ma200:g} {curr}) – "
+        slope_str = ""
+        if ma200_slope is not None:
+            slope_str = ", lutning uppåt (sund långsiktig bas)" if ma200_slope > 0 else ", lutning nedåt (förhöjd risk)"
+        notes.append(f"{'Över' if close > ma200 else 'Under'} 200-dagars medelvärde ({ma200:g} {curr}{slope_str}) – "
                      f"{'långsiktigt positivt' if close > ma200 else 'långsiktig svaghet'}.")
+    if ema20:
+        notes.append(f"{'Över' if close > ema20 else 'Under'} kortsiktiga trendstödet EMA20 ({ema20:g} {curr}).")
     if ma50 and ma200:
         notes.append("Golden cross (MA50 över MA200)." if ma50 > ma200 else "Death cross (MA50 under MA200).")
+    if macd_hist is not None:
+        notes.append(f"MACD visar {'positivt' if macd_hist > 0 else 'negativt'} momentum ({macd_hist:+.2f}).")
+    if bb:
+        if bb.get("squeeze"):
+            notes.append("Bollinger Squeeze: Volatiliteten är extremt komprimerad – förberedelse inför potentiellt kraftigt utbrott.")
+        elif bb.get("upper") and close > bb["upper"]:
+            notes.append(f"Handlas över övre Bollinger-bandet ({bb['upper']:g} {curr}) – starkt momentum men kortsiktigt överköpt mot volatiliteten.")
+        elif bb.get("lower") and close < bb["lower"]:
+            notes.append(f"Handlas under nedre Bollinger-bandet ({bb['lower']:g} {curr}) – kortsiktigt översåld mot volatiliteten.")
     if rsi is not None:
         if rsi > 75:
             notes.append(f"RSI {rsi:g} – överköpt, ökad risk för rekyl.")
@@ -539,10 +553,7 @@ def analyze_any_stock(symbol):
         is_us = (symbol in NASDAQ_100) or (not symbol.endswith(".ST") and not is_crypto)
         curr = "$" if (is_crypto or is_us) else "kr"
 
-        df["MA50"] = df["Close"].rolling(50).mean()
-        df["MA200"] = df["Close"].rolling(200).mean()
-        df["RSI"] = calc_rsi(df["Close"])
-        df["ATR"] = calc_atr(df)
+        df = calculate_indicators(df)
 
         last, prev = df.iloc[-1], df.iloc[-2]
         close = round(float(last["Close"]), 2)
@@ -550,7 +561,32 @@ def analyze_any_stock(symbol):
         rsi = round(float(last["RSI"]), 1) if not pd.isna(last["RSI"]) else None
         ma50 = round(float(last["MA50"]), 2) if not pd.isna(last["MA50"]) else None
         ma200 = round(float(last["MA200"]), 2) if not pd.isna(last["MA200"]) else None
+        ema20 = round(float(last["EMA20"]), 2) if ("EMA20" in last and not pd.isna(last["EMA20"])) else None
         atr = float(last["ATR"]) if not pd.isna(last["ATR"]) else close * (0.05 if is_crypto else 0.03)
+
+        macd = round(float(last["MACD"]), 2) if ("MACD" in last and not pd.isna(last["MACD"])) else None
+        macd_sig = round(float(last["MACD_Signal"]), 2) if ("MACD_Signal" in last and not pd.isna(last["MACD_Signal"])) else None
+        macd_hist = round(float(last["MACD_Hist"]), 2) if ("MACD_Hist" in last and not pd.isna(last["MACD_Hist"])) else None
+
+        bb_u = round(float(last["BB_Upper"]), 2) if ("BB_Upper" in last and not pd.isna(last["BB_Upper"])) else None
+        bb_m = round(float(last["BB_Middle"]), 2) if ("BB_Middle" in last and not pd.isna(last["BB_Middle"])) else None
+        bb_l = round(float(last["BB_Lower"]), 2) if ("BB_Lower" in last and not pd.isna(last["BB_Lower"])) else None
+        bb_bw = round(float(last["BB_Bandwidth"]) * 100, 1) if ("BB_Bandwidth" in last and not pd.isna(last["BB_Bandwidth"])) else None
+
+        bb_squeeze = False
+        if "BB_Bandwidth" in df.columns and len(df) >= 40:
+            tail_bw = df["BB_Bandwidth"].dropna().tail(126)
+            if len(tail_bw) >= 20 and not pd.isna(last["BB_Bandwidth"]):
+                bb_squeeze = bool(last["BB_Bandwidth"] <= tail_bw.quantile(0.20))
+
+        bb_dict = {
+            "upper": bb_u, "middle": bb_m, "lower": bb_l,
+            "bandwidth_pct": bb_bw, "squeeze": bb_squeeze
+        }
+
+        ma200_slope = None
+        if len(df) >= 20 and not pd.isna(df["MA200"].iloc[-20]) and ma200 is not None:
+            ma200_slope = ma200 - float(df["MA200"].iloc[-20])
 
         name = _display_name(symbol, is_crypto, ticker)
         info = {}
@@ -561,7 +597,7 @@ def analyze_any_stock(symbol):
                 info = {}
 
         # Teknisk kontext
-        tscore = trend_score(close, ma50, ma200, rsi)
+        tscore = trend_score(close, ma50, ma200, rsi, ma200_slope=ma200_slope, ema20=ema20, macd_hist=macd_hist)
         tlabel, tclass = trend_label(tscore)
         patterns = detect_patterns(df.tail(20))
         vs_ma200 = round((close / ma200 - 1) * 100, 1) if ma200 else None
@@ -620,8 +656,17 @@ def analyze_any_stock(symbol):
             "fundamentals": _fundamentals(info, is_crypto),
             "technical": {
                 "trend_score": tscore, "trend_label": tlabel, "trend_class": tclass,
-                "rsi": rsi, "ma50": ma50, "ma200": ma200, "vs_ma200_pct": vs_ma200,
-                "notes": _tech_notes(close, ma50, ma200, rsi, curr, patterns),
+                "rsi": rsi, "ma50": ma50, "ma200": ma200, "ema20": ema20,
+                "vs_ma200_pct": vs_ma200,
+                "ma200_slope": round(ma200_slope, 2) if ma200_slope is not None else None,
+                "macd": {
+                    "macd": macd, "signal": macd_sig, "hist": macd_hist,
+                    "status": "bullish" if (macd_hist and macd_hist > 0) else "bearish"
+                },
+                "bollinger": bb_dict,
+                "notes": _tech_notes(close, ma50, ma200, rsi, curr, patterns,
+                                     ema20=ema20, ma200_slope=ma200_slope,
+                                     macd_hist=macd_hist, bb=bb_dict),
                 "patterns": patterns,
             },
             "risk": risk,
