@@ -109,3 +109,109 @@ def run_market_screener(market="all"):
     db.close()
     results.sort(key=lambda x: x["trend_score"], reverse=True)
     return results
+
+
+def calculate_trade_levels(close: float, atr: float, strategy: str = "dip") -> dict:
+    """Beräknar konkreta handelsnivåer baserat på vald strategi och ATR."""
+    if strategy == "dip":
+        stop_dist = 2.2 * atr
+        target_dist = 3.5 * atr
+    elif strategy == "momentum":
+        stop_dist = 2.5 * atr
+        target_dist = 5.0 * atr
+    else:  # trend
+        stop_dist = 3.0 * atr
+        target_dist = 6.5 * atr
+
+    stop_loss = round(close - stop_dist, 2)
+    target_price = round(close + target_dist, 2)
+    risk_pct = round((close - stop_loss) / close * 100.0, 1)
+    reward_pct = round((target_price - close) / close * 100.0, 1)
+    rr = round(reward_pct / risk_pct, 1) if risk_pct > 0 else 1.0
+
+    return {
+        "entry_price": round(close, 2),
+        "stop_loss": stop_loss,
+        "target_price": target_price,
+        "risk_pct": risk_pct,
+        "reward_pct": reward_pct,
+        "risk_reward_ratio": rr,
+        "rr_label": f"1 : {rr:g}",
+    }
+
+
+def scan_opportunities(market="all", strategy_filter="all"):
+    """Skannar alla bolag för dagens datum efter köpmöjligheter."""
+    from src.core.backtest import prep_strategy_signals, simulate_stock_trades, STRATEGIES
+    import pandas as pd
+
+    db = get_db()
+    tickers = {}
+    if market in ("all", "omx", "omxs"):
+        tickers.update({s: (n, "OMX") for s, n in OMXS_50.items()})
+    if market in ("all", "nasdaq"):
+        tickers.update({s: (n, "NASDAQ") for s, n in NASDAQ_100.items()})
+
+    strategies_to_check = ["dip", "momentum", "trend"]
+    if strategy_filter in strategies_to_check:
+        strategies_to_check = [strategy_filter]
+
+    opportunities = []
+
+    for sym, (name, mkt) in tickers.items():
+        df = pd.read_sql_query(
+            "SELECT date, open, high, low, close, volume, ma50, ma200, rsi, atr "
+            "FROM history WHERE symbol = ? AND close IS NOT NULL ORDER BY date",
+            db, params=[sym]
+        )
+        if df.empty or len(df) < 100:
+            continue
+
+        df = df.set_index("date")
+        curr = "$" if mkt == "NASDAQ" else "kr"
+
+        for strat in strategies_to_check:
+            df_sig = prep_strategy_signals(df, strategy=strat)
+            last_row = df_sig.iloc[-1]
+
+            if bool(last_row.get("entry_sig", False)):
+                close = float(last_row["close"])
+                atr = float(last_row["atr"]) if not pd.isna(last_row["atr"]) else close * 0.02
+                levels = calculate_trade_levels(close, atr, strategy=strat)
+
+                # Beräkna historisk edge på 5 års historik
+                sub_df = df_sig.tail(252 * 5)
+                _, _, stats = simulate_stock_trades(sub_df, strategy=strat)
+
+                # Motivering i klarspråk
+                if strat == "dip":
+                    reason = f"Översåld dipp (RSI {last_row.get('rsi', 0):.0f}) i långsiktig upptrend över MA200."
+                elif strat == "momentum":
+                    reason = "Utbrott mot nytt fleraveckorshögsta med förhöjd handelsvolym."
+                else:
+                    reason = "Stark upptrend bekräftad av Golden Cross och stängning över MA200."
+
+                opportunities.append({
+                    "symbol": sym,
+                    "name": name,
+                    "market": mkt,
+                    "currency": curr,
+                    "close": close,
+                    "strategy": strat,
+                    "strategy_name": STRATEGIES[strat]["name"],
+                    "reason": reason,
+                    "levels": levels,
+                    "edge": {
+                        "win_rate": stats["win_rate"],
+                        "trades_count": stats["trades_count"],
+                        "profit_factor": stats["profit_factor"],
+                        "avg_gain_pct": stats["avg_gain_pct"],
+                    },
+                    "score": round(stats["win_rate"] * stats["profit_factor"], 1),
+                })
+
+    db.close()
+    # Sortera på starkast statistisk edge
+    opportunities.sort(key=lambda x: x["score"], reverse=True)
+    return opportunities
+
