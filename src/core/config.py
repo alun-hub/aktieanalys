@@ -52,7 +52,7 @@ OMXS_50 = {
     "LUND-B.ST":    "Lundbergföretagen B",
     "PEAB-B.ST":    "Peab B",
     "SECU-B.ST":    "Securitas B",
-    "TIETO.ST":     "TietoEVRY",
+    "TIETOS.ST":    "TietoEVRY",
 }
 
 # Nasdaq 100 — 50 mest likvida och marknadsviktade (per 2025)
