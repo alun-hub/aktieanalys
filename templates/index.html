@@ -190,7 +190,7 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
             <div id="pf-dropdown" class="hidden" style="position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; max-height:240px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,0.5); margin-top:3px;"></div>
           </div>
           <div class="field"><label>Antal</label><input type="number" id="pf-qty" step="any" placeholder="100"></div>
-          <div class="field"><label>Snittpris (GAV)</label><input type="number" id="pf-gav" step="0.01" placeholder="150.00"></div>
+          <div class="field"><label id="pf-gav-label">Snittpris (GAV)</label><input type="number" id="pf-gav" step="any" placeholder="150.00"></div>
           <div class="field"><label>Typ</label><select id="pf-kind"><option value="aktie">Aktie</option><option value="fond">ETF / Fond</option></select></div>
           <div class="field"><label>Årlig avgift (%)</label><input type="number" id="pf-fee" step="0.05" value="0"></div>
         </div>
@@ -545,6 +545,12 @@ function selectPfStock(symbol, name, type, fee, region) {
   hidePfDropdown();
   if (fee) $("#pf-fee").value = fee;
   getJSON(`/api/portal/analyze?symbol=${encodeURIComponent(symbol)}`).then(res => {
+    const lbl = $("#pf-gav-label");
+    if (res && res.currency && lbl) {
+      lbl.textContent = `Snittpris (GAV i ${res.currency})`;
+    } else if (lbl) {
+      lbl.textContent = "Snittpris (GAV)";
+    }
     if (res && res.close && !$("#pf-gav").value) {
       $("#pf-gav").value = res.close;
     }
@@ -716,9 +722,18 @@ async function addHolding() {
     });
     if (r.error) { alert(r.error); return; }
     $("#pf-sym").value = $("#pf-symbol-val").value = $("#pf-qty").value = $("#pf-gav").value = "";
+    const lbl = $("#pf-gav-label");
+    if (lbl) lbl.textContent = "Snittpris (GAV)";
     hidePfDropdown();
     loadPortfolio();
   }
+}
+
+function goToAnalyze(sym) {
+  showTab("analyze");
+  const inp = $("#an-q");
+  if (inp) inp.value = sym;
+  analyze(sym);
 }
 
 function editHolding(sym) {
@@ -741,6 +756,12 @@ function editHolding(sym) {
     $("#pf-gav").value = p.avg_price;
     $("#pf-kind").value = p.kind || "aktie";
     $("#pf-fee").value = p.fee_pct || 0;
+    const lbl = $("#pf-gav-label");
+    if (lbl && p.currency && p.currency !== "SEK") {
+      lbl.textContent = `Snittpris (GAV i ${p.currency})`;
+    } else if (lbl) {
+      lbl.textContent = "Snittpris (GAV)";
+    }
   }
   const formEl = $("#pane-portfolio .card");
   if (formEl) formEl.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -768,20 +789,45 @@ async function loadPortfolio() {
     const isManual = p.is_manual || (p.symbol && p.symbol.startsWith("MANUAL:"));
     const titleCol = isManual
       ? `<b>${esc(p.name)}</b><br><span class="pill sm" style="font-size:0.75rem; background:var(--surface-3);">${esc(p.region || "Fond")} · Fond</span>`
-      : `<b>${esc(p.name || p.symbol)}</b><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
+      : `<a href="#" onclick="goToAnalyze('${esc(p.symbol)}'); return false;" style="color:var(--text); text-decoration:none; font-weight:700;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(p.name || p.symbol)}</a><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
+
+    const rec = p.recommendation || { action: "Behåll", badge: "hold", reason: "" };
+    let recCls = "neutral";
+    if (rec.badge === "buy") recCls = "up";
+    else if (rec.badge === "sell") recCls = "down";
+    const recCol = `<td><span class="pill ${recCls}" title="${esc(rec.reason || '')}" style="cursor:help;">${esc(rec.action)}</span></td>`;
+
+    const isForeign = p.currency && p.currency !== "SEK";
     const qtyCol = isManual ? `<span class="muted">—</span>` : p.qty;
-    const gavCol = isManual ? kr(p.cost) : money(p.avg_price, "");
-    const priceCol = isManual ? `<span class="muted">—</span>` : `${money(p.price, "")}${p.price_stale ? " *" : ""}`;
+    const gavCol = isManual
+      ? kr(p.cost)
+      : (isForeign ? `${p.avg_price.toFixed(2)} <small class="muted">${esc(p.currency)}</small>` : money(p.avg_price, ""));
+    const priceCol = isManual
+      ? `<span class="muted">—</span>`
+      : (isForeign
+          ? `${p.price.toFixed(2)} <small class="muted">${esc(p.currency)}</small>${p.price_stale ? " *" : ""}`
+          : `${money(p.price, "")}${p.price_stale ? " *" : ""}`);
+
+    const foreignValSub = (isForeign && p.raw_value != null)
+      ? `<br><small class="muted">~${money(p.raw_value, p.currency)}</small>`
+      : "";
+    const valueCol = `<b>${kr(p.value)}</b>${foreignValSub}`;
+
+    const analyzeBtn = !isManual
+      ? `<button class="btn sm" title="Analysera bolag" onclick="goToAnalyze('${esc(p.symbol)}')">🔍</button> `
+      : "";
 
     return `<tr>
       <td>${titleCol}</td>
+      ${recCol}
       <td class="num">${qtyCol}</td>
       <td class="num">${gavCol}</td>
       <td class="num">${priceCol}</td>
-      <td class="num"><b>${kr(p.value)}</b></td>
+      <td class="num">${valueCol}</td>
       <td class="num">${p.weight} %</td>
       <td class="num ${cls(p.pl)}">${kr(p.pl)}<br><small class="${cls(p.pl_pct)}">${pct(p.pl_pct)}</small></td>
       <td class="num" style="white-space:nowrap;">
+        ${analyzeBtn}
         <button class="btn sm" title="Ändra innehav" onclick="editHolding('${esc(p.symbol)}')">✎</button>
         <button class="btn sm" title="Ta bort" onclick="delHolding('${esc(p.symbol)}')">✕</button>
       </td>
@@ -790,7 +836,7 @@ async function loadPortfolio() {
 
   out.innerHTML = `
     <div class="card"><div class="grid cols-4">
-      <div class="stat"><div class="lbl">Värde</div><div class="val sm">${kr(h.total_value)}</div></div>
+      <div class="stat"><div class="lbl">Totalt marknadsvärde</div><div class="val sm">${kr(h.total_value)}</div></div>
       <div class="stat"><div class="lbl">Vinst/förlust</div><div class="val sm ${cls(h.pl)}">${kr(h.pl)} (${pct(h.pl_pct)})</div></div>
       <div class="stat"><div class="lbl">Största innehav</div><div class="val sm">${h.largest_weight} %</div></div>
       <div class="stat"><div class="lbl">Vägd avgift / utdelning</div><div class="val sm">${h.weighted_fee_pct} % / ${h.weighted_dividend_yield} %</div></div>
@@ -798,9 +844,9 @@ async function loadPortfolio() {
     ${warn ? `<div class="card">${warn}</div>` : '<div class="callout info">Ingen uppenbar klumprisk hittad. Bra spridning.</div>'}
     <div class="grid cols-2">${breakdown("Per bransch / tillgång", h.by_sector)}${breakdown("Per region", h.by_region)}</div>
     <div class="card tbl-wrap"><table>
-      <thead><tr><th>Innehav</th><th class="num">Antal</th><th class="num">GAV / Anskaffat</th><th class="num">Kurs</th><th class="num">Värde</th><th class="num">Vikt</th><th class="num">V/F</th><th></th></tr></thead>
+      <thead><tr><th>Innehav</th><th>Rek.</th><th class="num">Antal</th><th class="num">GAV</th><th class="num">Kurs</th><th class="num">Värde (SEK)</th><th class="num">Vikt</th><th class="num">V/F</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table>
-      <small>* kurs saknas i databasen – snittpriset används. Kör "Uppdatera kursdata".</small>
+      <small>* kurs saknas i databasen – snittpriset används. Utländska instrument räknas om automatiskt till SEK.</small>
     </div>`;
 }
 

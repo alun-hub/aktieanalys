@@ -8,12 +8,12 @@ class TestPortfolioFundsAndETFs(unittest.TestCase):
         self.client = app.test_client()
         # Rensa eventuella testinnehav
         for h in list_holdings():
-            if h["symbol"].startswith("MANUAL:TEST") or h["symbol"] in ("XACTHDIV.ST", "VWCE.DE"):
+            if h["symbol"].startswith("MANUAL:TEST") or h["symbol"] in ("XACTHDIV.ST", "VWCE.DE", "GOOGL"):
                 remove_holding(h["symbol"])
 
     def tearDown(self):
         for h in list_holdings():
-            if h["symbol"].startswith("MANUAL:TEST") or h["symbol"] in ("XACTHDIV.ST", "VWCE.DE"):
+            if h["symbol"].startswith("MANUAL:TEST") or h["symbol"] in ("XACTHDIV.ST", "VWCE.DE", "GOOGL"):
                 remove_holding(h["symbol"])
 
     def test_popular_etf_search_and_resolve(self):
@@ -100,6 +100,29 @@ class TestPortfolioFundsAndETFs(unittest.TestCase):
         names_sp = [m["name"] for m in matches_sp]
         self.assertTrue(any("Spiltan Aktiefond Investmentbolag" in n for n in names_sp))
 
+    def test_us_stock_currency_conversion(self):
+        res = self.client.post("/api/portfolio", json={
+            "symbol": "GOOGL",
+            "name": "Alphabet C",
+            "qty": 10,
+            "avg_price": 150.0,
+            "kind": "aktie"
+        })
+        self.assertEqual(res.status_code, 200)
+
+        health_res = self.client.get("/api/portfolio/health")
+        self.assertEqual(health_res.status_code, 200)
+        h = health_res.get_json()
+        pos = next((p for p in h["positions"] if p["symbol"] == "GOOGL"), None)
+        self.assertIsNotNone(pos)
+        self.assertEqual(pos["currency"], "USD")
+        self.assertGreater(pos["fx_rate"], 5.0)
+        # 10 st @ 150 USD ska kosta mer än 1500 kr (omräknat med fx_rate runt 9-11 kr/USD)
+        self.assertGreater(pos["cost"], 5000.0)
+        self.assertIn("recommendation", pos)
+        self.assertIn(pos["recommendation"]["action"], ("Köp", "Behåll", "Sälj"))
+
 if __name__ == "__main__":
     unittest.main()
+
 
