@@ -105,21 +105,35 @@ def prep_strategy_signals(g, strategy="dip", **custom_params):
     vol = g["volume"]
     prior_vol = vol.rolling(20).mean().shift(1)
 
+    # Beräkna On-Balance Volume (OBV) för volymkonfluens
+    if "obv" in g.columns and not g["obv"].isna().all():
+        obv = g["obv"]
+    else:
+        direction = np.sign(c.diff()).fillna(0)
+        obv = (direction * vol).cumsum()
+
     if strategy == "dip":
         # Upptrend + tillfällig rekyl + vändning
         in_uptrend = (ma200.notna()) & (c > ma200 * 0.99) & (ma200 >= ma200.shift(20) * 0.995)
         is_dipping = (rsi <= 40) | (g["low"] <= ma50 * 1.015)
         turnaround = (c > g["low"].shift(1)) | (c > g["open"])
-        g["entry_sig"] = in_uptrend & is_dipping & turnaround
+        # Volymkonfluens: Undvik panikdumpningar (säljvolym > 2.5x snittet)
+        no_panic_dump = vol <= (prior_vol * 2.5).fillna(vol)
+        # OBV-stabilitet: OBV ska inte vara i fritt fall
+        obv_ma20 = obv.rolling(20).mean()
+        obv_ok = (obv >= obv_ma20) | (obv.diff(5) >= 0) | obv_ma20.isna()
+        g["entry_sig"] = in_uptrend & is_dipping & turnaround & no_panic_dump & obv_ok
         g["entry_rank"] = 50.0 - rsi.fillna(50)  # Lägre RSI = starkare köpläge
 
     elif strategy == "momentum":
-        # 20-dagars högsta + volym + trendhierarki
+        # 20-dagars högsta + volym + trendhierarki + OBV-bekräftelse
         prior_high_20 = g["high"].rolling(20).max().shift(1)
         breakout = (c > prior_high_20)
         vol_surge = (vol > prior_vol * 1.3)
         trend_ok = (ma50.notna()) & (ma200.notna()) & (c > ma50) & (ma50 > ma200 * 0.99)
-        g["entry_sig"] = breakout & vol_surge & trend_ok
+        obv_high_20 = obv.rolling(20).max().shift(1)
+        obv_surge = (obv >= obv_high_20) | obv_high_20.isna()
+        g["entry_sig"] = breakout & vol_surge & trend_ok & obv_surge
         g["entry_rank"] = (vol / prior_vol.replace(0, np.nan)).fillna(1.0)
 
     elif strategy == "trend":
