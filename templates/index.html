@@ -72,6 +72,7 @@ main { max-width: 960px; margin: 0 auto; padding: 1.2rem 1rem 4rem; }
 .field input, .field select { width: 100%; padding: .55rem .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
 .row { display: flex; gap: .6rem; flex-wrap: wrap; }
 .row > * { flex: 1; min-width: 130px; }
+.pf-search-item:hover { background: var(--surface); }
 
 .stat { background: var(--surface-2); border-radius: 8px; padding: .7rem .85rem; }
 .stat .lbl { font-size: .74rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .03em; }
@@ -174,7 +175,12 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
       <h2>Portfölj-hälsokoll</h2>
       <p class="muted">Lägg in de innehav du äger. Du får tillbaka värde, vinst/förlust och – viktigast – hur riskerna är fördelade. Inget köps eller säljs här.</p>
       <div class="row">
-        <div class="field"><label>Ticker (t.ex. INVE-B.ST, AAPL)</label><input id="pf-sym" placeholder="INVE-B.ST"></div>
+        <div class="field" style="position:relative; flex:2;">
+          <label>Sök bolag eller ticker</label>
+          <input id="pf-sym" placeholder="t.ex. Investor, Volvo, Apple…" autocomplete="off">
+          <input type="hidden" id="pf-symbol-val">
+          <div id="pf-dropdown" class="hidden" style="position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; max-height:240px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,0.5); margin-top:3px;"></div>
+        </div>
         <div class="field"><label>Antal</label><input type="number" id="pf-qty" step="1"></div>
         <div class="field"><label>Snittpris (GAV)</label><input type="number" id="pf-gav" step="0.01"></div>
         <div class="field"><label>Typ</label><select id="pf-kind"><option value="aktie">Aktie</option><option value="fond">Fond</option></select></div>
@@ -462,17 +468,85 @@ async function runProjection() {
 }
 
 // ---------- MIN PORTFÖLJ ----------
+let pfSearchTimer = null;
+function hidePfDropdown() {
+  const d = $("#pf-dropdown");
+  if (d) d.classList.add("hidden");
+}
+
+function selectPfStock(symbol, name) {
+  $("#pf-sym").value = name;
+  $("#pf-symbol-val").value = symbol;
+  hidePfDropdown();
+  getJSON(`/api/portal/analyze?symbol=${encodeURIComponent(symbol)}`).then(res => {
+    if (res && res.close && !$("#pf-gav").value) {
+      $("#pf-gav").value = res.close;
+    }
+  }).catch(() => {});
+}
+
+function initPfSearch() {
+  const input = $("#pf-sym");
+  const dropdown = $("#pf-dropdown");
+  if (!input || !dropdown) return;
+
+  input.addEventListener("input", () => {
+    $("#pf-symbol-val").value = "";
+    clearTimeout(pfSearchTimer);
+    const q = input.value.trim();
+    if (q.length < 1) {
+      hidePfDropdown();
+      return;
+    }
+    pfSearchTimer = setTimeout(async () => {
+      const results = await getJSON(`/api/portal/search?q=${encodeURIComponent(q)}`);
+      if (!Array.isArray(results) || !results.length) {
+        dropdown.innerHTML = '<div style="padding:0.6rem 0.8rem; color:var(--text-dim); font-size:0.88rem;">Inga bolag hittades</div>';
+        dropdown.classList.remove("hidden");
+        return;
+      }
+      dropdown.innerHTML = results.slice(0, 8).map(r => `
+        <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
+             onclick="selectPfStock('${esc(r.symbol)}', '${esc(r.name)}')">
+          <div>
+            <b>${esc(r.name)}</b>
+            <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${esc(r.symbol)}</small>
+          </div>
+          <span class="pill sm" style="font-size:0.75rem;">${esc(r.type || "Aktie")}</span>
+        </div>
+      `).join("");
+      dropdown.classList.remove("hidden");
+    }, 180);
+  });
+
+  document.addEventListener("click", e => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      hidePfDropdown();
+    }
+  });
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Escape") hidePfDropdown();
+  });
+}
+
 async function addHolding() {
+  const symVal = ($("#pf-symbol-val").value || $("#pf-sym").value).trim();
   const b = {
-    symbol: $("#pf-sym").value.trim(), qty: +$("#pf-qty").value,
-    avg_price: +$("#pf-gav").value, kind: $("#pf-kind").value, fee_pct: +$("#pf-fee").value || 0,
+    symbol: symVal,
+    name: $("#pf-sym").value.trim(),
+    qty: +$("#pf-qty").value,
+    avg_price: +$("#pf-gav").value,
+    kind: $("#pf-kind").value,
+    fee_pct: +$("#pf-fee").value || 0,
   };
-  if (!b.symbol || !b.qty || !b.avg_price) { alert("Fyll i ticker, antal och snittpris."); return; }
+  if (!b.symbol || !b.qty || !b.avg_price) { alert("Fyll i bolag/ticker, antal och snittpris."); return; }
   const r = await getJSON("/api/portal/portfolio", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b),
   });
   if (r.error) { alert(r.error); return; }
-  $("#pf-sym").value = $("#pf-qty").value = $("#pf-gav").value = "";
+  $("#pf-sym").value = $("#pf-symbol-val").value = $("#pf-qty").value = $("#pf-gav").value = "";
+  hidePfDropdown();
   loadPortfolio();
 }
 async function delHolding(sym) {
@@ -925,6 +999,7 @@ const TABLOADERS = {
   portfolio: loadPortfolio, market: () => loadMarket("all"),
   insider: loadInsider, congress: loadCongress, crypto: loadCrypto,
 };
+initPfSearch();
 loadMkt();
 const start = (location.hash || "#plan").slice(1);
 showTab(TABS.some(t => t[0] === start) ? start : "plan");
