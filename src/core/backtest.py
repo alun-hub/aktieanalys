@@ -70,9 +70,79 @@ def _load_history(conn, symbols):
     return out
 
 
-def _prep_signals(g, p):
+STRATEGIES = {
+    "dip": {
+        "name": "Kvalitets-dipp i upptrend",
+        "desc": "Köp starka bolag i upptrend vid tillfällig rekyl (RSI <= 38 eller test av MA50)",
+        "default_rsi_exit": 65,
+        "default_max_days": 20,
+        "atr_stop_mult": 2.5,
+    },
+    "momentum": {
+        "name": "Momentum & Utbrott",
+        "desc": "Köp vid 20/50-dagars utbrott med volymökning och Close > MA50 > MA200",
+        "default_rsi_exit": 78,
+        "default_max_days": 25,
+        "atr_stop_mult": 2.5,
+    },
+    "trend": {
+        "name": "Långsiktig Trendföljare",
+        "desc": "Position i stark trend över MA200 med Golden Cross",
+        "default_rsi_exit": 85,
+        "default_max_days": 252,
+        "atr_stop_mult": 3.5,
+    }
+}
+
+
+def prep_strategy_signals(g, strategy="dip", **custom_params):
     g = g.copy()
-    if p["entry"] == "breakout":
+    c = g["close"]
+    ma50 = g.get("ma50") if "ma50" in g.columns else c.rolling(50).mean()
+    ma200 = g.get("ma200") if "ma200" in g.columns else c.rolling(200).mean()
+    rsi = g.get("rsi") if "rsi" in g.columns else pd.Series(50, index=g.index)
+    vol = g["volume"]
+    prior_vol = vol.rolling(20).mean().shift(1)
+
+    if strategy == "dip":
+        # Upptrend + tillfällig rekyl + vändning
+        in_uptrend = (ma200.notna()) & (c > ma200 * 0.99) & (ma200 >= ma200.shift(20) * 0.995)
+        is_dipping = (rsi <= 40) | (g["low"] <= ma50 * 1.015)
+        turnaround = (c > g["low"].shift(1)) | (c > g["open"])
+        g["entry_sig"] = in_uptrend & is_dipping & turnaround
+        g["entry_rank"] = 50.0 - rsi.fillna(50)  # Lägre RSI = starkare köpläge
+
+    elif strategy == "momentum":
+        # 20-dagars högsta + volym + trendhierarki
+        prior_high_20 = g["high"].rolling(20).max().shift(1)
+        breakout = (c > prior_high_20)
+        vol_surge = (vol > prior_vol * 1.3)
+        trend_ok = (ma50.notna()) & (ma200.notna()) & (c > ma50) & (ma50 > ma200 * 0.99)
+        g["entry_sig"] = breakout & vol_surge & trend_ok
+        g["entry_rank"] = (vol / prior_vol.replace(0, np.nan)).fillna(1.0)
+
+    elif strategy == "trend":
+        # Golden Cross eller etablerad stängning över stigande MA200
+        golden_cross = (ma50 > ma200) & (c > ma200)
+        g["entry_sig"] = golden_cross
+        g["entry_rank"] = ((c / ma200.replace(0, np.nan)) - 1.0).fillna(0.0)
+
+    else:
+        # Fallback till tidigare standard
+        g["entry_sig"] = False
+        g["entry_rank"] = 0.0
+
+    return g
+
+
+def _prep_signals(g, p):
+    if isinstance(p, str):
+        return prep_strategy_signals(g, strategy=p)
+    if isinstance(p, dict) and "strategy" in p:
+        return prep_strategy_signals(g, strategy=p["strategy"], **{k: v for k, v in p.items() if k != "strategy"})
+
+    g = g.copy()
+    if p.get("entry") == "breakout":
         n = int(p["breakout_days"])
         prior_high = g["high"].rolling(n).max().shift(1)
         prior_vol = g["volume"].rolling(20).mean().shift(1)
