@@ -259,6 +259,7 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
           <button class="btn btn-primary" onclick="loadOpportunities()">Uppdatera lägen</button>
         </div>
       </div>
+      <div id="opp-regime-banner"></div>
     </div>
     <div id="opp-container" class="grid cols-2" style="margin-top:1rem;"></div>
   </section>
@@ -1064,7 +1065,8 @@ async function loadMarket(m, btn) {
 // ---------- AFFÄRSMÖJLIGHETER ----------
 async function loadOpportunities() {
   const container = $("#opp-container");
-  container.innerHTML = '<div class="card" style="grid-column:1/-1;"><p class="muted">Skannar marknaden efter köplägen…</p></div>';
+  const regBanner = $("#opp-regime-banner");
+  container.innerHTML = '<div class="card" style="grid-column:1/-1;"><p class="muted spin">Skannar marknaden med kvalitetsspärr och relativ styrka…</p></div>';
   const mkt = $("#opp-market") ? $("#opp-market").value : "all";
   const strat = $("#opp-strategy") ? $("#opp-strategy").value : "all";
   const d = await getJSON(`/api/portal/opportunities?market=${encodeURIComponent(mkt)}&strategy=${encodeURIComponent(strat)}`);
@@ -1072,23 +1074,50 @@ async function loadOpportunities() {
     container.innerHTML = `<div class="card" style="grid-column:1/-1;"><p class="neg">${esc(d.error)}</p></div>`;
     return;
   }
+
+  const regime = d.regime;
+  if (regBanner && regime) {
+    const isBear = regime.regime === "bear";
+    const bgCallout = isBear ? 'danger' : (regime.regime === 'correction' ? 'warn' : 'info');
+    regBanner.innerHTML = `
+      <div class="callout ${bgCallout}" style="margin:0.8rem 0 0.2rem; padding:0.65rem 0.85rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;">
+        <div>
+          <b>Marknadsklimat (${esc(regime.index_name || "")}):</b> <span class="pill ${regime.badge || 'neutral'}">${esc(regime.label || "")}</span>
+          <div class="muted" style="margin-top:0.2rem; font-size:0.82rem;">${esc(regime.description || "")}</div>
+        </div>
+        <div style="font-size:0.82rem; color:var(--text-dim); text-align:right;">
+          ${regime.close ? `Index: <b>${money(regime.close, regime.index_symbol === '^NDX' ? '$' : 'kr')}</b>` : ""}
+          ${regime.ma200 ? ` · MA200: <b>${money(regime.ma200, regime.index_symbol === '^NDX' ? '$' : 'kr')}</b>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
   const list = d.opportunities || [];
   if (!list.length) {
     container.innerHTML = `
       <div class="card" style="grid-column:1/-1;">
-        <p class="muted">Inga aktier uppfyller kriterierna just idag. Tålamod och disciplin är nyckeln till framgångsrika investeringar.</p>
+        <p class="muted">Inga aktier uppfyller kvalitetskraven och den statistiska spärren just idag. Tålamod och disciplin skyddar ditt kapital.</p>
       </div>`;
     return;
   }
 
   container.innerHTML = list.map(op => {
     const stratClass = op.strategy === "dip" ? "up" : (op.strategy === "momentum" ? "info" : "neutral");
+    const rs = op.relative_strength;
+    const rsBadge = (rs && rs.rs_label)
+      ? `<span class="pill ${rs.badge || 'neutral'}" style="font-size:0.75rem; margin-left:0.3rem;">${esc(rs.rs_label)}</span>`
+      : "";
+
     return `
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
           <div>
             <h3 style="margin-bottom:0.3rem;">${esc(op.name)} <small class="muted">${esc(op.symbol)}</small></h3>
-            <span class="pill ${stratClass}">${esc(op.strategy_name)}</span>
+            <div style="display:flex; gap:0.3rem; align-items:center; flex-wrap:wrap;">
+              <span class="pill ${stratClass}">${esc(op.strategy_name)}</span>
+              ${rsBadge}
+            </div>
           </div>
           <div style="text-align:right;">
             <div style="font-size:1.3rem; font-weight:bold;">${money(op.close, op.currency)}</div>
@@ -1098,16 +1127,20 @@ async function loadOpportunities() {
         <p style="margin:0.7rem 0 0.5rem 0; font-size:0.95rem;">${esc(op.reason)}</p>
 
         <div class="callout info" style="margin:0.5rem 0; padding:0.6rem;">
-          <b>Historisk edge (5 år):</b> ${op.edge.win_rate} % vinstaffärer (${op.edge.trades_count} st), vinstfaktor ${op.edge.profit_factor}
+          <b>Statistisk edge (5 år):</b> ${op.edge.win_rate} % vinstaffärer (${op.edge.trades_count} st), vinstfaktor <b>${op.edge.profit_factor}</b>
           ${op.edge.avg_gain_pct ? ` · Snittvinst <b>+${op.edge.avg_gain_pct}%</b>` : ""}
         </div>
 
-        <div class="grid cols-3" style="margin-top:0.6rem; background:rgba(255,255,255,0.03); padding:0.6rem; border-radius:6px;">
+        <div class="grid cols-4" style="margin-top:0.6rem; background:rgba(255,255,255,0.03); padding:0.6rem; border-radius:6px;">
           <div><small class="muted">Entry</small><br><b>${money(op.levels.entry_price, op.currency)}</b></div>
           <div><small class="muted">Stop-loss</small><br><b class="neg">${money(op.levels.stop_loss, op.currency)}</b> <small>(${op.levels.risk_pct}%)</small></div>
-          <div><small class="muted">Målkurs</small><br><b class="up">${money(op.levels.target_price, op.currency)}</b> <small>(+${op.levels.reward_pct}%)</small></div>
+          <div><small class="muted">Delmål 1 (50%)</small><br><b class="up">${money(op.levels.tp1 || op.levels.target_price, op.currency)}</b> <small>(BE-stopp)</small></div>
+          <div><small class="muted">Mål 2 (Trailing)</small><br><b class="up">${money(op.levels.tp2 || op.levels.target_price, op.currency)}</b> <small>(+${op.levels.reward_pct}%)</small></div>
         </div>
-        <div style="margin-top:0.4rem; font-size:0.85rem; color:var(--text-dim);">Risk/Reward-kvot: <b>${esc(op.levels.rr_label)}</b></div>
+        <div style="margin-top:0.4rem; font-size:0.82rem; color:var(--text-dim);">
+          <b>🎯 Exit-plan:</b> ${esc(op.levels.trailing_desc || "Säkra 50% vinst vid Delmål 1 och flytta stop till breakeven.")}
+        </div>
+        <div style="margin-top:0.3rem; font-size:0.82rem; color:var(--text-dim);">Risk/Reward-kvot: <b>${esc(op.levels.rr_label)}</b></div>
 
         <div style="display:flex; gap:0.5rem; margin-top:0.9rem;">
           <button class="btn btn-primary" onclick="showTab('analyze'); $('#an-q').value='${esc(op.symbol)}'; analyze('${esc(op.symbol)}')">Analysera bolag</button>
