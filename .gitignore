@@ -4,3 +4,5 @@ __pycache__/
 watchlist.json
 portfolio.json
 .env
+data/
+.venv/
