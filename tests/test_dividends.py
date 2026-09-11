@@ -25,12 +25,23 @@ class TestDividends(unittest.TestCase):
         self.assertTrue(res_trap["dividend_score"] < 40)
         self.assertIn("fälla", res_trap["verdict"].lower())
 
-    def test_get_top_dividend_stocks_structure(self):
-        # Anropa med begränsad lista och force_refresh=False
-        data = get_top_dividend_stocks(market="all", limit=5)
+    @patch("src.core.dividends.get_db")
+    @patch("src.core.dividends.yf.Ticker")
+    def test_get_top_dividend_stocks_structure(self, mock_ticker, mock_get_db):
+        mock_conn = MagicMock()
+        mock_get_db.return_value = mock_conn
+        mock_conn.execute.return_value.fetchone.return_value = {
+            "close": 100.0, "ma50": 95.0, "ma200": 90.0, "rsi": 50.0, "atr": 2.0
+        }
+        mock_t = MagicMock()
+        mock_t.info = {"dividendYield": 0.05, "payoutRatio": 0.5, "trailingPE": 15.0}
+        mock_ticker.return_value = mock_t
+
+        data = get_top_dividend_stocks(market="omx", limit=5, force_refresh=True)
         self.assertIn("stocks", data)
         self.assertIn("updated_at", data)
         self.assertIsInstance(data["stocks"], list)
+        self.assertTrue(len(data["stocks"]) <= 5)
 
     def test_score_zero_or_none_yield(self):
         res_zero = score_dividend_stock(yield_pct=0)
@@ -40,6 +51,12 @@ class TestDividends(unittest.TestCase):
         res_none = score_dividend_stock(yield_pct=None)
         self.assertEqual(res_none["dividend_score"], 0.0)
         self.assertEqual(res_none["verdict"], "Ingen utdelning")
+
+    def test_payout_ratio_high_trap(self):
+        # 250% payout ratio ska ge låg payout_score (10.0)
+        res = score_dividend_stock(yield_pct=9.0, payout_ratio=250.0, pe=15.0, trend_score_val=50.0)
+        self.assertEqual(res["payout_score"], 10.0)
+        self.assertIn("fälla", res["verdict"].lower())
 
     @patch("src.core.dividends.get_db")
     @patch("src.core.dividends.yf.Ticker")
@@ -94,3 +111,24 @@ class TestDividends(unittest.TestCase):
         self.assertGreaterEqual(stocks[0]["dividend_score"], stocks[1]["dividend_score"])
         self.assertEqual(stocks[0]["rank"], 1)
         self.assertEqual(stocks[1]["rank"], 2)
+
+    @patch("src.core.dividends.get_db")
+    @patch("src.core.dividends.yf.Ticker")
+    def test_cache_dynamic_limit(self, mock_ticker, mock_get_db):
+        mock_conn = MagicMock()
+        mock_get_db.return_value = mock_conn
+        mock_conn.execute.return_value.fetchone.return_value = {
+            "close": 100.0, "ma50": 95.0, "ma200": 90.0, "rsi": 50.0, "atr": 2.0
+        }
+        mock_t = MagicMock()
+        mock_t.info = {"dividendYield": 0.05, "payoutRatio": 0.5, "trailingPE": 15.0}
+        mock_ticker.return_value = mock_t
+
+        # First call with limit=1
+        data1 = get_top_dividend_stocks(market="omx", limit=1, force_refresh=True)
+        self.assertEqual(len(data1["stocks"]), 1)
+
+        # Second call with limit=3 (from cache)
+        data2 = get_top_dividend_stocks(market="omx", limit=3, force_refresh=False)
+        self.assertGreater(len(data2["stocks"]), 1)
+
