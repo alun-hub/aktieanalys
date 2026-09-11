@@ -150,9 +150,9 @@ def _holding_recommendation(symbol, kind, m, row):
     if kind == "fond" or symbol.startswith("MANUAL:"):
         return {"action": "Behåll", "badge": "hold", "reason": "Långsiktigt fondsparande"}
 
-    close = m.get("price")
-    ma50 = (row.get("ma50") if row else None) or m.get("ma50")
-    ma200 = (row.get("ma200") if row else None) or m.get("ma200")
+    close = m.get("price") or (row.get("close") if row else None)
+    ma50 = m.get("ma50") or (row.get("ma50") if row else None)
+    ma200 = m.get("ma200") or (row.get("ma200") if row else None)
     rsi = (row.get("rsi") if row else None)
 
     score = None
@@ -163,12 +163,16 @@ def _holding_recommendation(symbol, kind, m, row):
 
     if score is not None:
         if score >= 65:
-            reason = "Stark teknisk upptrend"
-            return {"action": "Köp", "badge": "buy", "reason": reason}
+            if rec_key in ("sell", "underperform"):
+                return {"action": "Behåll", "badge": "hold", "reason": "Teknisk uppgång men svag analytikersyn"}
+            return {"action": "Köp", "badge": "buy", "reason": "Stark teknisk upptrend"}
         elif score <= 38:
-            reason = "Nedåttrend under medelvärden"
-            return {"action": "Sälj", "badge": "sell", "reason": reason}
+            if rec_key in ("strong_buy", "buy"):
+                return {"action": "Behåll", "badge": "hold", "reason": "Dipp under medelvärden men stark analytikerkonsensus"}
+            return {"action": "Sälj", "badge": "sell", "reason": "Nedåttrend under medelvärden"}
         else:
+            if rec_key in ("strong_buy", "buy"):
+                return {"action": "Köp", "badge": "buy", "reason": "Konsolidering med positiv analytikerkonsensus"}
             return {"action": "Behåll", "badge": "hold", "reason": "Konsolidering / neutral trend"}
 
     if rec_key in ("strong_buy", "buy"):
@@ -217,16 +221,17 @@ def _meta(symbol):
             meta["country"] = info.get("country") or ("Sverige" if symbol.endswith(".ST") else None)
         meta["currency"] = info.get("currency")
         meta["rec_key"] = info.get("recommendationKey")
-        if not meta["ma50"]:
-            meta["ma50"] = info.get("fiftyDayAverage")
-        if not meta["ma200"]:
-            meta["ma200"] = info.get("twoHundredDayAverage")
+        if info.get("fiftyDayAverage"):
+            meta["ma50"] = float(info.get("fiftyDayAverage"))
+        if info.get("twoHundredDayAverage"):
+            meta["ma200"] = float(info.get("twoHundredDayAverage"))
         dy = info.get("dividendYield")
         if dy and 0 < dy < 25:
             meta["dividend_yield"] = float(dy)
-        if meta["price"] is None:
-            fi = getattr(t, "fast_info", {}) or {}
-            meta["price"] = fi.get("last_price") or fi.get("lastPrice")
+        fi = getattr(t, "fast_info", {}) or {}
+        live_p = fi.get("last_price") or fi.get("lastPrice") or info.get("currentPrice") or info.get("regularMarketPrice")
+        if live_p:
+            meta["price"] = float(live_p)
     except Exception:
         pass
 
