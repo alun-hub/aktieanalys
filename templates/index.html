@@ -53,6 +53,7 @@ input, select { font-family: inherit; font-size: .95rem; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-primary:hover { filter: brightness(1.05); }
 .btn:disabled { opacity: .5; cursor: default; }
+.btn-sm { padding: .25rem .55rem; font-size: .8rem; }
 
 nav.tabs { max-width: 960px; margin: 0 auto; padding: 0 .5rem; display: flex; gap: .1rem; overflow-x: auto; }
 nav.tabs button { border: none; background: none; color: var(--text-dim); padding: .7rem .8rem; border-bottom: 2px solid transparent; white-space: nowrap; font-size: .92rem; }
@@ -261,6 +262,30 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
     <div id="opp-container" class="grid cols-2" style="margin-top:1rem;"></div>
   </section>
 
+  <!-- ============ TOPP 10 UTDELNING ============ -->
+  <section class="pane" id="pane-dividends">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+        <div>
+          <h2 style="margin:0;">Topp 10 Utdelningsaktier</h2>
+          <p class="muted" style="margin-top:0.3rem;">
+            Kvalitetsviktad direktavkastning som kombinerar hög utdelning med sund utdelningsandel, attraktiv värdering (P/E) och teknisk trend för att undvika utdelningsfällor.
+          </p>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <div class="row" style="margin-bottom:0; gap:0.4rem;">
+            <button class="btn btn-primary" id="div-mkt-all" onclick="setDivMarket('all')">Alla</button>
+            <button class="btn" id="div-mkt-omx" onclick="setDivMarket('omx')">Sverige (OMXS)</button>
+            <button class="btn" id="div-mkt-nasdaq" onclick="setDivMarket('nasdaq')">USA (Nasdaq)</button>
+          </div>
+          <button class="btn" onclick="loadDividends(currentDivMarket, true)" title="Tvinga uppdatering från Yahoo Finance">↻ Synka</button>
+        </div>
+      </div>
+      <div id="div-meta" style="margin-top:0.8rem; font-size:0.82rem; color:var(--text-dim);"></div>
+    </div>
+    <div id="div-container" style="margin-top:1rem;"></div>
+  </section>
+
   <!-- ============ ANALYSERA BOLAG ============ -->
   <section class="pane" id="pane-analyze">
     <div class="card">
@@ -437,6 +462,7 @@ function withTerms(text) {
 // ---------- tabs ----------
 const TABS = [
   ["plan", "Din plan"], ["portfolio", "Min portfölj"], ["opportunities", "Möjligheter"],
+  ["dividends", "Utdelning"],
   ["analyze", "Analysera bolag"], ["market", "Marknadsläge"], ["backtest", "Backtest"],
   ["insider", "Insyn"], ["congress", "Kongress"], ["crypto", "Krypto"], ["glossary", "Ordlista"],
 ];
@@ -1091,6 +1117,127 @@ async function loadOpportunities() {
   }).join("");
 }
 
+// ---------- TOPP 10 UTDELNING ----------
+let currentDivMarket = "all";
+
+function setDivMarket(mkt) {
+  currentDivMarket = mkt;
+  ["all", "omx", "nasdaq"].forEach(m => {
+    const b = $(`#div-mkt-${m}`);
+    if (b) {
+      if (m === mkt) b.classList.add("btn-primary");
+      else b.classList.remove("btn-primary");
+    }
+  });
+  loadDividends(mkt, false);
+}
+
+async function loadDividends(market = currentDivMarket, refresh = false) {
+  const container = $("#div-container");
+  const meta = $("#div-meta");
+  if (!container) return;
+  container.innerHTML = '<div class="card"><p class="muted spin">Hämtar och analyserar utdelningskvalitet…</p></div>';
+
+  try {
+    const res = await getJSON(`/api/portal/top-dividends?market=${encodeURIComponent(market)}&limit=10${refresh ? '&refresh=true' : ''}`);
+    if (res.error) {
+      container.innerHTML = `<div class="card"><p class="neg">Kunde inte ladda utdelningsdata: ${esc(res.error)}</p></div>`;
+      return;
+    }
+    if (meta && res.updated_at) {
+      meta.textContent = `Senast uppdaterad: ${res.updated_at} · Poängmodell: Direktavkastning (35%), Utdelningsandel (25%), P/E (20%), Trend (20%)`;
+    }
+    const stocks = res.stocks || [];
+    if (!stocks.length) {
+      container.innerHTML = '<div class="card"><p class="muted">Inga utdelningsaktier hittades för det valda filtret.</p></div>';
+      return;
+    }
+
+    let html = `
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:44px; text-align:center;">#</th>
+                <th>Aktie</th>
+                <th class="num">Kurs</th>
+                <th class="num">Direktavk.</th>
+                <th class="num">Utdelningsandel</th>
+                <th class="num">P/E</th>
+                <th class="num">Trend</th>
+                <th class="num">Utdelningspoäng</th>
+                <th>Omdöme</th>
+                <th style="text-align:center;">Åtgärd</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    stocks.forEach(s => {
+      const isTrap = (s.verdict || "").toLowerCase().includes("fälla");
+      const scoreCls = isTrap ? "neg" : (s.dividend_score >= 80 ? "pos" : (s.dividend_score >= 65 ? "pos" : ""));
+      const rankBadge = s.rank === 1 ? '🥇 1' : (s.rank === 2 ? '🥈 2' : (s.rank === 3 ? '🥉 3' : s.rank));
+      const mktBadge = s.market === 'OMX' ? '<span class="pill up" style="font-size:0.7rem; padding:0.05rem 0.4rem;">OMX</span>' : '<span class="pill" style="font-size:0.7rem; padding:0.05rem 0.4rem;">NASDAQ</span>';
+      const pillClass = isTrap ? 'down-strong' : (s.dividend_score >= 80 ? 'up-strong' : (s.dividend_score >= 65 ? 'up' : 'neutral'));
+
+      html += `
+        <tr>
+          <td style="text-align:center; font-weight:700; font-size:0.95rem;">${rankBadge}</td>
+          <td>
+            <div style="font-weight:600; display:flex; align-items:center; gap:0.4rem;">
+              <a href="javascript:void(0)" onclick="goToAnalyze('${esc(s.symbol)}')" style="color:var(--text); text-decoration:none;">
+                ${esc(s.name)}
+              </a>
+              ${mktBadge}
+            </div>
+            <div class="muted" style="font-size:0.78rem;">${esc(s.symbol)}</div>
+          </td>
+          <td class="num" style="font-weight:600;">${money(s.close, s.currency)}</td>
+          <td class="num">
+            <span style="font-size:1.02rem; font-weight:700;" class="${s.dividend_yield >= 4.0 ? 'pos' : ''}">
+              ${s.dividend_yield != null ? s.dividend_yield.toFixed(1) + ' %' : '–'}
+            </span>
+          </td>
+          <td class="num">
+            <span class="${s.payout_ratio != null && s.payout_ratio > 90.0 ? 'neg' : ''}">
+              ${s.payout_ratio != null ? s.payout_ratio.toFixed(0) + ' %' : '–'}
+            </span>
+          </td>
+          <td class="num">${s.pe != null ? s.pe.toFixed(1) : '–'}</td>
+          <td class="num">
+            <span class="${cls(s.trend_score - 50)}">${s.trend_score != null ? s.trend_score : '–'}</span>
+          </td>
+          <td class="num">
+            <div style="display:inline-block; text-align:right;">
+              <b style="font-size:1.1rem;" class="${scoreCls}">${s.dividend_score}</b><small class="muted">/100</small>
+            </div>
+          </td>
+          <td>
+            <span class="pill ${pillClass}" style="font-size:0.76rem;">
+              ${esc(s.verdict)}
+            </span>
+          </td>
+          <td style="text-align:center;">
+            <button class="btn btn-sm btn-primary" onclick="goToAnalyze('${esc(s.symbol)}')">Analysera</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div class="card"><p class="neg">Ett fel inträffade vid hämtning: ${esc(err.message)}</p></div>`;
+  }
+}
+
 // ---------- BACKTEST ----------
 let btMode = "stock";
 function setBtMode(mode) {
@@ -1301,6 +1448,7 @@ $("#gl-list").innerHTML = Object.entries(GLOSSARY).map(([k, v]) =>
 // ---------- boot ----------
 const TABLOADERS = {
   opportunities: loadOpportunities,
+  dividends: () => loadDividends(currentDivMarket),
   portfolio: loadPortfolio, market: () => loadMarket("all"),
   insider: loadInsider, congress: loadCongress, crypto: loadCrypto,
 };
