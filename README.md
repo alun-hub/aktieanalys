@@ -31,8 +31,8 @@ Databasen (`data/trading.db`) skapas automatiskt. Klicka **Uppdatera kursdata** 
 appen (eller vänta på nattsynken) för att fylla den – screener och backtest är tomma
 tills dess. Full historik hämtas (`period="max"`), så första synken tar några minuter.
 
-Miljövariabler (se `src/core/settings.py`): `AKTIEANALYS_DB`, `AKTIEANALYS_DATA`,
-`AKTIEANALYS_HISTORY`, `RUN_SCHEDULER`.
+Miljövariabler (se `src/core/settings.py`): `AKTIEANALYS_DB` (sökväg till SQLite-filen;
+katalogen den ligger i skapas automatiskt), `AKTIEANALYS_HISTORY`, `RUN_SCHEDULER`.
 
 ## Container / k3s
 
