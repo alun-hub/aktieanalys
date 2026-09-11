@@ -122,3 +122,44 @@ INDEX_TICKERS = {
     "^OMX": "OMXS30",
     "^NDX": "Nasdaq 100",
 }
+
+# Populära ETF:er (svenska, nordiska och europeiska UCITS samt US core)
+POPULAR_ETFS = {
+    # Svenska & Nordiska (XACT m.fl.)
+    "XACTHDIV.ST": {"name": "Xact Norden Högutdelande", "region": "Norden", "sector": "ETF - Utdelning"},
+    "XACT-OMXS30.ST": {"name": "Xact OMXS30", "region": "Sverige", "sector": "ETF - Sverige"},
+    "XACT-SVERIGE.ST": {"name": "Xact Sverige", "region": "Sverige", "sector": "ETF - Sverige"},
+    "XACT-SMABOLAG.ST": {"name": "Xact Småbolag", "region": "Sverige", "sector": "ETF - Småbolag"},
+    "XACT-SVENSKA-SMABOLAG.ST": {"name": "Xact Svenska Småbolag", "region": "Sverige", "sector": "ETF - Småbolag"},
+    "XACT-OBLIGATION.ST": {"name": "Xact Obligation", "region": "Sverige", "sector": "ETF - Räntor"},
+    "XACT-BEAR-2.ST": {"name": "Xact Bear 2", "region": "Sverige", "sector": "ETF - Bear/Hedge"},
+    "XACT-BULL-2.ST": {"name": "Xact Bull 2", "region": "Sverige", "sector": "ETF - Bull/Hävstång"},
+
+    # Europeiska UCITS (handlas via Avanza/Nordnet på Euronext/Xetra)
+    "CSPX.AS": {"name": "iShares Core S&P 500 UCITS (Acc)", "region": "USA", "sector": "ETF - USA Index"},
+    "SXR8.DE": {"name": "iShares Core S&P 500 UCITS (DE)", "region": "USA", "sector": "ETF - USA Index"},
+    "IWDA.AS": {"name": "iShares Core MSCI World UCITS", "region": "Global", "sector": "ETF - Global Index"},
+    "EUNL.DE": {"name": "iShares Core MSCI World UCITS (DE)", "region": "Global", "sector": "ETF - Global Index"},
+    "VWCE.DE": {"name": "Vanguard FTSE All-World UCITS (Acc)", "region": "Global", "sector": "ETF - Global Index"},
+    "VWRL.AS": {"name": "Vanguard FTSE All-World UCITS (Dist)", "region": "Global", "sector": "ETF - Global Index"},
+    "VUSA.AS": {"name": "Vanguard S&P 500 UCITS", "region": "USA", "sector": "ETF - USA Index"},
+    "VUAA.DE": {"name": "Vanguard S&P 500 UCITS (Acc)", "region": "USA", "sector": "ETF - USA Index"},
+    "EQAC.DE": {"name": "Invesco EQQQ Nasdaq-100 UCITS", "region": "USA", "sector": "ETF - USA Tech"},
+    "EQQQ.L": {"name": "Invesco EQQQ Nasdaq-100 UCITS (L)", "region": "USA", "sector": "ETF - USA Tech"},
+    "EMIM.AS": {"name": "iShares Core MSCI EM IMI UCITS", "region": "Tillväxtmarknader", "sector": "ETF - Tillväxtmarknader"},
+    "IS3N.DE": {"name": "iShares Core MSCI EM IMI UCITS (DE)", "region": "Tillväxtmarknader", "sector": "ETF - Tillväxtmarknader"},
+    "XD9U.DE": {"name": "Xtrackers S&P 500 UCITS", "region": "USA", "sector": "ETF - USA Index"},
+    "4GLD.DE": {"name": "Xetra-Gold", "region": "Råvaror", "sector": "ETF - Guld"},
+
+    # Amerikanska ETF:er
+    "SPY": {"name": "SPDR S&P 500 ETF Trust", "region": "USA", "sector": "ETF - USA Index"},
+    "QQQ": {"name": "Invesco QQQ Trust (Nasdaq 100)", "region": "USA", "sector": "ETF - USA Tech"},
+    "VOO": {"name": "Vanguard S&P 500 ETF", "region": "USA", "sector": "ETF - USA Index"},
+    "VTI": {"name": "Vanguard Total Stock Market ETF", "region": "USA", "sector": "ETF - USA Index"},
+    "SCHD": {"name": "Schwab U.S. Dividend Equity ETF", "region": "USA", "sector": "ETF - Utdelning"},
+    "VT": {"name": "Vanguard Total World Stock ETF", "region": "Global", "sector": "ETF - Global Index"},
+    "ARKK": {"name": "ARK Innovation ETF", "region": "USA", "sector": "ETF - Innovation"},
+    "GLD": {"name": "SPDR Gold Shares", "region": "Råvaror", "sector": "ETF - Guld"},
+    "TLT": {"name": "iShares 20+ Year Treasury Bond ETF", "region": "USA", "sector": "ETF - Räntor"},
+}
+
