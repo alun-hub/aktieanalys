@@ -7,7 +7,7 @@ from src.core.indicators import calc_rsi, calc_atr
 from src.core.patterns import detect_patterns
 from src.core.short_interest import fetch_short_interest
 from src.core.signals import trend_score, trend_label
-from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS
+from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS, POPULAR_SWEDISH_FUNDS
 
 CRYPTO_NAMES = {
     "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
@@ -17,32 +17,64 @@ CRYPTO_NAMES = {
 }
 
 
+def _normalize_query(text):
+    text = (text or "").strip().lower()
+    text = text.replace("å", "a").replace("ä", "a").replace("ö", "o")
+    text = text.replace("é", "e")
+    return text
+
+
 def search_symbols(query):
-    """Söker efter tickers och bolagsnamn via OMX/Nasdaq, kurerade ETF:er och Yahoo Finance."""
+    """Söker efter tickers och bolagsnamn via fonder, ETF:er, aktier, krypto och Yahoo Finance."""
     query = query.strip()
     if not query:
         return []
 
-    q_lower = query.lower()
+    norm_q = _normalize_query(query)
     matches = []
 
-    # 1. Kurerade ETF:er (svenska & europeiska UCITS)
+    # 1. Populära svenska fonder (Länsförsäkringar, Avanza, Spiltan, AMF etc.)
+    for key, item in POPULAR_SWEDISH_FUNDS.items():
+        name = item["name"]
+        norm_name = _normalize_query(name)
+        aliases = [_normalize_query(a) for a in item.get("aliases", [])]
+        if norm_q in norm_name or any(norm_q in a or a in norm_q for a in aliases):
+            matches.append({
+                "symbol": f"MANUAL:{key}",
+                "name": name,
+                "type": "Fond",
+                "fee_pct": item.get("fee_pct", 0.0),
+                "region": item.get("region", "Global")
+            })
+
+    # 2. Kurerade ETF:er (svenska & europeiska UCITS)
     for sym, item in POPULAR_ETFS.items():
         name = item["name"]
-        if q_lower in sym.lower() or q_lower in name.lower():
-            matches.append({"symbol": sym, "name": name, "type": "ETF"})
+        norm_name = _normalize_query(name)
+        norm_sym = _normalize_query(sym)
+        if norm_q in norm_sym or norm_q in norm_name:
+            matches.append({
+                "symbol": sym,
+                "name": name,
+                "type": "ETF",
+                "region": item.get("region", "Övrigt")
+            })
 
-    # 2. OMXS & Nasdaq aktier
+    # 3. OMXS & Nasdaq aktier
     for sym, name in {**OMXS_50, **NASDAQ_100}.items():
-        if q_lower in sym.lower() or q_lower in name.lower():
+        norm_name = _normalize_query(name)
+        norm_sym = _normalize_query(sym)
+        if norm_q in norm_sym or norm_q in norm_name:
             matches.append({"symbol": sym, "name": name, "type": "Stock"})
 
-    # 3. Krypto
+    # 4. Krypto
     for sym, name in CRYPTO_NAMES.items():
-        if q_lower in sym.lower() or q_lower in name.lower():
+        norm_name = _normalize_query(name)
+        norm_sym = _normalize_query(sym)
+        if norm_q in norm_sym or norm_q in norm_name:
             matches.append({"symbol": sym, "name": name, "type": "Krypto"})
 
-    # 4. Yahoo Finance sökning för globala ETF:er, fonder och aktier
+    # 5. Yahoo Finance sökning för globala ETF:er, utländska fonder och aktier
     try:
         r = yf.Search(query, max_results=15).response
         for quote in r.get("quotes", []):
@@ -59,7 +91,7 @@ def search_symbols(query):
 
 
 def resolve_symbol(query):
-    """Mappar en söksträng (t.ex. 'investor', 'volvo', 'bitcoin', 'vwce', 'xact') till rätt ticker."""
+    """Mappar en söksträng (t.ex. 'investor', 'volvo', 'bitcoin', 'vwce', 'lf global') till rätt ticker."""
     q = query.strip()
     if not q:
         return None
@@ -77,6 +109,8 @@ def resolve_symbol(query):
         "near": "NEAR-USD", "sui": "SUI20947-USD",
     }
     q_lower = q.lower()
+    norm_q = _normalize_query(q)
+
     if q_lower in crypto_aliases:
         return crypto_aliases[q_lower]
 
@@ -84,14 +118,21 @@ def resolve_symbol(query):
     if q_upper.endswith("-USD"):
         return q_upper
 
+    # Kolla svenska fonder
+    for key, item in POPULAR_SWEDISH_FUNDS.items():
+        norm_name = _normalize_query(item["name"])
+        aliases = [_normalize_query(a) for a in item.get("aliases", [])]
+        if norm_q == norm_name or norm_q in norm_name or any(norm_q == a or norm_q in a for a in aliases):
+            return f"MANUAL:{key}"
+
     # Kolla ETF:er
     if q_upper in POPULAR_ETFS:
         return q_upper
     if f"{q_upper}.ST" in POPULAR_ETFS:
         return f"{q_upper}.ST"
     for sym, item in POPULAR_ETFS.items():
-        name = item["name"].lower()
-        if q_lower == name or q_lower in name or name in q_lower:
+        norm_name = _normalize_query(item["name"])
+        if norm_q == norm_name or norm_q in norm_name or norm_name in norm_q:
             return sym
 
     all_tickers = {**OMXS_50, **NASDAQ_100}
@@ -101,7 +142,8 @@ def resolve_symbol(query):
         return f"{q_upper}.ST"
 
     for sym, name in all_tickers.items():
-        if q_lower == name.lower() or q_lower in name.lower() or name.lower() in q_lower:
+        norm_name = _normalize_query(name)
+        if norm_q == norm_name or norm_q in norm_name or norm_name in norm_q:
             return sym
 
     results = search_symbols(q)

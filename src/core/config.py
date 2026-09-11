@@ -163,3 +163,277 @@ POPULAR_ETFS = {
     "TLT": {"name": "iShares 20+ Year Treasury Bond ETF", "region": "USA", "sector": "ETF - Räntor"},
 }
 
+# Populära svenska fonder (för snabb sökning och auto-ifyllning i portföljen)
+POPULAR_SWEDISH_FUNDS = {
+    # Länsförsäkringar
+    "LF-GLOBAL": {
+        "name": "Länsförsäkringar Global Index",
+        "fee_pct": 0.20,
+        "region": "Global",
+        "aliases": ["lf global", "lansforsakringar global", "länsförsäkringar global index", "lansforsakringar global index"]
+    },
+    "LF-TILLVAXT": {
+        "name": "Länsförsäkringar Tillväxtmarknad Index",
+        "fee_pct": 0.40,
+        "region": "Tillväxtmarknader",
+        "aliases": ["lf tillvaxt", "lansforsakringar tillvaxt", "länsförsäkringar tillväxtmarknad index"]
+    },
+    "LF-SVERIGE": {
+        "name": "Länsförsäkringar Sverige Index",
+        "fee_pct": 0.20,
+        "region": "Sverige",
+        "aliases": ["lf sverige", "lansforsakringar sverige", "länsförsäkringar sverige index"]
+    },
+    "LF-USA": {
+        "name": "Länsförsäkringar USA Index",
+        "fee_pct": 0.20,
+        "region": "USA",
+        "aliases": ["lf usa", "lansforsakringar usa", "länsförsäkringar usa index"]
+    },
+    "LF-EUROPA": {
+        "name": "Länsförsäkringar Europa Index",
+        "fee_pct": 0.20,
+        "region": "Europa",
+        "aliases": ["lf europa", "lansforsakringar europa", "länsförsäkringar europa index"]
+    },
+    "LF-SMABOLAG": {
+        "name": "Länsförsäkringar Småbolag Sverige",
+        "fee_pct": 1.40,
+        "region": "Sverige",
+        "aliases": ["lf smabolag", "lansforsakringar smabolag"]
+    },
+    "LF-FASTIGHET": {
+        "name": "Länsförsäkringar Fastighetsfond",
+        "fee_pct": 1.40,
+        "region": "Sverige",
+        "aliases": ["lf fastighet", "lansforsakringar fastighet"]
+    },
+
+    # Avanza Fonder
+    "AVANZA-ZERO": {
+        "name": "Avanza Zero",
+        "fee_pct": 0.00,
+        "region": "Sverige",
+        "aliases": ["zero", "avanza zero"]
+    },
+    "AVANZA-GLOBAL": {
+        "name": "Avanza Global",
+        "fee_pct": 0.09,
+        "region": "Global",
+        "aliases": ["avanza global"]
+    },
+    "AVANZA-USA": {
+        "name": "Avanza USA",
+        "fee_pct": 0.17,
+        "region": "USA",
+        "aliases": ["avanza usa"]
+    },
+    "AVANZA-EUROPA": {
+        "name": "Avanza Europa",
+        "fee_pct": 0.17,
+        "region": "Europa",
+        "aliases": ["avanza europa"]
+    },
+    "AVANZA-EM": {
+        "name": "Avanza Emerging Markets",
+        "fee_pct": 0.29,
+        "region": "Tillväxtmarknader",
+        "aliases": ["avanza emerging", "avanza em", "avanza tillvaxt"]
+    },
+    "AVANZA-AUTO-6": {
+        "name": "Avanza Auto 6",
+        "fee_pct": 0.36,
+        "region": "Global",
+        "aliases": ["avanza auto", "auto 6"]
+    },
+
+    # Spiltan
+    "SPILTAN-INVESTMENT": {
+        "name": "Spiltan Aktiefond Investmentbolag",
+        "fee_pct": 0.20,
+        "region": "Sverige",
+        "aliases": ["spiltan", "spiltan investment", "spiltan aktiefond"]
+    },
+    "SPILTAN-GLOBAL-INVEST": {
+        "name": "Spiltan Globalfond Investmentbolag",
+        "fee_pct": 0.50,
+        "region": "Global",
+        "aliases": ["spiltan global", "spiltan globalfond"]
+    },
+    "SPILTAN-RANTE": {
+        "name": "Spiltan Räntefond Sverige",
+        "fee_pct": 0.10,
+        "region": "Räntor",
+        "aliases": ["spiltan ranta", "spiltan rantefond"]
+    },
+    "SPILTAN-ENKEL": {
+        "name": "Spiltan Enkel",
+        "fee_pct": 0.20,
+        "region": "Global",
+        "aliases": ["spiltan enkel"]
+    },
+
+    # AMF
+    "AMF-GLOBAL": {
+        "name": "AMF Aktiefond Global",
+        "fee_pct": 0.40,
+        "region": "Global",
+        "aliases": ["amf global", "amf aktiefond global"]
+    },
+    "AMF-SVERIGE": {
+        "name": "AMF Aktiefond Sverige",
+        "fee_pct": 0.40,
+        "region": "Sverige",
+        "aliases": ["amf sverige", "amf aktiefond sverige"]
+    },
+    "AMF-USA": {
+        "name": "AMF Aktiefond Nordamerika",
+        "fee_pct": 0.40,
+        "region": "USA",
+        "aliases": ["amf usa", "amf nordamerika"]
+    },
+    "AMF-EUROPA": {
+        "name": "AMF Aktiefond Europa",
+        "fee_pct": 0.40,
+        "region": "Europa",
+        "aliases": ["amf europa"]
+    },
+    "AMF-SMABOLAG": {
+        "name": "AMF Aktiefond Småbolag",
+        "fee_pct": 0.40,
+        "region": "Sverige",
+        "aliases": ["amf smabolag"]
+    },
+    "AMF-RANTEFOND-MIX": {
+        "name": "AMF Räntefond Mix",
+        "fee_pct": 0.10,
+        "region": "Räntor",
+        "aliases": ["amf ranta", "amf rantefond", "amf mix"]
+    },
+
+    # Swedbank Robur
+    "SWEDBANK-ACCESS-GLOBAL": {
+        "name": "Swedbank Robur Access Global",
+        "fee_pct": 0.20,
+        "region": "Global",
+        "aliases": ["robur access global", "swedbank global"]
+    },
+    "SWEDBANK-ACCESS-SVERIGE": {
+        "name": "Swedbank Robur Access Sverige",
+        "fee_pct": 0.20,
+        "region": "Sverige",
+        "aliases": ["robur access sverige", "swedbank sverige"]
+    },
+    "SWEDBANK-ACCESS-USA": {
+        "name": "Swedbank Robur Access USA",
+        "fee_pct": 0.20,
+        "region": "USA",
+        "aliases": ["robur access usa", "swedbank usa"]
+    },
+    "SWEDBANK-TECHNOLOGY": {
+        "name": "Swedbank Robur Technology",
+        "fee_pct": 1.25,
+        "region": "USA",
+        "aliases": ["robur technology", "swedbank tech"]
+    },
+    "SWEDBANK-NY-TEKNIK": {
+        "name": "Swedbank Robur Ny Teknik",
+        "fee_pct": 1.25,
+        "region": "Norden",
+        "aliases": ["robur ny teknik", "swedbank ny teknik"]
+    },
+
+    # Handelsbanken
+    "SHB-GLOBAL-SMA": {
+        "name": "Handelsbanken Global Småbolag",
+        "fee_pct": 0.60,
+        "region": "Global",
+        "aliases": ["shb global smabolag", "handelsbanken global sma"]
+    },
+    "SHB-GL-INDEX-CRIT": {
+        "name": "Handelsbanken Gl Index Crit",
+        "fee_pct": 0.40,
+        "region": "Global",
+        "aliases": ["handelsbanken global index", "shb global index"]
+    },
+    "SHB-SVERIGE-INDEX": {
+        "name": "Handelsbanken Sverige Index Crit",
+        "fee_pct": 0.40,
+        "region": "Sverige",
+        "aliases": ["handelsbanken sverige index", "shb sverige index"]
+    },
+    "SHB-USA-INDEX": {
+        "name": "Handelsbanken USA Index Crit",
+        "fee_pct": 0.40,
+        "region": "USA",
+        "aliases": ["handelsbanken usa index", "shb usa index"]
+    },
+
+    # Storebrand
+    "STOREBRAND-GLOBAL-ALL": {
+        "name": "Storebrand Global All Countries",
+        "fee_pct": 0.30,
+        "region": "Global",
+        "aliases": ["storebrand global", "spp global"]
+    },
+    "STOREBRAND-USA": {
+        "name": "Storebrand USA",
+        "fee_pct": 0.20,
+        "region": "USA",
+        "aliases": ["storebrand usa", "spp usa"]
+    },
+    "STOREBRAND-SVERIGE": {
+        "name": "Storebrand Sverige",
+        "fee_pct": 0.20,
+        "region": "Sverige",
+        "aliases": ["storebrand sverige", "spp sverige"]
+    },
+    "STOREBRAND-EM": {
+        "name": "Storebrand Tillväxtmarknader",
+        "fee_pct": 0.40,
+        "region": "Tillväxtmarknader",
+        "aliases": ["storebrand tillvaxt", "storebrand emerging"]
+    },
+
+    # PLUS Fonder
+    "PLUS-ALLABOLAG": {
+        "name": "PLUS Allabolag Sverige Index",
+        "fee_pct": 0.20,
+        "region": "Sverige",
+        "aliases": ["plus allabolag", "plus sverige"]
+    },
+    "PLUS-SMABOLAG": {
+        "name": "PLUS Småbolag Sverige Index",
+        "fee_pct": 0.40,
+        "region": "Sverige",
+        "aliases": ["plus smabolag"]
+    },
+    "PLUS-MIKROBOLAG": {
+        "name": "PLUS Mikrobolag Sverige Index",
+        "fee_pct": 0.40,
+        "region": "Sverige",
+        "aliases": ["plus mikrobolag"]
+    },
+
+    # DNB & Övriga
+    "DNB-GLOBAL-INDEKS": {
+        "name": "DNB Global Indeks",
+        "fee_pct": 0.20,
+        "region": "Global",
+        "aliases": ["dnb global", "dnb global indeks"]
+    },
+    "DNB-TEKNOLOGI": {
+        "name": "DNB Teknologi",
+        "fee_pct": 1.20,
+        "region": "Global",
+        "aliases": ["dnb teknologi", "dnb tech"]
+    },
+    "TIN-NY-TEKNIK": {
+        "name": "TIN Ny Teknik",
+        "fee_pct": 1.50,
+        "region": "Norden",
+        "aliases": ["tin ny teknik", "tin fonder"]
+    },
+}
+
+
