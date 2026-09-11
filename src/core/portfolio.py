@@ -150,6 +150,23 @@ def _holding_recommendation(symbol, kind, m, row):
     if kind == "fond" or symbol.startswith("MANUAL:"):
         return {"action": "Behåll", "badge": "hold", "horizon": "Lång sikt (3–5+ år)", "reason": "Långsiktigt fondsparande"}
 
+    try:
+        from src.core.analysis import analyze_any_stock
+        an = analyze_any_stock(symbol)
+        if an and not an.get("error") and an.get("recommendation"):
+            rec = an["recommendation"]
+            return {
+                "action": rec.get("action", "Behåll"),
+                "badge": rec.get("badge", "hold"),
+                "horizon": rec.get("horizon", "1–3 månader"),
+                "reason": rec.get("rationale") or "Teknisk analys",
+                "strategy": rec.get("strategy"),
+                "target_price": rec.get("target_price"),
+                "stop_loss": rec.get("stop_loss"),
+            }
+    except Exception:
+        pass
+
     close = m.get("price") or (row.get("close") if row else None)
     ma50 = m.get("ma50") or (row.get("ma50") if row else None)
     ma200 = m.get("ma200") or (row.get("ma200") if row else None)
