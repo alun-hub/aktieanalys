@@ -70,10 +70,12 @@ def run_market_screener(market="all"):
 
     results = []
     for sym, (name, mkt) in tickers.items():
+        # close IS NOT NULL: en enstaka dag kan sakna kurs (t.ex. en
+        # ofullständig bar från en synk mitt under handelsdagen hos Yahoo).
         rows = db.execute(
             "SELECT date, close, open, ma50, ma200, rsi, atr FROM history "
-            "WHERE symbol = ? ORDER BY date DESC LIMIT 2", (sym,)).fetchall()
-        if not rows or rows[0]["close"] is None:
+            "WHERE symbol = ? AND close IS NOT NULL ORDER BY date DESC LIMIT 2", (sym,)).fetchall()
+        if not rows:
             continue
         now, prev = rows[0], (rows[1] if len(rows) > 1 else rows[0])
         close = float(now["close"])
