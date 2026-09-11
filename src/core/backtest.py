@@ -149,8 +149,8 @@ def _run_engine(hist, index_close, dates, params, market):
         # 1. fyll väntande säljordrar på dagens öppning
         for sym in list(pending_exit):
             r = row(sym, date)
-            if r is None:
-                continue
+            if r is None or pd.isna(r["open"]):
+                continue  # ofullständig dagsbar (t.ex. dagens Yahoo-data) – försök igen nästa dag
             close_position(sym, float(r["open"]), date, pending_exit.pop(sym))
 
         # 2. fyll väntande köpordrar på dagens öppning
@@ -185,7 +185,7 @@ def _run_engine(hist, index_close, dates, params, market):
             if r is None or pd.isna(r["close"]):
                 continue
             if h["days"] >= 1 and not pd.isna(r["low"]) and float(r["low"]) <= h["stop"]:
-                fill = min(float(r["open"]), h["stop"])
+                fill = h["stop"] if pd.isna(r["open"]) else min(float(r["open"]), h["stop"])
                 close_position(sym, fill, date, "Stop loss")
                 continue
             h["last_price"] = float(r["close"])
