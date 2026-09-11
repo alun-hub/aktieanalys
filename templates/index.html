@@ -55,8 +55,9 @@ input, select { font-family: inherit; font-size: .95rem; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn-sm { padding: .25rem .55rem; font-size: .8rem; }
 
-nav.tabs { max-width: 960px; margin: 0 auto; padding: 0 .5rem; display: flex; gap: .1rem; overflow-x: auto; }
-nav.tabs button { border: none; background: none; color: var(--text-dim); padding: .7rem .8rem; border-bottom: 2px solid transparent; white-space: nowrap; font-size: .92rem; }
+nav.tabs { max-width: 960px; margin: 0 auto; padding: 0 .5rem; display: flex; gap: .1rem; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs button { border: none; background: none; color: var(--text-dim); padding: .65rem .65rem; border-bottom: 2px solid transparent; white-space: nowrap; font-size: .88rem; }
 nav.tabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 
 main { max-width: 960px; margin: 0 auto; padding: 1.2rem 1rem 4rem; }
@@ -272,13 +273,13 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
             Kvalitetsviktad direktavkastning som kombinerar hög utdelning med sund utdelningsandel, attraktiv värdering (P/E) och teknisk trend för att undvika utdelningsfällor.
           </p>
         </div>
-        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-          <div class="row" style="margin-bottom:0; gap:0.4rem;">
-            <button class="btn btn-primary" id="div-mkt-all" onclick="setDivMarket('all')">Alla</button>
-            <button class="btn" id="div-mkt-omx" onclick="setDivMarket('omx')">Sverige (OMXS)</button>
-            <button class="btn" id="div-mkt-nasdaq" onclick="setDivMarket('nasdaq')">USA (Nasdaq)</button>
+        <div style="display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+          <div style="display:flex; gap:0.35rem;">
+            <button class="btn btn-sm btn-primary" id="div-mkt-all" onclick="setDivMarket('all')">Alla</button>
+            <button class="btn btn-sm" id="div-mkt-omx" onclick="setDivMarket('omx')">Sverige (OMXS)</button>
+            <button class="btn btn-sm" id="div-mkt-nasdaq" onclick="setDivMarket('nasdaq')">USA (Nasdaq)</button>
           </div>
-          <button class="btn" onclick="loadDividends(currentDivMarket, true)" title="Tvinga uppdatering från Yahoo Finance">↻ Synka</button>
+          <button class="btn btn-sm" onclick="loadDividends(currentDivMarket, true)" title="Tvinga uppdatering från Yahoo Finance">↻ Synka</button>
         </div>
       </div>
       <div id="div-meta" style="margin-top:0.8rem; font-size:0.82rem; color:var(--text-dim);"></div>
@@ -1156,19 +1157,19 @@ async function loadDividends(market = currentDivMarket, refresh = false) {
     let html = `
       <div class="card" style="padding:0; overflow:hidden;">
         <div class="tbl-wrap">
-          <table>
+          <table style="width:100%; border-collapse:collapse;">
             <thead>
               <tr>
-                <th style="width:44px; text-align:center;">#</th>
+                <th style="width:36px; text-align:center;">#</th>
                 <th>Aktie</th>
                 <th class="num">Kurs</th>
                 <th class="num">Direktavk.</th>
-                <th class="num">Utdelningsandel</th>
+                <th class="num">Utdel.andel</th>
                 <th class="num">P/E</th>
                 <th class="num">Trend</th>
-                <th class="num">Utdelningspoäng</th>
-                <th>Omdöme</th>
-                <th style="text-align:center;">Åtgärd</th>
+                <th class="num">Poäng</th>
+                <th>Status</th>
+                <th style="width:80px; text-align:right;"></th>
               </tr>
             </thead>
             <tbody>
@@ -1177,48 +1178,51 @@ async function loadDividends(market = currentDivMarket, refresh = false) {
     stocks.forEach(s => {
       const isTrap = (s.verdict || "").toLowerCase().includes("fälla");
       const scoreCls = isTrap ? "neg" : (s.dividend_score >= 80 ? "pos" : (s.dividend_score >= 65 ? "pos" : ""));
-      const rankBadge = s.rank === 1 ? '🥇 1' : (s.rank === 2 ? '🥈 2' : (s.rank === 3 ? '🥉 3' : s.rank));
-      const mktBadge = s.market === 'OMX' ? '<span class="pill up" style="font-size:0.7rem; padding:0.05rem 0.4rem;">OMX</span>' : '<span class="pill" style="font-size:0.7rem; padding:0.05rem 0.4rem;">NASDAQ</span>';
-      const pillClass = isTrap ? 'down-strong' : (s.dividend_score >= 80 ? 'up-strong' : (s.dividend_score >= 65 ? 'up' : 'neutral'));
+      const medal = s.rank === 1 ? '🥇' : (s.rank === 2 ? '🥈' : (s.rank === 3 ? '🥉' : s.rank));
+      const mktBadge = s.market === 'OMX' ? '<span class="pill up" style="font-size:0.68rem; padding:0.05rem 0.35rem;">OMX</span>' : '<span class="pill" style="font-size:0.68rem; padding:0.05rem 0.35rem;">NASDAQ</span>';
+
+      const statusBadge = isTrap
+        ? `<span class="pill down-strong" title="${esc(s.verdict)}" style="white-space:nowrap; cursor:help;">⚠️ Fällvarning</span>`
+        : (s.dividend_score >= 80
+          ? `<span class="pill up-strong" title="${esc(s.verdict)}" style="white-space:nowrap; cursor:help;">Stark utdelare</span>`
+          : (s.dividend_score >= 65
+            ? `<span class="pill up" title="${esc(s.verdict)}" style="white-space:nowrap; cursor:help;">Stabil</span>`
+            : (s.dividend_score >= 50
+              ? `<span class="pill neutral" title="${esc(s.verdict)}" style="white-space:nowrap; cursor:help;">Godkänd</span>`
+              : `<span class="pill down" title="${esc(s.verdict)}" style="white-space:nowrap; cursor:help;">Hög risk</span>`)));
 
       html += `
         <tr>
-          <td style="text-align:center; font-weight:700; font-size:0.95rem;">${rankBadge}</td>
-          <td>
+          <td style="text-align:center; font-weight:700; white-space:nowrap; font-size:1.05rem;">${medal}</td>
+          <td style="white-space:nowrap;">
             <div style="font-weight:600; display:flex; align-items:center; gap:0.4rem;">
               <a href="javascript:void(0)" onclick="goToAnalyze('${esc(s.symbol)}')" style="color:var(--text); text-decoration:none;">
                 ${esc(s.name)}
               </a>
               ${mktBadge}
             </div>
-            <div class="muted" style="font-size:0.78rem;">${esc(s.symbol)}</div>
+            <div class="muted" style="font-size:0.75rem;">${esc(s.symbol)}</div>
           </td>
-          <td class="num" style="font-weight:600;">${money(s.close, s.currency)}</td>
-          <td class="num">
+          <td class="num" style="white-space:nowrap; font-weight:600;">${money(s.close, s.currency)}</td>
+          <td class="num" style="white-space:nowrap;">
             <span style="font-size:1.02rem; font-weight:700;" class="${s.dividend_yield >= 4.0 ? 'pos' : ''}">
               ${s.dividend_yield != null ? s.dividend_yield.toFixed(1) + ' %' : '–'}
             </span>
           </td>
-          <td class="num">
+          <td class="num" style="white-space:nowrap;">
             <span class="${s.payout_ratio != null && s.payout_ratio > 90.0 ? 'neg' : ''}">
               ${s.payout_ratio != null ? s.payout_ratio.toFixed(0) + ' %' : '–'}
             </span>
           </td>
-          <td class="num">${s.pe != null ? s.pe.toFixed(1) : '–'}</td>
-          <td class="num">
+          <td class="num" style="white-space:nowrap;">${s.pe != null ? s.pe.toFixed(1) : '–'}</td>
+          <td class="num" style="white-space:nowrap;">
             <span class="${cls(s.trend_score - 50)}">${s.trend_score != null ? s.trend_score : '–'}</span>
           </td>
-          <td class="num">
-            <div style="display:inline-block; text-align:right;">
-              <b style="font-size:1.1rem;" class="${scoreCls}">${s.dividend_score}</b><small class="muted">/100</small>
-            </div>
+          <td class="num" style="white-space:nowrap;">
+            <b style="font-size:1.15rem;" class="${scoreCls}">${s.dividend_score}</b><small class="muted">/100</small>
           </td>
-          <td>
-            <span class="pill ${pillClass}" style="font-size:0.76rem;">
-              ${esc(s.verdict)}
-            </span>
-          </td>
-          <td style="text-align:center;">
+          <td style="white-space:nowrap;">${statusBadge}</td>
+          <td style="text-align:right; white-space:nowrap;">
             <button class="btn btn-sm btn-primary" onclick="goToAnalyze('${esc(s.symbol)}')">Analysera</button>
           </td>
         </tr>
