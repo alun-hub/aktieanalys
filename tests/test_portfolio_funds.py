@@ -79,5 +79,27 @@ class TestPortfolioFundsAndETFs(unittest.TestCase):
         self.assertEqual(pos["cost"], 15000.0)
         self.assertEqual(pos["region"], "Norden")
 
+    def test_search_swedish_funds(self):
+        # Sökning med å/ä/ö
+        matches_se = search_symbols("länsförsäkringar")
+        names_se = [m["name"] for m in matches_se]
+        self.assertTrue(any("Länsförsäkringar Global Index" in n for n in names_se))
+
+        # Sökning utan å/ä/ö (lansforsakringar)
+        matches_norm = search_symbols("lansforsakringar")
+        names_norm = [m["name"] for m in matches_norm]
+        self.assertTrue(any("Länsförsäkringar Global Index" in n for n in names_norm))
+
+        # Sökning på LF Global
+        matches_lf = search_symbols("lf global")
+        names_lf = [m["name"] for m in matches_lf]
+        self.assertTrue(any("Länsförsäkringar Global Index" in n for n in names_lf))
+
+        # Spiltan
+        matches_sp = search_symbols("spiltan")
+        names_sp = [m["name"] for m in matches_sp]
+        self.assertTrue(any("Spiltan Aktiefond Investmentbolag" in n for n in names_sp))
+
 if __name__ == "__main__":
     unittest.main()
+
