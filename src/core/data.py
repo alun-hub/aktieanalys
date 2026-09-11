@@ -45,14 +45,28 @@ def _archive_legacy_holdings(conn):
               "arkiverades som 'holdings_legacy_tradesim' – ej borttagen.")
 
 
+_INIT_LOCK_PATH = os.path.join(DATA_DIR, ".init.lock")
+
+
 def init_db():
-    """Skapar alla tabeller från schema.sql (history + portfölj-tabeller)."""
-    conn = get_db()
-    _archive_legacy_holdings(conn)
-    with open(_SCHEMA_PATH, "r", encoding="utf-8") as f:
-        conn.executescript(f.read())
-    conn.commit()
-    conn.close()
+    """Skapar alla tabeller från schema.sql (history + portfölj-tabeller).
+
+    Körs vid varje processtart (app.py), inklusive en gång per gunicorn-worker.
+    Låst (blockerande) så att flera processer som startar samtidigt inte kan
+    krocka i migreringssteget (t.ex. döpa om samma legacy-tabell två gånger).
+    """
+    lock_file = open(_INIT_LOCK_PATH, "w")
+    fcntl.flock(lock_file, fcntl.LOCK_EX)
+    try:
+        conn = get_db()
+        _archive_legacy_holdings(conn)
+        with open(_SCHEMA_PATH, "r", encoding="utf-8") as f:
+            conn.executescript(f.read())
+        conn.commit()
+        conn.close()
+    finally:
+        fcntl.flock(lock_file, fcntl.LOCK_UN)
+        lock_file.close()
 
 def update_stock_data(symbol):
     """Hämtar och sparar full historik för en enskild aktie (utdelningsjusterad)."""
