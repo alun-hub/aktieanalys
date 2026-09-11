@@ -97,6 +97,7 @@ STRATEGIES = {
 
 def prep_strategy_signals(g, strategy="dip", **custom_params):
     g = g.copy()
+    g.columns = [str(col).lower() for col in g.columns]
     c = g["close"]
     ma50 = g.get("ma50") if "ma50" in g.columns else c.rolling(50).mean()
     ma200 = g.get("ma200") if "ma200" in g.columns else c.rolling(200).mean()
@@ -425,14 +426,23 @@ def _index_ticker(market):
     return "^OMX" if market == "omxs" else "^NDX"
 
 
-def run_backtest_local(market="omxs", years=5):
+def run_backtest_local(market="omxs", years=5, strategy="dip"):
     if market == "crypto":
         return run_crypto_backtest(years=years)
 
     conn = get_db()
     idx_ticker = _index_ticker(market)
     symbols = _stock_universe(market)
-    params = DEFAULT_PARAMS[market]
+    params = dict(DEFAULT_PARAMS.get(market, DEFAULT_PARAMS["omxs"]))
+
+    if strategy and strategy != "breakout" and strategy in STRATEGIES:
+        strat_cfg = STRATEGIES[strategy]
+        if "default_rsi_exit" in strat_cfg:
+            params["rsi_exit"] = strat_cfg["default_rsi_exit"]
+        if "default_max_days" in strat_cfg:
+            params["max_days"] = strat_cfg["default_max_days"]
+        if "atr_stop_mult" in strat_cfg:
+            params["atr_mult"] = strat_cfg["atr_stop_mult"]
 
     hist_raw = _load_history(conn, symbols + [idx_ticker])
     conn.close()
@@ -448,12 +458,18 @@ def run_backtest_local(market="omxs", years=5):
     start_idx = max(0, len(all_dates) - requested * TRADING_DAYS)
     dates = all_dates[start_idx:]
 
-    hist = {s: _prep_signals(g, params) for s, g in hist_raw.items() if len(g) > 200}
+    if strategy and strategy != "breakout" and strategy in STRATEGIES:
+        hist = {s: prep_strategy_signals(g, strategy=strategy) for s, g in hist_raw.items() if len(g) > 200}
+    else:
+        hist = {s: _prep_signals(g, params) for s, g in hist_raw.items() if len(g) > 200}
+
     curve, trades = _run_engine(hist, index_close, dates, params, market)
     result = _summarise(curve, trades, hist, index_close, market)
     result["market"] = "OMXS30" if market == "omxs" else "Nasdaq 100"
     result["requested_years"] = requested
     result["actual_years"] = result["years"]
+    result["strategy"] = strategy
+    result["strategy_name"] = STRATEGIES.get(strategy, {}).get("name", strategy)
     if result["years"] < requested - 0.5:
         result["notes"].insert(0, f"Begärde {requested} år men bara {result['years']} år data finns – kör på det som finns.")
     return result
@@ -551,6 +567,9 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
             "avg_loss_pct": 0.0,
             "avg_days_held": 0.0,
         }
+
+    df = df.copy()
+    df.columns = [str(col).lower() for col in df.columns]
 
     strat_cfg = STRATEGIES.get(strategy, STRATEGIES["dip"])
     rsi_exit = strat_cfg.get("default_rsi_exit", 70)

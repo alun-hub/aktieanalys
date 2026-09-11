@@ -24,6 +24,7 @@ if RUN_SCHEDULER:
     atexit.register(lambda: scheduler.shutdown(wait=False))
 
 app.register_blueprint(api_bp, url_prefix="/api/portal")
+app.register_blueprint(api_bp, url_prefix="/api", name="api_direct")
 
 
 @app.route("/")
