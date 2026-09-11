@@ -148,6 +148,16 @@ def sync_all_stocks():
                 print(f"Fel vid synk av {symbol}: {e}")
             _write_status(status)
 
+        try:
+            from src.core.dividends import get_top_dividend_stocks
+            status["current"] = "Förladdar utdelningscachen…"
+            _write_status(status)
+            get_top_dividend_stocks(market="all", force_refresh=True)
+            get_top_dividend_stocks(market="omx", force_refresh=True)
+            get_top_dividend_stocks(market="nasdaq", force_refresh=True)
+        except Exception as e:
+            print(f"Kunde inte förladda utdelningscachen: {e}")
+
         status["running"] = False
         status["current"] = "Klar"
         status["last_synced"] = datetime.now().strftime("%Y-%m-%d %H:%M")
