@@ -146,9 +146,9 @@ def list_holdings():
 
 
 def _holding_recommendation(symbol, kind, m, row):
-    """Genererar en kort rekommendation: Köp, Behåll eller Sälj med orsak."""
+    """Genererar en kort rekommendation: Köp, Behåll eller Sälj med orsak och tidshorisont."""
     if kind == "fond" or symbol.startswith("MANUAL:"):
-        return {"action": "Behåll", "badge": "hold", "reason": "Långsiktigt fondsparande"}
+        return {"action": "Behåll", "badge": "hold", "horizon": "Lång sikt (3–5+ år)", "reason": "Långsiktigt fondsparande"}
 
     close = m.get("price") or (row.get("close") if row else None)
     ma50 = m.get("ma50") or (row.get("ma50") if row else None)
@@ -164,23 +164,23 @@ def _holding_recommendation(symbol, kind, m, row):
     if score is not None:
         if score >= 65:
             if rec_key in ("sell", "underperform"):
-                return {"action": "Behåll", "badge": "hold", "reason": "Teknisk uppgång men svag analytikersyn"}
-            return {"action": "Köp", "badge": "buy", "reason": "Stark teknisk upptrend"}
+                return {"action": "Behåll", "badge": "hold", "horizon": "Bevaka MA50 (1–2 månader)", "reason": "Teknisk uppgång men svag analytikersyn"}
+            return {"action": "Köp", "badge": "buy", "horizon": "Medellång sikt (2–6 månader)", "reason": "Stark teknisk upptrend"}
         elif score <= 38:
             if rec_key in ("strong_buy", "buy"):
-                return {"action": "Behåll", "badge": "hold", "reason": "Dipp under medelvärden men stark analytikerkonsensus"}
-            return {"action": "Sälj", "badge": "sell", "reason": "Nedåttrend under medelvärden"}
+                return {"action": "Behåll", "badge": "hold", "horizon": "1–3 månader (avvakta)", "reason": "Dipp under medelvärden men stark analytikerkonsensus"}
+            return {"action": "Sälj", "badge": "sell", "horizon": "Kliv av omgående", "reason": "Nedåttrend under medelvärden"}
         else:
             if rec_key in ("strong_buy", "buy"):
-                return {"action": "Köp", "badge": "buy", "reason": "Konsolidering med positiv analytikerkonsensus"}
-            return {"action": "Behåll", "badge": "hold", "reason": "Konsolidering / neutral trend"}
+                return {"action": "Köp", "badge": "buy", "horizon": "Lång sikt (6–12 månader)", "reason": "Konsolidering med positiv analytikerkonsensus"}
+            return {"action": "Behåll", "badge": "hold", "horizon": "1–3 månader", "reason": "Konsolidering / neutral trend"}
 
     if rec_key in ("strong_buy", "buy"):
-        return {"action": "Köp", "badge": "buy", "reason": "Analytikerkonsensus: Köp"}
+        return {"action": "Köp", "badge": "buy", "horizon": "Lång sikt (6–12 månader)", "reason": "Analytikerkonsensus: Köp"}
     elif rec_key in ("sell", "underperform"):
-        return {"action": "Sälj", "badge": "sell", "reason": "Analytikerkonsensus: Sälj"}
+        return {"action": "Sälj", "badge": "sell", "horizon": "Kliv av omgående", "reason": "Analytikerkonsensus: Sälj"}
 
-    return {"action": "Behåll", "badge": "hold", "reason": "Stabil nivå / saknar stark säljsignal"}
+    return {"action": "Behåll", "badge": "hold", "horizon": "Lång sikt", "reason": "Stabil nivå / saknar stark säljsignal"}
 
 
 def _meta(symbol):

@@ -278,7 +278,7 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
   <section class="pane" id="pane-market">
     <div class="card">
       <h2>Marknadsläge</h2>
-      <p class="muted">Teknisk trend för bevakade aktier enligt glidande medelvärden och RSI. <b>Detta är inte köp- eller säljråd</b> – bara en bild av om priset just nu rör sig upp eller ner.</p>
+      <p class="muted">Teknisk trend för bevakade aktier enligt glidande medelvärden och RSI. Visar om priset rör sig i upptrend, konsolidering eller nedåttrend.</p>
       <div class="row" style="margin-top:.5rem;">
         <button class="btn" onclick="loadMarket('all',this)">Alla</button>
         <button class="btn" onclick="loadMarket('omx',this)">Sverige</button>
@@ -791,11 +791,12 @@ async function loadPortfolio() {
       ? `<b>${esc(p.name)}</b><br><span class="pill sm" style="font-size:0.75rem; background:var(--surface-3);">${esc(p.region || "Fond")} · Fond</span>`
       : `<a href="#" onclick="goToAnalyze('${esc(p.symbol)}'); return false;" style="color:var(--text); text-decoration:none; font-weight:700;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(p.name || p.symbol)}</a><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
 
-    const rec = p.recommendation || { action: "Behåll", badge: "hold", reason: "" };
+    const rec = p.recommendation || { action: "Behåll", badge: "hold", reason: "", horizon: "" };
     let recCls = "neutral";
     if (rec.badge === "buy") recCls = "up";
     else if (rec.badge === "sell") recCls = "down";
-    const recCol = `<td><span class="pill ${recCls}" title="${esc(rec.reason || '')}" style="cursor:help;">${esc(rec.action)}</span></td>`;
+    const recTip = `${esc(rec.reason || '')}${rec.horizon ? ' · Horisont: ' + esc(rec.horizon) : ''}`;
+    const recCol = `<td><span class="pill ${recCls}" title="${recTip}" style="cursor:help;">${esc(rec.action)}</span>${rec.horizon ? `<br><small class="muted" style="font-size:0.7rem; white-space:nowrap;">⏱ ${esc(rec.horizon)}</small>` : ''}</td>`;
 
     const isForeign = p.currency && p.currency !== "SEK";
     const qtyCol = isManual ? `<span class="muted">—</span>` : p.qty;
@@ -910,6 +911,44 @@ async function analyze(sym) {
     `;
   }
 
+  const rec = d.recommendation || {};
+  let recPillCls = "neutral";
+  let recBorderColor = "var(--accent)";
+  if (rec.badge === "buy") {
+    recPillCls = "up";
+    recBorderColor = "var(--up)";
+  } else if (rec.badge === "sell") {
+    recPillCls = "down";
+    recBorderColor = "var(--down)";
+  }
+
+  const recBox = rec.action ? `
+    <div style="margin-top:1.1rem; padding:1.1rem 1.25rem; border-radius:var(--radius); background:var(--surface-2); border-left:4px solid ${recBorderColor};">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+        <div>
+          <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); font-weight:700; margin-bottom:0.25rem;">Teknisk Rekommendation</div>
+          <span class="pill ${recPillCls}" style="font-size:1.15rem; padding:0.35rem 0.9rem; font-weight:700;">${esc(rec.action)}</span>
+          ${rec.strategy ? `<span class="muted" style="margin-left:0.5rem; font-size:0.85rem;">(${esc(rec.strategy)})</span>` : ""}
+        </div>
+        <div>
+          <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); font-weight:700; margin-bottom:0.25rem;">Tidshorisont</div>
+          <span style="font-size:1.05rem; font-weight:650;">⏱ ${esc(rec.horizon || "—")}</span>
+        </div>
+        ${rec.target_price ? `
+        <div>
+          <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); font-weight:700; margin-bottom:0.25rem;">Målkurs</div>
+          <span style="font-size:1.05rem; font-weight:650; color:var(--up);">${money(rec.target_price, d.currency)} <small style="font-size:0.8rem;">(${pct((rec.target_price/d.close - 1)*100, 1)})</small></span>
+        </div>` : ""}
+        ${rec.stop_loss ? `
+        <div>
+          <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); font-weight:700; margin-bottom:0.25rem;">Stop-loss</div>
+          <span style="font-size:1.05rem; font-weight:650; color:var(--down);">${money(rec.stop_loss, d.currency)} <small style="font-size:0.8rem;">(${pct((rec.stop_loss/d.close - 1)*100, 1)})</small></span>
+        </div>` : ""}
+      </div>
+      <p style="margin:0.85rem 0 0; color:var(--text); font-size:0.95rem; line-height:1.45;">${esc(rec.rationale || "")}</p>
+    </div>
+  ` : "";
+
   out.innerHTML = `
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
@@ -917,7 +956,8 @@ async function analyze(sym) {
         <div style="font-size:1.3rem;font-weight:650">${money(d.close, d.currency)}
           <span class="${cls(d.change_pct)}" style="font-size:.95rem">${pct(d.change_pct, 2)}</span></div>
       </div>
-      <p class="lead">${esc(d.summary)}</p>
+      ${recBox}
+      <p class="lead" style="margin-top:1rem;">${esc(d.summary)}</p>
     </div>
 
     <div class="grid cols-2">
@@ -928,7 +968,7 @@ async function analyze(sym) {
         ${chips.length ? `<p class="muted">${chips.map(esc).join(" · ")}</p>` : ""}
       </div>
       <div class="card">
-        <h3>Teknisk trend <small>(kontext, inte råd)</small></h3>
+        <h3>Teknisk analys & Signaler</h3>
         <p><span class="pill ${t.trend_class}">${esc(t.trend_label)}</span> <span class="muted">${t.trend_score}/100</span></p>
         <div class="bar"><i style="width:${t.trend_score}%"></i></div>
         <ul class="clean muted">${(t.notes || []).map(n => `<li>${withTerms(n)}</li>`).join("")}</ul>
@@ -953,15 +993,14 @@ async function analyze(sym) {
     </div>
 
     <div class="card">
-      <h3>Nivåkalkyl <small>– om du ändå tar en position</small></h3>
+      <h3>Nivåkalkyl & Positionsstorlek</h3>
       <p class="muted">Föreslagen <span class="term" title="${esc(GLOSSARY['Stop-loss'])}">stop-loss</span>: <b>${money(lv.stop_suggestion, d.currency)}</b> (${pct(lv.stop_pct)}, ${lv.atr_pct} % ATR under kurs).
       Med ${kr(cap)} kapital och ${riskPct} % risk per affär: ca <b>${posQty > 0 ? posQty : 0} st</b>.
       <a href="#" onclick="setCapital();return false">ändra</a></p>
     </div>
 
     ${insider ? `<div class="card tbl-wrap"><h3>Insynshandel (senaste)</h3><table><thead><tr><th>Datum</th><th>Typ</th><th>Person</th><th class="num">Belopp</th></tr></thead><tbody>${insider}</tbody></table></div>` : ""}
-    ${congress ? `<div class="card tbl-wrap"><h3>Kongressledamöters affärer</h3><table><thead><tr><th>Datum</th><th>Typ</th><th>Ledamot</th><th>Storlek</th></tr></thead><tbody>${congress}</tbody></table></div>` : ""}
-  `;
+    ${congress ? `<div class="card tbl-wrap"><h3>Kongressledamöters affärer</h3><table><thead><tr><th>Datum</th><th>Typ</th><th>Ledamot</th><th>Storlek</th></tr></thead><tbody>${congress}</tbody></table></div>` : ""}`;
 }
 function setCapital() {
   const c = prompt("Portföljkapital (kr):", localStorage.getItem("ak_capital") || 100000);
