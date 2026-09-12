@@ -43,7 +43,8 @@ def top_dividends_route():
 def opportunities_route():
     market = request.args.get('market', 'all')
     strategy = request.args.get('strategy', 'all')
-    opps = scan_opportunities(market=market, strategy_filter=strategy)
+    refresh = request.args.get('refresh', '0') in ('1', 'true', 'True')
+    opps = scan_opportunities(market=market, strategy_filter=strategy, force_refresh=refresh)
     regime = get_market_regime(market=market)
     return jsonify({"opportunities": opps, "total": len(opps), "regime": regime})
 
@@ -220,8 +221,9 @@ def sync_status_route():
 @api_bp.route('/recommendations')
 def recommendations_route():
     market = request.args.get('market', 'all')
+    refresh = request.args.get('refresh', '0') in ('1', 'true', 'True')
     try:
-        data = build_recommendations(market=market)
+        data = build_recommendations(market=market, force_refresh=refresh)
         return jsonify(data)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
