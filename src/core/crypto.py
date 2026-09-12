@@ -25,10 +25,14 @@ def get_crypto_df(symbol, period="1y"):
     """Hämtar OHLCV för ett kryptopar."""
     try:
         df = yf.download(symbol, period=period, interval="1d", progress=False)
-        if df.empty or len(df) < 30:
+        if df.empty:
             return None
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
+        if "Close" in df.columns:
+            df = df.dropna(subset=["Close"]).copy()
+        if df.empty or len(df) < 30:
+            return None
         df.index = df.index.tz_localize(None) if df.index.tzinfo else df.index
         df.index = df.index.normalize()
 

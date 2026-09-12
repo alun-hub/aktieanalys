@@ -6,3 +6,4 @@ portfolio.json
 .env
 data/
 .venv/
+*.tar

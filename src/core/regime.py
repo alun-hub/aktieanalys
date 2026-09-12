@@ -116,6 +116,11 @@ def get_market_regime(market: str = "all") -> dict:
         try:
             t = yf.Ticker(index_sym)
             hist = t.history(period="1y")
+            if not hist.empty:
+                if isinstance(hist.columns, pd.MultiIndex):
+                    hist.columns = hist.columns.get_level_values(0)
+                if "Close" in hist.columns:
+                    hist = hist.dropna(subset=["Close"])
             if not hist.empty and len(hist) >= 50:
                 closes = hist["Close"]
                 close = float(closes.iloc[-1])

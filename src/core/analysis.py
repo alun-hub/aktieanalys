@@ -172,6 +172,10 @@ def get_market_overview():
                 continue
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
+            if "Close" in df.columns:
+                df = df.dropna(subset=["Close"])
+            if len(df) < 2:
+                continue
             c_today = float(df.iloc[-1]["Close"])
             c_prev = float(df.iloc[-2]["Close"])
             overview.append({"symbol": sym, "name": name, "price": round(c_today, 2),
@@ -222,8 +226,13 @@ def _dividend_yield_pct(raw):
 
 
 def _valuation(closes, close, info, is_crypto):
-    lo, hi = float(closes.min()), float(closes.max())
-    pctile = round((close - lo) / (hi - lo), 2) if hi > lo else None
+    pctile = None
+    if not closes.empty:
+        lo, hi = float(closes.min()), float(closes.max())
+        if hi > lo and close is not None:
+            val = _num((close - lo) / (hi - lo))
+            if val is not None:
+                pctile = round(val, 2)
     span_txt = f"Priset ligger {int(pctile * 100)} % upp i sitt 5-årsspann." if pctile is not None else ""
 
     if is_crypto:
@@ -540,12 +549,18 @@ def analyze_any_stock(symbol):
     try:
         ticker = yf.Ticker(symbol)
         df = ticker.history(period="5y", auto_adjust=True)
-        if df.empty or len(df) < 30:
+        if df.empty:
             return {"error": f"Kunde inte hämta kursdata för {symbol}. "
                              "Prova fullständig ticker (t.ex. INVE-B.ST, AAPL eller BTC-USD)."}
 
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
+        if "Close" in df.columns:
+            df = df.dropna(subset=["Close"]).copy()
+        if df.empty or len(df) < 30:
+            return {"error": f"Kunde inte hämta kursdata för {symbol}. "
+                             "Prova fullständig ticker (t.ex. INVE-B.ST, AAPL eller BTC-USD)."}
+
         df.index = df.index.tz_localize(None) if df.index.tzinfo else df.index
         df.index = df.index.normalize()
 
@@ -557,7 +572,8 @@ def analyze_any_stock(symbol):
 
         last, prev = df.iloc[-1], df.iloc[-2]
         close = round(float(last["Close"]), 2)
-        change_pct = round((close / float(prev["Close"]) - 1) * 100, 2)
+        prev_close = float(prev["Close"]) if ("Close" in prev and not pd.isna(prev["Close"])) else close
+        change_pct = round((close / prev_close - 1) * 100, 2) if prev_close and prev_close > 0 else 0.0
         rsi = round(float(last["RSI"]), 1) if not pd.isna(last["RSI"]) else None
         ma50 = round(float(last["MA50"]), 2) if not pd.isna(last["MA50"]) else None
         ma200 = round(float(last["MA200"]), 2) if not pd.isna(last["MA200"]) else None

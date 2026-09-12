@@ -91,6 +91,10 @@ def update_stock_data(symbol):
         return
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
+    if "Close" in df.columns:
+        df = df.dropna(subset=["Close"]).copy()
+    if df.empty:
+        return
     df = calculate_indicators(df)
     conn = get_db()
     rows = [
