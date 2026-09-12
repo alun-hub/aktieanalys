@@ -152,19 +152,21 @@ def _holding_recommendation(symbol, kind, m, row):
         return {"action": "Behåll", "badge": "hold", "horizon": "Lång sikt (3–5+ år)", "reason": "Långsiktigt fondsparande"}
 
     try:
-        from src.core.analysis import analyze_any_stock
-        an = analyze_any_stock(symbol)
-        if an and not an.get("error") and an.get("recommendation"):
-            rec = an["recommendation"]
-            return {
-                "action": rec.get("action", "Behåll"),
-                "badge": rec.get("badge", "hold"),
-                "horizon": rec.get("horizon", "1–3 månader"),
-                "reason": rec.get("rationale") or "Teknisk analys",
-                "strategy": rec.get("strategy"),
-                "target_price": rec.get("target_price"),
-                "stop_loss": rec.get("stop_loss"),
-            }
+        from src.core.analysis import _analysis_cache, _ANALYSIS_TTL
+        hit = _analysis_cache.get(symbol)
+        if hit and (time.time() - hit[0] < _ANALYSIS_TTL):
+            an = hit[1]
+            if an and not an.get("error") and an.get("recommendation"):
+                rec = an["recommendation"]
+                return {
+                    "action": rec.get("action", "Behåll"),
+                    "badge": rec.get("badge", "hold"),
+                    "horizon": rec.get("horizon", "1–3 månader"),
+                    "reason": rec.get("rationale") or "Teknisk analys",
+                    "strategy": rec.get("strategy"),
+                    "target_price": rec.get("target_price"),
+                    "stop_loss": rec.get("stop_loss"),
+                }
     except Exception:
         pass
 
