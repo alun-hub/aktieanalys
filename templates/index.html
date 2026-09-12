@@ -118,6 +118,34 @@ ul.notes li::before { content: "•"; color: var(--accent); }
 
 .hidden { display: none !important; }
 .spin::after { content: " …"; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  vertical-align: middle;
+}
+.spinner.sm {
+  width: 15px;
+  height: 15px;
+  border-width: 2px;
+}
+@keyframes shimmer {
+  0% { opacity: 0.35; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.35; }
+}
+.skeleton {
+  background: var(--surface-2);
+  border-radius: 6px;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
 footer { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var(--text-dim); font-size: .82rem; }
 </style>
 </head>
@@ -854,75 +882,109 @@ function breakdown(title, obj) {
 
 async function loadPortfolio() {
   loadSellAlerts();
-  const h = await getJSON("/api/portal/portfolio/health");
   const out = $("#pf-out");
-  if (h.empty) { out.innerHTML = '<div class="card muted">Inga innehav inlagda ännu.</div>'; return; }
-  currentPortfolioPositions = h.positions || [];
-  const warn = (h.warnings || []).map(w => `<div class="callout">${esc(w)}</div>`).join("");
-  const rows = h.positions.map(p => {
-    const isManual = p.is_manual || (p.symbol && p.symbol.startsWith("MANUAL:"));
-    const titleCol = isManual
-      ? `<b>${esc(p.name)}</b><br><span class="pill sm" style="font-size:0.75rem; background:var(--surface-3);">${esc(p.region || "Fond")} · Fond</span>`
-      : `<a href="#" onclick="goToAnalyze('${esc(p.symbol)}'); return false;" style="color:var(--text); text-decoration:none; font-weight:700;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(p.name || p.symbol)}</a><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
+  if (!out) return;
 
-    const rec = p.recommendation || { action: "Behåll", badge: "hold", reason: "", horizon: "" };
-    let recCls = "neutral";
-    if (rec.badge === "buy") recCls = "up";
-    else if (rec.badge === "sell") recCls = "down";
-    const recTip = `${esc(rec.reason || '')}${rec.horizon ? ' · Horisont: ' + esc(rec.horizon) : ''}`;
-    const recCol = `<td><span class="pill ${recCls}" title="${recTip}" style="cursor:help;">${esc(rec.action)}</span>${rec.horizon ? `<br><small class="muted" style="font-size:0.7rem; white-space:nowrap;">⏱ ${esc(rec.horizon)}</small>` : ''}</td>`;
+  // Omedelbar grafisk laddningsindikator med spinner och skelett
+  if (!out.hasChildNodes() || out.innerHTML.trim() === "" || out.querySelector(".spinner")) {
+    out.innerHTML = `
+      <div class="card" style="text-align:center; padding:2.5rem 1.2rem; border:1px dashed var(--border); margin-top:1rem;">
+        <div class="spinner" style="margin:0 auto 1rem;"></div>
+        <h3 style="margin:0 0 0.35rem; font-size:1.1rem; color:var(--text);">Hämtar portfölj och beräknar hälsokoll…</h3>
+        <p class="muted" style="margin:0; font-size:0.85rem;">Hämtar aktuella marknadskurser, växelkurser och analyserar riskfördelning.</p>
+        <div class="grid cols-4" style="margin-top:1.8rem; opacity:0.4;">
+          <div class="stat"><div class="lbl">Totalt marknadsvärde</div><div class="skeleton" style="height:1.4rem; width:70%; margin-top:0.4rem;"></div></div>
+          <div class="stat"><div class="lbl">Vinst / Förlust</div><div class="skeleton" style="height:1.4rem; width:55%; margin-top:0.4rem;"></div></div>
+          <div class="stat"><div class="lbl">Största innehav</div><div class="skeleton" style="height:1.4rem; width:45%; margin-top:0.4rem;"></div></div>
+          <div class="stat"><div class="lbl">Vägd avgift / utdelning</div><div class="skeleton" style="height:1.4rem; width:60%; margin-top:0.4rem;"></div></div>
+        </div>
+      </div>
+    `;
+  } else {
+    // Om portföljen redan är renderad sedan tidigare, visa en diskret uppdateringsnotis högst upp
+    let pill = $("#pf-refresh-pill");
+    if (!pill) {
+      pill = el("div");
+      pill.id = "pf-refresh-pill";
+      pill.className = "callout info";
+      pill.style.marginBottom = "0.8rem";
+      pill.innerHTML = '<span class="spinner sm" style="margin-right:8px;"></span> Uppdaterar portföljdata…';
+      out.prepend(pill);
+    }
+  }
 
-    const isForeign = p.currency && p.currency !== "SEK";
-    const qtyCol = isManual ? `<span class="muted">—</span>` : p.qty;
-    const gavCol = isManual
-      ? kr(p.cost)
-      : (isForeign ? `${p.avg_price.toFixed(2)} <small class="muted">${esc(p.currency)}</small>` : money(p.avg_price, ""));
-    const priceCol = isManual
-      ? `<span class="muted">—</span>`
-      : (isForeign
-          ? `${p.price.toFixed(2)} <small class="muted">${esc(p.currency)}</small>${p.price_stale ? " *" : ""}`
-          : `${money(p.price, "")}${p.price_stale ? " *" : ""}`);
+  try {
+    const h = await getJSON("/api/portal/portfolio/health");
+    if (h.empty) { out.innerHTML = '<div class="card muted">Inga innehav inlagda ännu.</div>'; return; }
+    currentPortfolioPositions = h.positions || [];
+    const warn = (h.warnings || []).map(w => `<div class="callout">${esc(w)}</div>`).join("");
+    const rows = h.positions.map(p => {
+      const isManual = p.is_manual || (p.symbol && p.symbol.startsWith("MANUAL:"));
+      const titleCol = isManual
+        ? `<b>${esc(p.name)}</b><br><span class="pill sm" style="font-size:0.75rem; background:var(--surface-3);">${esc(p.region || "Fond")} · Fond</span>`
+        : `<a href="#" onclick="goToAnalyze('${esc(p.symbol)}'); return false;" style="color:var(--text); text-decoration:none; font-weight:700;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(p.name || p.symbol)}</a><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
 
-    const foreignValSub = (isForeign && p.raw_value != null)
-      ? `<br><small class="muted">~${money(p.raw_value, p.currency)}</small>`
-      : "";
-    const valueCol = `<b>${kr(p.value)}</b>${foreignValSub}`;
+      const rec = p.recommendation || { action: "Behåll", badge: "hold", reason: "", horizon: "" };
+      let recCls = "neutral";
+      if (rec.badge === "buy") recCls = "up";
+      else if (rec.badge === "sell") recCls = "down";
+      const recTip = `${esc(rec.reason || '')}${rec.horizon ? ' · Horisont: ' + esc(rec.horizon) : ''}`;
+      const recCol = `<td><span class="pill ${recCls}" title="${recTip}" style="cursor:help;">${esc(rec.action)}</span>${rec.horizon ? `<br><small class="muted" style="font-size:0.7rem; white-space:nowrap;">⏱ ${esc(rec.horizon)}</small>` : ''}</td>`;
 
-    const analyzeBtn = !isManual
-      ? `<button class="btn sm" title="Analysera bolag" onclick="goToAnalyze('${esc(p.symbol)}')">🔍</button> `
-      : "";
+      const isForeign = p.currency && p.currency !== "SEK";
+      const qtyCol = isManual ? `<span class="muted">—</span>` : p.qty;
+      const gavCol = isManual
+        ? kr(p.cost)
+        : (isForeign ? `${p.avg_price.toFixed(2)} <small class="muted">${esc(p.currency)}</small>` : money(p.avg_price, ""));
+      const priceCol = isManual
+        ? `<span class="muted">—</span>`
+        : (isForeign
+            ? `${p.price.toFixed(2)} <small class="muted">${esc(p.currency)}</small>${p.price_stale ? " *" : ""}`
+            : `${money(p.price, "")}${p.price_stale ? " *" : ""}`);
 
-    return `<tr>
-      <td>${titleCol}</td>
-      ${recCol}
-      <td class="num">${qtyCol}</td>
-      <td class="num">${gavCol}</td>
-      <td class="num">${priceCol}</td>
-      <td class="num">${valueCol}</td>
-      <td class="num">${p.weight} %</td>
-      <td class="num ${cls(p.pl)}">${kr(p.pl)}<br><small class="${cls(p.pl_pct)}">${pct(p.pl_pct)}</small></td>
-      <td class="num" style="white-space:nowrap;">
-        ${analyzeBtn}
-        <button class="btn sm" title="Ändra innehav" onclick="editHolding('${esc(p.symbol)}')">✎</button>
-        <button class="btn sm" title="Ta bort" onclick="delHolding('${esc(p.symbol)}')">✕</button>
-      </td>
-    </tr>`;
-  }).join("");
+      const foreignValSub = (isForeign && p.raw_value != null)
+        ? `<br><small class="muted">~${money(p.raw_value, p.currency)}</small>`
+        : "";
+      const valueCol = `<b>${kr(p.value)}</b>${foreignValSub}`;
 
-  out.innerHTML = `
-    <div class="card"><div class="grid cols-4">
-      <div class="stat"><div class="lbl">Totalt marknadsvärde</div><div class="val sm">${kr(h.total_value)}</div></div>
-      <div class="stat"><div class="lbl">Vinst/förlust</div><div class="val sm ${cls(h.pl)}">${kr(h.pl)} (${pct(h.pl_pct)})</div></div>
-      <div class="stat"><div class="lbl">Största innehav</div><div class="val sm">${h.largest_weight} %</div></div>
-      <div class="stat"><div class="lbl">Vägd avgift / utdelning</div><div class="val sm">${h.weighted_fee_pct} % / ${h.weighted_dividend_yield} %</div></div>
-    </div></div>
-    ${warn ? `<div class="card">${warn}</div>` : '<div class="callout info">Ingen uppenbar klumprisk hittad. Bra spridning.</div>'}
-    <div class="grid cols-2">${breakdown("Per bransch / tillgång", h.by_sector)}${breakdown("Per region", h.by_region)}</div>
-    <div class="card tbl-wrap"><table>
-      <thead><tr><th>Innehav</th><th>Rek.</th><th class="num">Antal</th><th class="num">GAV</th><th class="num">Kurs</th><th class="num">Värde (SEK)</th><th class="num">Vikt</th><th class="num">V/F</th><th></th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <small>* kurs saknas i databasen – snittpriset används. Utländska instrument räknas om automatiskt till SEK.</small>
-    </div>`;
+      const analyzeBtn = !isManual
+        ? `<button class="btn sm" title="Analysera bolag" onclick="goToAnalyze('${esc(p.symbol)}')">🔍</button> `
+        : "";
+
+      return `<tr>
+        <td>${titleCol}</td>
+        ${recCol}
+        <td class="num">${qtyCol}</td>
+        <td class="num">${gavCol}</td>
+        <td class="num">${priceCol}</td>
+        <td class="num">${valueCol}</td>
+        <td class="num">${p.weight} %</td>
+        <td class="num ${cls(p.pl)}">${kr(p.pl)}<br><small class="${cls(p.pl_pct)}">${pct(p.pl_pct)}</small></td>
+        <td class="num" style="white-space:nowrap;">
+          ${analyzeBtn}
+          <button class="btn sm" title="Ändra innehav" onclick="editHolding('${esc(p.symbol)}')">✎</button>
+          <button class="btn sm" title="Ta bort" onclick="delHolding('${esc(p.symbol)}')">✕</button>
+        </td>
+      </tr>`;
+    }).join("");
+
+    out.innerHTML = `
+      <div class="card"><div class="grid cols-4">
+        <div class="stat"><div class="lbl">Totalt marknadsvärde</div><div class="val sm">${kr(h.total_value)}</div></div>
+        <div class="stat"><div class="lbl">Vinst/förlust</div><div class="val sm ${cls(h.pl)}">${kr(h.pl)} (${pct(h.pl_pct)})</div></div>
+        <div class="stat"><div class="lbl">Största innehav</div><div class="val sm">${h.largest_weight} %</div></div>
+        <div class="stat"><div class="lbl">Vägd avgift / utdelning</div><div class="val sm">${h.weighted_fee_pct} % / ${h.weighted_dividend_yield} %</div></div>
+      </div></div>
+      ${warn ? `<div class="card">${warn}</div>` : '<div class="callout info">Ingen uppenbar klumprisk hittad. Bra spridning.</div>'}
+      <div class="grid cols-2">${breakdown("Per bransch / tillgång", h.by_sector)}${breakdown("Per region", h.by_region)}</div>
+      <div class="card tbl-wrap"><table>
+        <thead><tr><th>Innehav</th><th>Rek.</th><th class="num">Antal</th><th class="num">GAV</th><th class="num">Kurs</th><th class="num">Värde (SEK)</th><th class="num">Vikt</th><th class="num">V/F</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table>
+        <small>* kurs saknas i databasen – snittpriset används. Utländska instrument räknas om automatiskt till SEK.</small>
+      </div>`;
+  } catch (err) {
+    out.innerHTML = `<div class="card neg">Fel vid hämtning av portföljdata: ${esc(err.message)}</div>`;
+  }
 }
 
 // ---------- ANALYSERA BOLAG ----------
