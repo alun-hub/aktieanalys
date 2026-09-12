@@ -330,7 +330,7 @@ def build_recommendations(market="all") -> dict:
         div_res = get_top_dividend_stocks(market=market, limit=div_limit)
         for s in div_res.get("stocks", []):
             recommendations.append({
-                "type": "dividend_stock",
+                "type": "dividend_stocks",
                 "type_label": "Utdelningsaktie",
                 "target_pct": alloc["dividend_stocks"],
                 "symbol": s["symbol"],
@@ -353,7 +353,7 @@ def build_recommendations(market="all") -> dict:
         growth_limit = 2 if conc_level == "high" else (4 if conc_level == "elevated" else 5)
         for op in opps[:growth_limit]:
             recommendations.append({
-                "type": "growth_stock",
+                "type": "growth_stocks",
                 "type_label": "Tillväxt / Momentum",
                 "target_pct": alloc["growth_stocks"],
                 "symbol": op["symbol"],
