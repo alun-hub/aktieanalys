@@ -67,6 +67,65 @@ class TestAllocation(unittest.TestCase):
                 self.assertIn(res["level"], ["normal", "elevated", "high"])
                 self.assertIn("spread_pct", res)
 
+    @patch("src.core.allocation.compute_target_allocation")
+    @patch("src.core.dividends.get_top_dividend_stocks")
+    @patch("src.core.signals.scan_opportunities")
+    def test_build_recommendations_category_types(
+        self, mock_scan, mock_div, mock_alloc
+    ):
+        from src.core.signals import build_recommendations
+
+        mock_alloc.return_value = {
+            "allocation": {
+                "broad_etf": 40.0,
+                "equalweight_etf": 15.0,
+                "dividend_stocks": 20.0,
+                "growth_stocks": 20.0,
+                "defensive": 5.0,
+            },
+            "regime": {"regime": "bull", "label": "Bull"},
+            "concentration": {"level": "normal", "spread_pct": 2.0},
+        }
+        mock_div.return_value = {
+            "stocks": [{
+                "symbol": "SHB-A.ST",
+                "name": "Handelsbanken A",
+                "market": "omx",
+                "currency": "SEK",
+                "close": 120.0,
+                "dividend_yield": 5.5,
+                "payout_ratio": 50.0,
+                "pe": 10.0,
+                "streak_years": 10,
+                "dividend_score": 85.0,
+                "verdict": "Stark utdelare",
+            }]
+        }
+        mock_scan.return_value = [{
+            "symbol": "SEB-A.ST",
+            "name": "SEB A",
+            "market": "omx",
+            "currency": "SEK",
+            "close": 140.0,
+            "strategy": "trend",
+            "strategy_name": "Långsiktig Trendföljare",
+            "score": 90.0,
+            "edge": {"win_rate": 65.0, "trades_count": 8, "profit_factor": 2.0, "avg_gain_pct": 5.0},
+            "reason": "Upptrend",
+        }]
+
+        res = build_recommendations(market="all")
+        types = {r["type"] for r in res["recommendations"]}
+        alloc_keys = set(res["allocation"].keys())
+
+        # Alla typer i rekommendationerna ska matcha allokeringsnycklarna exakt
+        self.assertTrue(types.issubset(alloc_keys), f"{types} inte delmängd av {alloc_keys}")
+        self.assertIn("dividend_stocks", types)
+        self.assertIn("growth_stocks", types)
+        self.assertIn("broad_etf", types)
+        self.assertIn("equalweight_etf", types)
+        self.assertIn("defensive", types)
+
 
 if __name__ == "__main__":
     unittest.main()

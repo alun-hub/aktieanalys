@@ -42,7 +42,7 @@ button { font-family: inherit; font-size: .95rem; cursor: pointer; }
 input, select { font-family: inherit; font-size: .95rem; }
 
 .top { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
-.top-in { max-width: 960px; margin: 0 auto; padding: .7rem 1rem; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.top-in { max-width: 1200px; margin: 0 auto; padding: .7rem 1rem; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
 .brand { font-weight: 700; font-size: 1.1rem; }
 .brand span { color: var(--accent); }
 .top .spacer { flex: 1; }
@@ -55,12 +55,15 @@ input, select { font-family: inherit; font-size: .95rem; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn-sm { padding: .25rem .55rem; font-size: .8rem; }
 
-nav.tabs { max-width: 960px; margin: 0 auto; padding: 0 .5rem; display: flex; gap: .1rem; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
-nav.tabs::-webkit-scrollbar { display: none; }
-nav.tabs button { border: none; background: none; color: var(--text-dim); padding: .65rem .65rem; border-bottom: 2px solid transparent; white-space: nowrap; font-size: .88rem; }
+nav.tabs { max-width: 1200px; margin: 0 auto; padding: 0 .5rem; display: flex; gap: .15rem; flex-wrap: wrap; }
+nav.tabs button { border: none; background: none; color: var(--text-dim); padding: .5rem .55rem; border-bottom: 2px solid transparent; white-space: nowrap; font-size: .84rem; cursor: pointer; transition: color .15s, border-color .15s; }
+nav.tabs button:hover { color: var(--text); }
 nav.tabs button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+@media (max-width: 720px) {
+  nav.tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch; padding-bottom: 3px; }
+}
 
-main { max-width: 960px; margin: 0 auto; padding: 1.2rem 1rem 4rem; }
+main { max-width: 1200px; margin: 0 auto; padding: 1.2rem 1rem 4rem; }
 .pane { display: none; }
 .pane.active { display: block; }
 
@@ -115,7 +118,7 @@ ul.notes li::before { content: "•"; color: var(--accent); }
 
 .hidden { display: none !important; }
 .spin::after { content: " …"; }
-footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var(--text-dim); font-size: .82rem; }
+footer { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var(--text-dim); font-size: .82rem; }
 </style>
 </head>
 <body>
@@ -505,9 +508,9 @@ function withTerms(text) {
 
 // ---------- tabs ----------
 const TABS = [
-  ["plan", "Din plan"], ["recommendations", "Rekommendationer"], ["portfolio", "Min portfölj"], ["opportunities", "Möjligheter"],
+  ["plan", "Din plan"], ["recommendations", "Rekommendationer"], ["portfolio", "Portfölj"], ["opportunities", "Möjligheter"],
   ["dividends", "Utdelning"],
-  ["analyze", "Analysera bolag"], ["market", "Marknadsläge"], ["backtest", "Backtest"],
+  ["analyze", "Analysera"], ["market", "Marknadsläge"], ["backtest", "Backtest"],
   ["insider", "Insyn"], ["congress", "Kongress"], ["crypto", "Krypto"], ["glossary", "Ordlista"],
 ];
 const loaded = {};
@@ -1666,7 +1669,7 @@ async function loadRecommendations() {
 
     let html = "";
     for (const g of groups) {
-      const items = (d.recommendations || []).filter(r => r.type === g.key);
+      const items = (d.recommendations || []).filter(r => r.type === g.key || r.type === g.key.replace(/s$/, '') || (r.type + 's') === g.key);
       if (!items.length && (al[g.key] === 0 || al[g.key] == null)) {
         continue;
       }
@@ -1696,9 +1699,10 @@ async function loadRecommendations() {
                       </td>
                       <td>${esc(it.region || it.market || 'Global')}</td>
                       <td>
-                        ${it.fee_pct != null ? `Avgift: <b>${it.fee_pct}%</b>` : ''}
-                        ${it.yield_pct != null ? `Direktavk: <b>${it.yield_pct}%</b>` : ''}
-                        ${it.streak_years != null ? `<br><small class="muted">Utdelningsstreak: ${it.streak_years} år</small>` : ''}
+                        ${it.close != null ? `Kurs: <b>${it.close} ${esc(it.currency || 'kr')}</b><br>` : ''}
+                        ${it.fee_pct != null ? `Avgift: <b>${it.fee_pct}%</b><br>` : ''}
+                        ${it.yield_pct != null ? `Direktavk: <b>${it.yield_pct}%</b><br>` : ''}
+                        ${it.streak_years != null ? `<small class="muted">Utdelningssvit: ${it.streak_years} år</small><br>` : ''}
                         ${it.strategy ? `Strategi: <b>${esc(it.strategy)}</b>` : ''}
                       </td>
                       <td style="max-width:300px; font-size:0.86rem;">${esc(it.reason || '')}</td>
