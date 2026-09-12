@@ -17,9 +17,9 @@ from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS
 from src.core.signals import trend_score
 
 _meta_cache = {}   # symbol -> (ts, {price, sector, country, currency, dividend_yield})
-_META_TTL = 3600
+_META_TTL = 7200
 _fx_cache = {}
-_FX_TTL = 3600
+_FX_TTL = 7200
 
 CONCENTRATION_WARN = 20.0   # % av portföljen i ett enda innehav
 
@@ -289,6 +289,20 @@ def portfolio_health():
     holdings = list_holdings()
     if not holdings:
         return {"empty": True, "positions": [], "warnings": [], "total_value": 0}
+
+    # Förladda metadata parallellt för alla icke-manuella innehav för att eliminera sekventiell Yahoo-latens
+    non_manual = [
+        h["symbol"] for h in holdings
+        if not (h["symbol"].startswith("MANUAL:") or (h.get("note") and '"is_manual": true' in h["note"]))
+    ]
+    uncached = [
+        s for s in non_manual
+        if s not in _meta_cache or (time.time() - _meta_cache[s][0] >= _META_TTL)
+    ]
+    if uncached:
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(uncached))) as executor:
+            list(executor.map(_meta, uncached))
 
     positions, total_value, total_cost = [], 0.0, 0.0
     for h in holdings:
