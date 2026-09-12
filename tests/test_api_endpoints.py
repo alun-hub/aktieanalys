@@ -113,7 +113,59 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(data["market"], "omx")
         mock_get_top.assert_called_with(market="omx", limit=5, force_refresh=True)
 
+    @patch("src.api.routes.build_recommendations")
+    def test_recommendations_route(self, mock_build):
+        mock_build.return_value = {
+            "allocation": {"broad_etf": 40.0, "equalweight_etf": 15.0, "dividend_stocks": 20.0, "growth_stocks": 20.0, "defensive": 5.0},
+            "recommendations": [{"type": "broad_etf", "symbol": "VWCE.DE", "name": "Vanguard FTSE All-World"}],
+            "regime": {"regime": "bull"},
+            "concentration": {"level": "normal"},
+            "generated_at": "2026-09-12 11:00",
+        }
+        res = self.client.get("/api/portal/recommendations?market=all")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("allocation", data)
+        self.assertIn("recommendations", data)
+        self.assertEqual(data["allocation"]["broad_etf"], 40.0)
+
+    @patch("src.api.routes.run_portfolio_backtest")
+    def test_portfolio_backtest_route(self, mock_bt):
+        mock_bt.return_value = {
+            "years": 10,
+            "strategy": {"cagr": 15.0, "max_drawdown": -12.0},
+            "benchmark_global": {"cagr": 10.0, "max_drawdown": -20.0},
+            "benchmark_sp500": {"cagr": 14.0, "max_drawdown": -22.0},
+            "equity_curve": [{"date": "2026-09-12", "strategy": 100000}],
+        }
+        res = self.client.get("/api/portal/portfolio-backtest?years=10")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("strategy", data)
+        self.assertEqual(data["strategy"]["cagr"], 15.0)
+
+    @patch("src.core.portfolio.list_sell_alerts")
+    @patch("src.core.portfolio.acknowledge_sell_alert")
+    def test_sell_alerts_routes(self, mock_ack, mock_list):
+        mock_list.return_value = [
+            {"id": 1, "symbol": "TEST", "severity": "exit", "reason": "atr_stop", "acknowledged": 0}
+        ]
+        mock_ack.return_value = True
+
+        res_list = self.client.get("/api/portal/sell-alerts")
+        self.assertEqual(res_list.status_code, 200)
+        data = res_list.get_json()
+        self.assertEqual(len(data["alerts"]), 1)
+        self.assertEqual(data["alerts"][0]["symbol"], "TEST")
+
+        res_ack = self.client.post("/api/portal/sell-alerts/1/acknowledge")
+        self.assertEqual(res_ack.status_code, 200)
+        data_ack = res_ack.get_json()
+        self.assertTrue(data_ack["ok"])
+        mock_ack.assert_called_with(1)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

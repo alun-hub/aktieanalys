@@ -271,3 +271,128 @@ def scan_opportunities(market="all", strategy_filter="all"):
     opportunities.sort(key=lambda x: x["score"], reverse=True)
     return opportunities
 
+
+def build_recommendations(market="all") -> dict:
+    """Slår ihop målvikt från compute_target_allocation med konkreta
+    investeringskandidater per tillgångsklass:
+      - 'broad_etf': Breda UCITS-index-ETF:er (t.ex. VWCE.DE, IWDA.AS)
+      - 'equalweight_etf': Likaviktade UCITS-ETF:er (t.ex. XDEW.DE)
+      - 'dividend_stock': Högrankade utdelningsaktier från get_top_dividend_stocks
+      - 'growth_stock': Momentum/tillväxtaktier med statistisk edge från scan_opportunities
+      - 'defensive': Kapitalbevarande UCITS-ETF:er (fysiskt guld, räntor)
+    """
+    import datetime
+    from src.core.allocation import compute_target_allocation
+    from src.core.dividends import get_top_dividend_stocks
+    from src.core.config import RECOMMENDED_UCITS_ETFS
+
+    target_data = compute_target_allocation(market=market)
+    alloc = target_data["allocation"]
+    regime_data = target_data["regime"]
+    conc_data = target_data["concentration"]
+    conc_level = conc_data.get("level", "normal")
+
+    recommendations = []
+
+    # 1. Breda UCITS ETF:er
+    if alloc.get("broad_etf", 0) > 0:
+        for etf in RECOMMENDED_UCITS_ETFS.get("broad_etf", []):
+            recommendations.append({
+                "type": "broad_etf",
+                "type_label": "Bred Global Index-ETF",
+                "target_pct": alloc["broad_etf"],
+                "symbol": etf["symbol"],
+                "name": etf["name"],
+                "region": etf["region"],
+                "fee_pct": etf["fee_pct"],
+                "badge": "UCITS / ISK",
+                "reason": "Bred marknadsviktad basallokering med låg förvaltningsavgift.",
+            })
+
+    # 2. Likaviktade UCITS ETF:er
+    if alloc.get("equalweight_etf", 0) > 0:
+        for etf in RECOMMENDED_UCITS_ETFS.get("equalweight_etf", []):
+            recommendations.append({
+                "type": "equalweight_etf",
+                "type_label": "Likaviktad ETF",
+                "target_pct": alloc["equalweight_etf"],
+                "symbol": etf["symbol"],
+                "name": etf["name"],
+                "region": etf["region"],
+                "fee_pct": etf["fee_pct"],
+                "badge": "UCITS / ISK",
+                "reason": "Minskar koncentrationsrisk mot tech-jättar (Mag7) genom jämn bolagsviktning.",
+            })
+
+    # 3. Utdelningsaktier
+    if alloc.get("dividend_stocks", 0) > 0:
+        div_limit = 5 if conc_level == "high" else 3
+        div_res = get_top_dividend_stocks(market=market, limit=div_limit)
+        for s in div_res.get("stocks", []):
+            recommendations.append({
+                "type": "dividend_stock",
+                "type_label": "Utdelningsaktie",
+                "target_pct": alloc["dividend_stocks"],
+                "symbol": s["symbol"],
+                "name": s["name"],
+                "market": s["market"],
+                "currency": s["currency"],
+                "close": s["close"],
+                "yield_pct": s["dividend_yield"],
+                "payout_ratio": s["payout_ratio"],
+                "pe": s["pe"],
+                "streak_years": s.get("streak_years"),
+                "score": s["dividend_score"],
+                "badge": f"{s['dividend_yield']}% direktavk.",
+                "reason": s["verdict"],
+            })
+
+    # 4. Tillväxt / Momentum
+    if alloc.get("growth_stocks", 0) > 0:
+        opps = scan_opportunities(market=market)
+        growth_limit = 2 if conc_level == "high" else (4 if conc_level == "elevated" else 5)
+        for op in opps[:growth_limit]:
+            recommendations.append({
+                "type": "growth_stock",
+                "type_label": "Tillväxt / Momentum",
+                "target_pct": alloc["growth_stocks"],
+                "symbol": op["symbol"],
+                "name": op["name"],
+                "market": op["market"],
+                "currency": op["currency"],
+                "close": op["close"],
+                "strategy": op["strategy_name"],
+                "score": op["score"],
+                "badge": f"Edge {op['edge']['win_rate']:.0f}% win",
+                "reason": op["reason"],
+            })
+
+    # 5. Defensivt (Guld & Räntor)
+    if alloc.get("defensive", 0) > 0:
+        for etf in RECOMMENDED_UCITS_ETFS.get("defensive", []):
+            recommendations.append({
+                "type": "defensive",
+                "type_label": "Defensivt (Guld/Räntor)",
+                "target_pct": alloc["defensive"],
+                "symbol": etf["symbol"],
+                "name": etf["name"],
+                "region": etf["region"],
+                "fee_pct": etf["fee_pct"],
+                "badge": "UCITS / ISK",
+                "reason": "Dämpar portföljvolatilitet och bevarar kapital i oroligt marknadsklimat.",
+            })
+
+    return {
+        "allocation": alloc,
+        "recommendations": recommendations,
+        "regime": regime_data,
+        "concentration": conc_data,
+        "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "disclaimer": (
+            "Detta är regelbaserade modellförslag baserade på marknadsregim och koncentrationsrisk, "
+            "inte personlig rådgivning eller garanterade prognoser. ETF-urvalet består av europeiska "
+            "UCITS-fonder anpassade för svenskt ISK."
+        ),
+    }
+
+

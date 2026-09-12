@@ -42,5 +42,48 @@ class TestRegime(unittest.TestCase):
         self.assertEqual(res["index_symbol"], "^OMX")
         self.assertTrue(res["is_bull"])
 
+    @patch("src.core.regime.get_market_regime")
+    @patch("src.core.portfolio.list_holdings")
+    @patch("src.core.portfolio.get_db")
+    def test_sell_alerts_ignore_funds_in_bear_market(self, mock_get_db, mock_list_holdings, mock_regime):
+        from src.core.portfolio import generate_sell_alerts
+
+        mock_conn = MagicMock()
+        mock_get_db.return_value = mock_conn
+        mock_conn.execute.return_value.fetchone.return_value = None
+
+        # Simulera en björnmarknad
+        mock_regime.return_value = {"regime": "bear", "is_bull": False}
+
+        # Två innehav: en global indexfond och en aktie
+        mock_list_holdings.return_value = [
+            {"symbol": "LF-GLOBAL", "name": "Länsförsäkringar Global", "kind": "fond", "avg_price": 100.0},
+            {"symbol": "VOLV-B.ST", "name": "Volvo B", "kind": "aktie", "avg_price": 300.0},
+        ]
+
+        def execute_side_effect(query, params=None):
+            m = MagicMock()
+            if "history" in query.lower() and params and "VOLV-B.ST" in params:
+                m.fetchone.return_value = {"close": 240.0, "open": 242.0, "ma50": 260.0, "ma200": 280.0, "atr": 6.0}
+            elif "sell_alerts" in query.lower():
+                m.fetchone.return_value = None
+            else:
+                m.fetchone.return_value = None
+            return m
+
+        mock_conn.execute.side_effect = execute_side_effect
+
+        alerts = generate_sell_alerts()
+        symbols_alerted = [a["symbol"] for a in alerts]
+
+        # Fonden får ALDRIG flaggas för sälj vid bear market
+        self.assertNotIn("LF-GLOBAL", symbols_alerted)
+        # Aktien ska flaggas
+        self.assertIn("VOLV-B.ST", symbols_alerted)
+        volvo_alert = next(a for a in alerts if a["symbol"] == "VOLV-B.ST")
+        self.assertEqual(volvo_alert["severity"], "exit")
+
+
 if __name__ == "__main__":
     unittest.main()
+

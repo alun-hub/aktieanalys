@@ -121,6 +121,7 @@ NASDAQ_100 = {
 INDEX_TICKERS = {
     "^OMX": "OMXS30",
     "^NDX": "Nasdaq 100",
+    "^GSPC": "S&P 500",  # Global/US marknadsproxy för regim och koncentrationsanalys
 }
 
 # Populära ETF:er (svenska, nordiska och europeiska UCITS samt US core)
@@ -135,7 +136,7 @@ POPULAR_ETFS = {
     "XACT-BEAR-2.ST": {"name": "Xact Bear 2", "region": "Sverige", "sector": "ETF - Bear/Hedge"},
     "XACT-BULL-2.ST": {"name": "Xact Bull 2", "region": "Sverige", "sector": "ETF - Bull/Hävstång"},
 
-    # Europeiska UCITS (handlas via Avanza/Nordnet på Euronext/Xetra)
+    # Europeiska UCITS (handlas via Avanza/Nordnet på Euronext/Xetra/Stockholm - godkända för ISK)
     "CSPX.AS": {"name": "iShares Core S&P 500 UCITS (Acc)", "region": "USA", "sector": "ETF - USA Index"},
     "SXR8.DE": {"name": "iShares Core S&P 500 UCITS (DE)", "region": "USA", "sector": "ETF - USA Index"},
     "IWDA.AS": {"name": "iShares Core MSCI World UCITS", "region": "Global", "sector": "ETF - Global Index"},
@@ -149,18 +150,40 @@ POPULAR_ETFS = {
     "EMIM.AS": {"name": "iShares Core MSCI EM IMI UCITS", "region": "Tillväxtmarknader", "sector": "ETF - Tillväxtmarknader"},
     "IS3N.DE": {"name": "iShares Core MSCI EM IMI UCITS (DE)", "region": "Tillväxtmarknader", "sector": "ETF - Tillväxtmarknader"},
     "XD9U.DE": {"name": "Xtrackers S&P 500 UCITS", "region": "USA", "sector": "ETF - USA Index"},
+    "XDEW.DE": {"name": "Xtrackers S&P 500 Equal Weight UCITS", "region": "USA", "sector": "ETF - Equal Weight"},
+    "VHYL.AS": {"name": "Vanguard All-World High Dividend UCITS", "region": "Global", "sector": "ETF - Utdelning"},
+    "FUSD.DE": {"name": "Fidelity US Quality Income UCITS", "region": "USA", "sector": "ETF - Utdelning"},
     "4GLD.DE": {"name": "Xetra-Gold", "region": "Råvaror", "sector": "ETF - Guld"},
+    "DBZB.DE": {"name": "Xtrackers Global Aggregate Bond UCITS", "region": "Global", "sector": "ETF - Räntor"},
 
     # Amerikanska ETF:er
     "SPY": {"name": "SPDR S&P 500 ETF Trust", "region": "USA", "sector": "ETF - USA Index"},
     "QQQ": {"name": "Invesco QQQ Trust (Nasdaq 100)", "region": "USA", "sector": "ETF - USA Tech"},
     "VOO": {"name": "Vanguard S&P 500 ETF", "region": "USA", "sector": "ETF - USA Index"},
     "VTI": {"name": "Vanguard Total Stock Market ETF", "region": "USA", "sector": "ETF - USA Index"},
+    "RSP": {"name": "Invesco S&P 500 Equal Weight ETF", "region": "USA", "sector": "ETF - Equal Weight"},
     "SCHD": {"name": "Schwab U.S. Dividend Equity ETF", "region": "USA", "sector": "ETF - Utdelning"},
     "VT": {"name": "Vanguard Total World Stock ETF", "region": "Global", "sector": "ETF - Global Index"},
     "ARKK": {"name": "ARK Innovation ETF", "region": "USA", "sector": "ETF - Innovation"},
     "GLD": {"name": "SPDR Gold Shares", "region": "Råvaror", "sector": "ETF - Guld"},
     "TLT": {"name": "iShares 20+ Year Treasury Bond ETF", "region": "USA", "sector": "ETF - Räntor"},
+}
+
+# Standardurval av UCITS-ETF:er för allokeringsmotorn (optimerat för svenskt ISK)
+RECOMMENDED_UCITS_ETFS = {
+    "broad_etf": [
+        {"symbol": "VWCE.DE", "name": "Vanguard FTSE All-World UCITS (Acc)", "region": "Global", "fee_pct": 0.22},
+        {"symbol": "IWDA.AS", "name": "iShares Core MSCI World UCITS", "region": "Global", "fee_pct": 0.20},
+        {"symbol": "XACT-OMXS30.ST", "name": "Xact OMXS30 UCITS", "region": "Sverige", "fee_pct": 0.10},
+    ],
+    "equalweight_etf": [
+        {"symbol": "XDEW.DE", "name": "Xtrackers S&P 500 Equal Weight UCITS", "region": "USA", "fee_pct": 0.20},
+    ],
+    "defensive": [
+        {"symbol": "4GLD.DE", "name": "Xetra-Gold (Fysiskt guld)", "region": "Råvaror", "fee_pct": 0.0},
+        {"symbol": "XACT-OBLIGATION.ST", "name": "Xact Obligation UCITS", "region": "Sverige", "fee_pct": 0.15},
+        {"symbol": "DBZB.DE", "name": "Xtrackers Global Aggregate Bond UCITS", "region": "Global", "fee_pct": 0.10},
+    ],
 }
 
 # Populära svenska fonder (för snabb sökning och auto-ifyllning i portföljen)

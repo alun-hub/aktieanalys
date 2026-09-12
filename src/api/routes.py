@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request
 import threading
 
-from src.core.signals import run_market_screener, scan_opportunities
-from src.core.backtest import run_backtest_local, optimize_omx, run_single_stock_backtest
+from src.core.signals import run_market_screener, scan_opportunities, build_recommendations
+from src.core.backtest import run_backtest_local, optimize_omx, run_single_stock_backtest, run_portfolio_backtest
 from src.core.data import sync_all_stocks, get_sync_status
 from src.core.analysis import search_symbols, analyze_any_stock, get_market_overview, resolve_symbol
 from src.core.crypto import get_crypto_screener
@@ -215,3 +215,43 @@ def update_data():
 @api_bp.route('/sync_status')
 def sync_status_route():
     return jsonify(get_sync_status())
+
+
+@api_bp.route('/recommendations')
+def recommendations_route():
+    market = request.args.get('market', 'all')
+    try:
+        data = build_recommendations(market=market)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/portfolio-backtest')
+def portfolio_backtest_route():
+    years = request.args.get('years', 10, type=int)
+    try:
+        data = run_portfolio_backtest(years=years)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/sell-alerts')
+def sell_alerts_route():
+    include_ack = request.args.get('include_acknowledged', '0') in ('1', 'true', 'True')
+    try:
+        alerts = pf.list_sell_alerts(include_acknowledged=include_ack)
+        return jsonify({"alerts": alerts, "total": len(alerts)})
+    except Exception as e:
+        return jsonify({"error": str(e), "alerts": []}), 500
+
+
+@api_bp.route('/sell-alerts/<int:alert_id>/acknowledge', methods=['POST'])
+def sell_alert_ack_route(alert_id):
+    try:
+        ok = pf.acknowledge_sell_alert(alert_id)
+        return jsonify({"ok": ok})
+    except Exception as e:
+        return jsonify({"error": str(e), "ok": False}), 500
+
