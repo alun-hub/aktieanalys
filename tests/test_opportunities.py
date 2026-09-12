@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 import sqlite3
 import pandas as pd
-from src.core.signals import calculate_trade_levels, scan_opportunities
+from src.core.signals import calculate_trade_levels, scan_opportunities, clear_signals_cache
 
 class TestTradeLevels(unittest.TestCase):
     def test_calculate_trade_levels_dip(self):
@@ -46,6 +46,7 @@ class TestTradeLevels(unittest.TestCase):
 
 class TestScanOpportunities(unittest.TestCase):
     def setUp(self):
+        clear_signals_cache()
         n = 150
         dates = [f"2023-{(i // 25) + 1:02d}-{(i % 25) + 1:02d}" for i in range(n)]
         prices = [100.0 + i * 0.5 for i in range(n)]
@@ -114,6 +115,32 @@ class TestScanOpportunities(unittest.TestCase):
         opps = scan_opportunities(market="omxs")
         self.assertEqual(len(opps), 0)
 
+    @patch("src.core.signals.get_db")
+    @patch("src.core.signals.OMXS_50", {"ABB.ST": "ABB"})
+    @patch("src.core.signals.NASDAQ_100", {})
+    def test_scan_opportunities_caching_and_force_refresh(self, mock_get_db):
+        def make_conn():
+            c = sqlite3.connect(":memory:")
+            self.df_history.to_sql("history", c, index=False)
+            return c
+        mock_get_db.side_effect = make_conn
+
+        # Första anropet: beräknar och cachar
+        opps1 = scan_opportunities(market="omxs", strategy_filter="dip")
+        self.assertEqual(len(opps1), 1)
+        self.assertEqual(mock_get_db.call_count, 1)
+
+        # Andra anropet utan refresh: ska använda cache (ingen ny get_db)
+        opps2 = scan_opportunities(market="omxs", strategy_filter="dip")
+        self.assertEqual(len(opps2), 1)
+        self.assertEqual(mock_get_db.call_count, 1)
+
+        # Tredje anropet med force_refresh=True: ska anropa get_db igen
+        opps3 = scan_opportunities(market="omxs", strategy_filter="dip", force_refresh=True)
+        self.assertEqual(len(opps3), 1)
+        self.assertEqual(mock_get_db.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
+

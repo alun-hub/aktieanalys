@@ -183,8 +183,31 @@ def calculate_trade_levels(close: float, atr: float, strategy: str = "dip") -> d
     }
 
 
-def scan_opportunities(market="all", strategy_filter="all"):
+_OPPORTUNITIES_CACHE = {}
+_OPPORTUNITIES_TTL = 3600
+
+_RECOMMENDATIONS_CACHE = {}
+_RECOMMENDATIONS_TTL = 3600
+
+
+def clear_signals_cache():
+    """Tömmer cachen för affärsmöjligheter och rekommendationer vid datanyuppdatering."""
+    global _OPPORTUNITIES_CACHE, _RECOMMENDATIONS_CACHE
+    _OPPORTUNITIES_CACHE.clear()
+    _RECOMMENDATIONS_CACHE.clear()
+
+
+def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool = False):
     """Skannar alla bolag för dagens datum efter köpmöjligheter med kvalitetsspärr och relativ styrka."""
+    import time
+    global _OPPORTUNITIES_CACHE
+    now = time.time()
+    cache_key = (market, strategy_filter)
+    if not force_refresh and cache_key in _OPPORTUNITIES_CACHE:
+        ts, cached_data = _OPPORTUNITIES_CACHE[cache_key]
+        if now - ts < _OPPORTUNITIES_TTL:
+            return [dict(x) for x in cached_data]
+
     from src.core.backtest import prep_strategy_signals, simulate_stock_trades, STRATEGIES
     from src.core.relative_strength import get_stock_relative_strength
     import pandas as pd
@@ -214,8 +237,8 @@ def scan_opportunities(market="all", strategy_filter="all"):
         df = df.set_index("date")
         curr = "$" if mkt == "NASDAQ" else "kr"
 
-        # Relativ Styrka mot marknadsindex
-        rs = get_stock_relative_strength(sym, market=mkt)
+        # Beräkna Relativ Styrka först när signal faktiskt genereras (sparar ~80% exekveringstid)
+        rs = None
 
         for strat in strategies_to_check:
             df_sig = prep_strategy_signals(df, strategy=strat)
@@ -235,6 +258,10 @@ def scan_opportunities(market="all", strategy_filter="all"):
                 if stats["trades_count"] >= 5:
                     if stats["win_rate"] < 50.0 or stats["profit_factor"] < 1.3:
                         continue
+
+                # Beräkna RS endast för kandidater som kvalificerat sig
+                if rs is None:
+                    rs = get_stock_relative_strength(sym, market=mkt)
 
                 # Motivering i klarspråk
                 if strat == "dip":
@@ -269,19 +296,29 @@ def scan_opportunities(market="all", strategy_filter="all"):
     db.close()
     # Sortera på starkast statistisk edge
     opportunities.sort(key=lambda x: x["score"], reverse=True)
+    _OPPORTUNITIES_CACHE[cache_key] = (now, opportunities)
     return opportunities
 
 
-def build_recommendations(market="all") -> dict:
+def build_recommendations(market="all", force_refresh: bool = False) -> dict:
     """Slår ihop målvikt från compute_target_allocation med konkreta
     investeringskandidater per tillgångsklass:
       - 'broad_etf': Breda UCITS-index-ETF:er (t.ex. VWCE.DE, IWDA.AS)
       - 'equalweight_etf': Likaviktade UCITS-ETF:er (t.ex. XDEW.DE)
-      - 'dividend_stock': Högrankade utdelningsaktier från get_top_dividend_stocks
-      - 'growth_stock': Momentum/tillväxtaktier med statistisk edge från scan_opportunities
+      - 'dividend_stocks': Högrankade utdelningsaktier från get_top_dividend_stocks
+      - 'growth_stocks': Momentum/tillväxtaktier med statistisk edge från scan_opportunities
       - 'defensive': Kapitalbevarande UCITS-ETF:er (fysiskt guld, räntor)
     """
     import datetime
+    import time
+    global _RECOMMENDATIONS_CACHE
+    now = time.time()
+    cache_key = market
+    if not force_refresh and cache_key in _RECOMMENDATIONS_CACHE:
+        ts, cached_data = _RECOMMENDATIONS_CACHE[cache_key]
+        if now - ts < _RECOMMENDATIONS_TTL:
+            return dict(cached_data)
+
     from src.core.allocation import compute_target_allocation
     from src.core.dividends import get_top_dividend_stocks
     from src.core.config import RECOMMENDED_UCITS_ETFS
@@ -382,7 +419,7 @@ def build_recommendations(market="all") -> dict:
                 "reason": "Dämpar portföljvolatilitet och bevarar kapital i oroligt marknadsklimat.",
             })
 
-    return {
+    res = {
         "allocation": alloc,
         "recommendations": recommendations,
         "regime": regime_data,
@@ -394,5 +431,7 @@ def build_recommendations(market="all") -> dict:
             "UCITS-fonder anpassade för svenskt ISK."
         ),
     }
+    _RECOMMENDATIONS_CACHE[cache_key] = (now, res)
+    return res
 
 

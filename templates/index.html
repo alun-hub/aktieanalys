@@ -210,13 +210,16 @@ footer { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: va
           <h2>Målallokering & Rekommendationer</h2>
           <p class="lead">Blandad portfölj av breda UCITS-indexfonder, likaviktade ETF:er, kvalitetsutdelare och tillväxt – anpassad efter marknadsregim och koncentrationsrisk.</p>
         </div>
-        <div style="min-width: 190px;">
-          <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.2rem;">Marknadskontext</label>
-          <select id="rec-market" onchange="loadRecommendations()" style="padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text); width:100%;">
-            <option value="all">Alla marknader (Global / OMX / US)</option>
-            <option value="omxs">Stockholm (OMX)</option>
-            <option value="nasdaq">USA (Nasdaq / S&P 500)</option>
-          </select>
+        <div style="display:flex; gap:0.5rem; align-items:flex-end;">
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.2rem;">Marknadskontext</label>
+            <select id="rec-market" onchange="loadRecommendations()" style="padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text); min-width:180px;">
+              <option value="all">Alla marknader (Global / OMX / US)</option>
+              <option value="omxs">Stockholm (OMX)</option>
+              <option value="nasdaq">USA (Nasdaq / S&P 500)</option>
+            </select>
+          </div>
+          <button class="btn btn-sm" onclick="loadRecommendations(true)" title="Tvinga omberäkning av rekommendationer" style="height:34px;">↻ Synka</button>
         </div>
       </div>
       <div class="callout info" style="margin-top:0.8rem;">
@@ -329,7 +332,7 @@ footer { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: va
           </select>
         </div>
         <div class="field" style="align-self:end;">
-          <button class="btn btn-primary" onclick="loadOpportunities()">Uppdatera lägen</button>
+          <button class="btn btn-primary" onclick="loadOpportunities(true)">Uppdatera lägen</button>
         </div>
       </div>
       <div id="opp-regime-banner"></div>
@@ -1171,13 +1174,40 @@ async function loadMarket(m, btn) {
 }
 
 // ---------- AFFÄRSMÖJLIGHETER ----------
-async function loadOpportunities() {
+async function loadOpportunities(forceRefresh = false) {
   const container = $("#opp-container");
   const regBanner = $("#opp-regime-banner");
-  container.innerHTML = '<div class="card" style="grid-column:1/-1;"><p class="muted spin">Skannar marknaden med kvalitetsspärr och relativ styrka…</p></div>';
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="card" style="grid-column:1/-1; text-align:center; padding:2.5rem 1.2rem; border:1px dashed var(--border);">
+      <div class="spinner" style="margin:0 auto 1rem;"></div>
+      <h3 style="margin:0 0 0.35rem; font-size:1.1rem; color:var(--text);">Skannar marknaden efter köpmöjligheter…</h3>
+      <p class="muted" style="margin:0; font-size:0.85rem;">Kör statistiska backtester (5 år), filtrerar bort underpresterare och beräknar relativ styrka mot index.</p>
+    </div>
+    <div class="card" style="opacity:0.35;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="skeleton" style="height:1.4rem; width:45%;"></div>
+        <div class="skeleton" style="height:1.4rem; width:25%;"></div>
+      </div>
+      <div class="skeleton" style="height:0.9rem; width:80%; margin:0.8rem 0 0.5rem;"></div>
+      <div class="skeleton" style="height:2.2rem; width:100%; margin:0.6rem 0;"></div>
+      <div class="skeleton" style="height:3rem; width:100%; margin-top:0.6rem;"></div>
+    </div>
+    <div class="card" style="opacity:0.35;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="skeleton" style="height:1.4rem; width:45%;"></div>
+        <div class="skeleton" style="height:1.4rem; width:25%;"></div>
+      </div>
+      <div class="skeleton" style="height:0.9rem; width:80%; margin:0.8rem 0 0.5rem;"></div>
+      <div class="skeleton" style="height:2.2rem; width:100%; margin:0.6rem 0;"></div>
+      <div class="skeleton" style="height:3rem; width:100%; margin-top:0.6rem;"></div>
+    </div>
+  `;
   const mkt = $("#opp-market") ? $("#opp-market").value : "all";
   const strat = $("#opp-strategy") ? $("#opp-strategy").value : "all";
-  const d = await getJSON(`/api/portal/opportunities?market=${encodeURIComponent(mkt)}&strategy=${encodeURIComponent(strat)}`);
+  const url = `/api/portal/opportunities?market=${encodeURIComponent(mkt)}&strategy=${encodeURIComponent(strat)}${forceRefresh ? '&refresh=1' : ''}`;
+  const d = await getJSON(url);
   if (d.error) {
     container.innerHTML = `<div class="card" style="grid-column:1/-1;"><p class="neg">${esc(d.error)}</p></div>`;
     return;
@@ -1645,19 +1675,41 @@ async function ackSellAlert(id) {
 }
 
 // ---------- REKOMMENDATIONER ----------
-async function loadRecommendations() {
+async function loadRecommendations(forceRefresh = false) {
   const mkt = $("#rec-market") ? $("#rec-market").value : "all";
   const macroDiv = $("#rec-macro-container");
   const cardsDiv = $("#rec-cards-container");
   if (!macroDiv || !cardsDiv) return;
 
-  macroDiv.innerHTML = '<div class="card muted">Hämtar målallokering och regimdata…</div>';
-  cardsDiv.innerHTML = "";
+  macroDiv.innerHTML = `
+    <div class="card" style="text-align:center; padding:2rem 1.2rem; border:1px dashed var(--border); margin-bottom:1rem;">
+      <div class="spinner" style="margin:0 auto 0.8rem;"></div>
+      <h3 style="margin:0 0 0.3rem; font-size:1.05rem; color:var(--text);">Hämtar målallokering och regimdata…</h3>
+      <p class="muted" style="margin:0; font-size:0.82rem;">Analyserar marknadens trendläge, koncentrationsrisk och optimerar fördelning mellan tillgångsslag.</p>
+    </div>
+  `;
+  cardsDiv.innerHTML = `
+    <div class="grid cols-3" style="opacity:0.35; margin-bottom:1rem;">
+      <div class="card"><div class="skeleton" style="height:1.2rem; width:50%;"></div><div class="skeleton" style="height:2.5rem; margin-top:0.6rem;"></div></div>
+      <div class="card"><div class="skeleton" style="height:1.2rem; width:60%;"></div><div class="skeleton" style="height:2.5rem; margin-top:0.6rem;"></div></div>
+      <div class="card"><div class="skeleton" style="height:1.2rem; width:45%;"></div><div class="skeleton" style="height:2.5rem; margin-top:0.6rem;"></div></div>
+    </div>
+    <div class="card" style="opacity:0.35; margin-bottom:1rem;">
+      <div class="skeleton" style="height:1.5rem; width:40%; margin-bottom:1rem;"></div>
+      <div class="skeleton" style="height:3.2rem; width:100%;"></div>
+    </div>
+    <div class="card" style="opacity:0.35; margin-bottom:1rem;">
+      <div class="skeleton" style="height:1.5rem; width:40%; margin-bottom:1rem;"></div>
+      <div class="skeleton" style="height:3.2rem; width:100%;"></div>
+    </div>
+  `;
 
   try {
-    const d = await getJSON(`/api/portal/recommendations?market=${encodeURIComponent(mkt)}`);
+    const url = `/api/portal/recommendations?market=${encodeURIComponent(mkt)}${forceRefresh ? '&refresh=1' : ''}`;
+    const d = await getJSON(url);
     if (d.error) {
       macroDiv.innerHTML = `<div class="card neg">Fel: ${esc(d.error)}</div>`;
+      cardsDiv.innerHTML = "";
       return;
     }
 

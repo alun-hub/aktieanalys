@@ -162,6 +162,16 @@ def sync_all_stocks():
         except Exception as e:
             print(f"Kunde inte förladda utdelningscachen: {e}")
 
+        try:
+            from src.core.signals import clear_signals_cache, scan_opportunities, build_recommendations
+            clear_signals_cache()
+            status["current"] = "Förladdar möjligheter och rekommendationer…"
+            _write_status(status)
+            scan_opportunities(market="all", force_refresh=True)
+            build_recommendations(market="all", force_refresh=True)
+        except Exception as e:
+            print(f"Kunde inte förladda signalkakorna: {e}")
+
         status["running"] = False
         status["current"] = "Klar"
         status["last_synced"] = datetime.now().strftime("%Y-%m-%d %H:%M")
