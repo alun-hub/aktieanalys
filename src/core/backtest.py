@@ -765,3 +765,210 @@ def run_single_stock_backtest(symbol, strategy="dip", years=5):
         "chart": chart,
     }
 
+
+_PORTFOLIO_BT_CACHE = {}
+
+
+def run_portfolio_backtest(years: int = 10) -> dict:
+    """Simulerar hela allokeringsstrategin (regimstyrd + koncentrationsmedveten)
+    historiskt dag för dag utan lookahead mot två jämförelseindex:
+      a) 100% köp-och-behåll i bred global ETF (VT)
+      b) 100% köp-och-behåll i marknadsviktade S&P 500 (SPY)
+
+    Modellen:
+    - Broad ETF: VT (Global Index)
+    - Equal Weight ETF: RSP (S&P 500 Equal Weight)
+    - Dividend Stocks: SCHD (Kvalitetsutdelare)
+    - Growth / Momentum: QQQ (Tillväxt/Tech)
+    - Defensive: GLD (Fysiskt guld)
+
+    Kostnader: Rebalansering drar courtage och spread via transaction_cost().
+    """
+    import yfinance as yf
+    import time
+
+    global _PORTFOLIO_BT_CACHE
+    now = time.time()
+    years = int(years)
+    cache_key = f"pf_bt_{years}"
+    if cache_key in _PORTFOLIO_BT_CACHE:
+        cached_ts, cached_res = _PORTFOLIO_BT_CACHE[cache_key]
+        if now - cached_ts < 3600:
+            return cached_res
+
+    try:
+        symbols = ["VT", "RSP", "SCHD", "QQQ", "GLD", "SPY"]
+        df_all = yf.download(symbols, period=f"{years + 1}y", interval="1d", progress=False, auto_adjust=True)
+        if df_all.empty or "Close" not in df_all.columns:
+            return {"error": "Kunde inte hämta historisk kursdata för portföljbacktest."}
+
+        closes = df_all["Close"].dropna()
+        if len(closes) < 252:
+            return {"error": "För lite historisk data tillgänglig för portföljbacktest."}
+
+        # Glidande medelvärden på SPY för regim (utan lookahead)
+        spy_close = closes["SPY"]
+        spy_ma50 = spy_close.rolling(50).mean()
+        spy_ma200 = spy_close.rolling(200).mean()
+
+        # 252-dagars rullande avkastning för koncentrationsrisk
+        spy_ret_252 = spy_close.pct_change(252) * 100.0
+        rsp_ret_252 = closes["RSP"].pct_change(252) * 100.0
+        spread_252 = spy_ret_252 - rsp_ret_252
+
+        start_idx = max(252, len(closes) - years * 252)
+        sim_dates = closes.index[start_idx:]
+
+        if len(sim_dates) < 100:
+            return {"error": "Otillräckligt med handelsdagar för angiven period."}
+
+        pct_changes = closes.pct_change().fillna(0.0)
+
+        initial_capital = 100_000.0
+        equity_strategy = initial_capital
+        equity_vt = initial_capital
+        equity_spy = initial_capital
+
+        current_weights = {
+            "broad_etf": 0.40,
+            "equalweight_etf": 0.15,
+            "dividend_stocks": 0.20,
+            "growth_stocks": 0.20,
+            "defensive": 0.05,
+        }
+
+        asset_proxy = {
+            "broad_etf": "VT",
+            "equalweight_etf": "RSP",
+            "dividend_stocks": "SCHD",
+            "growth_stocks": "QQQ",
+            "defensive": "GLD",
+        }
+
+        rebalance_count = 0
+        curve = []
+        strategy_daily_returns = []
+        vt_daily_returns = []
+        spy_daily_returns = []
+
+        last_rebalance_idx = -999
+
+        for i, date in enumerate(sim_dates):
+            # 1. Bestäm regim och koncentration för gårdagen/dagens början (strikt utan lookahead)
+            prev_date = closes.index[start_idx + i - 1] if (start_idx + i > 0) else date
+            close_val = float(spy_close.loc[prev_date])
+            ma50_val = float(spy_ma50.loc[prev_date]) if not pd.isna(spy_ma50.loc[prev_date]) else close_val
+            ma200_val = float(spy_ma200.loc[prev_date]) if not pd.isna(spy_ma200.loc[prev_date]) else close_val
+            spread_val = float(spread_252.loc[prev_date]) if not pd.isna(spread_252.loc[prev_date]) else 0.0
+
+            if close_val < ma200_val:
+                regime = "bear"
+            elif close_val < ma50_val:
+                regime = "correction"
+            else:
+                regime = "bull"
+
+            if spread_val >= 8.0:
+                conc = "high"
+            elif spread_val >= 3.0:
+                conc = "elevated"
+            else:
+                conc = "normal"
+
+            # 2. Målvikter
+            if regime == "bull":
+                if conc == "high":
+                    target_w = {"broad_etf": 0.20, "equalweight_etf": 0.25, "dividend_stocks": 0.30, "growth_stocks": 0.10, "defensive": 0.15}
+                elif conc == "elevated":
+                    target_w = {"broad_etf": 0.30, "equalweight_etf": 0.20, "dividend_stocks": 0.25, "growth_stocks": 0.15, "defensive": 0.10}
+                else:
+                    target_w = {"broad_etf": 0.40, "equalweight_etf": 0.15, "dividend_stocks": 0.20, "growth_stocks": 0.20, "defensive": 0.05}
+            elif regime == "correction":
+                target_w = {"broad_etf": 0.25, "equalweight_etf": 0.20, "dividend_stocks": 0.25, "growth_stocks": 0.10, "defensive": 0.20}
+            else:  # bear
+                target_w = {"broad_etf": 0.10, "equalweight_etf": 0.10, "dividend_stocks": 0.15, "growth_stocks": 0.00, "defensive": 0.65}
+
+            # 3. Omviktningskontroll (månadsvis eller regimbyte)
+            should_rebalance = (i - last_rebalance_idx >= 21) or any(abs(target_w[k] - current_weights[k]) >= 0.15 for k in target_w)
+            if should_rebalance:
+                turnover = sum(abs(target_w[k] - current_weights[k]) for k in target_w) / 2.0
+                rebalance_amount = equity_strategy * turnover
+                cost = transaction_cost(rebalance_amount, "nasdaq") if rebalance_amount > 100.0 else 0.0
+                equity_strategy -= cost
+                current_weights = target_w.copy()
+                last_rebalance_idx = i
+                rebalance_count += 1
+
+            # 4. Beräkna dagens avkastning
+            day_chg = pct_changes.loc[date]
+            strat_ret = sum(current_weights[k] * float(day_chg[asset_proxy[k]]) for k in current_weights)
+            vt_ret = float(day_chg["VT"])
+            spy_ret = float(day_chg["SPY"])
+
+            equity_strategy *= (1.0 + strat_ret)
+            equity_vt *= (1.0 + vt_ret)
+            equity_spy *= (1.0 + spy_ret)
+
+            strategy_daily_returns.append(strat_ret)
+            vt_daily_returns.append(vt_ret)
+            spy_daily_returns.append(spy_ret)
+
+            date_str = date.strftime("%Y-%m-%d")
+            curve.append({
+                "date": date_str,
+                "strategy": round(equity_strategy, 1),
+                "benchmark_global": round(equity_vt, 1),
+                "benchmark_sp500": round(equity_spy, 1),
+            })
+
+        total_days = len(sim_dates)
+        years_actual = total_days / 252.0
+
+        def calc_metrics(daily_rets, final_eq, init_eq):
+            s_rets = pd.Series(daily_rets)
+            cagr = ((final_eq / init_eq) ** (1.0 / years_actual) - 1.0) * 100.0
+            cum = (1.0 + s_rets).cumprod()
+            peak = cum.cummax()
+            dd = (cum / peak - 1.0)
+            max_dd = float(dd.min()) * 100.0
+            vol = float(s_rets.std() * np.sqrt(252) * 100.0)
+            calmar = round(cagr / abs(max_dd), 2) if max_dd != 0 else 0.0
+            return {
+                "cagr": round(cagr, 1),
+                "max_drawdown": round(max_dd, 1),
+                "volatility": round(vol, 1),
+                "calmar": calmar,
+                "final_value": int(round(final_eq)),
+            }
+
+        stats_strat = calc_metrics(strategy_daily_returns, equity_strategy, initial_capital)
+        stats_vt = calc_metrics(vt_daily_returns, equity_vt, initial_capital)
+        stats_spy = calc_metrics(spy_daily_returns, equity_spy, initial_capital)
+
+        step = max(1, len(curve) // 120)
+        chart_sampled = [curve[j] for j in range(0, len(curve), step)]
+        if chart_sampled and chart_sampled[-1]["date"] != curve[-1]["date"]:
+            chart_sampled.append(curve[-1])
+
+        result = {
+            "years": int(round(years_actual)),
+            "start_date": sim_dates[0].strftime("%Y-%m-%d"),
+            "end_date": sim_dates[-1].strftime("%Y-%m-%d"),
+            "strategy": stats_strat,
+            "benchmark_global": {**stats_vt, "name": "Global Index (VT)"},
+            "benchmark_sp500": {**stats_spy, "name": "S&P 500 (SPY)"},
+            "equity_curve": chart_sampled,
+            "rebalance_count": rebalance_count,
+            "disclaimer": (
+                "Historisk simulering utan framåtblickande information. Strategin justerar månadsvis "
+                "mellan globala index, likaviktat, utdelningsaktier och defensiva tillgångar baserat "
+                "på marknadstrend (MA50/MA200) och koncentrationsrisk. Courtage och spread beaktas."
+            ),
+        }
+
+        _PORTFOLIO_BT_CACHE[cache_key] = (now, result)
+        return result
+    except Exception as e:
+        return {"error": f"Fel vid simulering av portföljbacktest: {e}"}
+
+

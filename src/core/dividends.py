@@ -1,9 +1,12 @@
+import logging
 import time
 import datetime
 import yfinance as yf
 from src.core.config import OMXS_50, NASDAQ_100
 from src.core.signals import trend_score
 from src.core.data import get_db
+
+logger = logging.getLogger(__name__)
 
 _DIVIDEND_CACHE = {}
 _CACHE_TTL = 3600  # 1 timme
@@ -14,6 +17,7 @@ def score_dividend_stock(
     payout_ratio: float = None,
     pe: float = None,
     trend_score_val: float = 50.0,
+    streak_years: int = None,
 ) -> dict:
     """Beräknar ett samlat utdelnings- och kvalitetsbetyg (0–100)."""
     if yield_pct is None or yield_pct <= 0:
@@ -22,7 +26,9 @@ def score_dividend_stock(
             "yield_score": 0.0,
             "payout_score": 0.0,
             "valuation_score": 0.0,
+            "continuity_score": 0.0,
             "trend_score": 0.0,
+            "streak_years": streak_years,
             "verdict": "Ingen utdelning",
         }
 
@@ -70,8 +76,25 @@ def score_dividend_stock(
     # 4. Teknisk trend (0–100)
     t_score = max(0.0, min(100.0, float(trend_score_val if trend_score_val is not None else 50.0)))
 
-    # Sammanvägning (Yield: 35%, Payout: 25%, PE: 20%, Trend: 20%)
-    tot = (0.35 * y_score) + (0.25 * p_score) + (0.20 * v_score) + (0.20 * t_score)
+    # 5. Utdelningskontinuitet / historik (0–100)
+    if streak_years is None:
+        c_score = 50.0
+    elif streak_years >= 10:
+        c_score = 100.0  # Utdelningsaristokrat
+    elif streak_years >= 5:
+        c_score = 85.0   # Mycket stabil
+    elif streak_years >= 3:
+        c_score = 70.0   # Sund historik
+    elif streak_years >= 1:
+        c_score = 50.0   # Neutral
+    else:
+        c_score = 25.0   # Sänkt utdelning nyligen
+
+    # Sammanvägning (om streak_years finns: Yield 30%, Payout 20%, PE 15%, Kontinuitet 15%, Trend 20%)
+    if streak_years is not None:
+        tot = (0.30 * y_score) + (0.20 * p_score) + (0.15 * v_score) + (0.15 * c_score) + (0.20 * t_score)
+    else:
+        tot = (0.35 * y_score) + (0.25 * p_score) + (0.20 * v_score) + (0.20 * t_score)
     final_score = round(max(0.0, min(100.0, tot)), 1)
 
     # Omdöme i klarspråk
@@ -91,7 +114,9 @@ def score_dividend_stock(
         "yield_score": round(y_score, 1),
         "payout_score": round(p_score, 1),
         "valuation_score": round(v_score, 1),
+        "continuity_score": round(c_score, 1),
         "trend_score": round(t_score, 1),
+        "streak_years": streak_years,
         "verdict": verdict,
     }
 
@@ -100,14 +125,18 @@ def _fetch_single_stock_dividend(sym: str, name: str, mkt: str, tech_row: dict) 
     """Hjälpfunktion för att hämta fundamenta och beräkna score för en enskild aktie."""
     try:
         close = float(tech_row["close"])
-        ma50 = float(tech_row["ma50"]) if tech_row["ma50"] is not None else None
-        ma200 = float(tech_row["ma200"]) if tech_row["ma200"] is not None else None
-        rsi = float(tech_row["rsi"]) if tech_row["rsi"] is not None else None
+        ma50 = float(tech_row["ma50"]) if tech_row.get("ma50") is not None else None
+        ma200 = float(tech_row["ma200"]) if tech_row.get("ma200") is not None else None
+        rsi = float(tech_row["rsi"]) if tech_row.get("rsi") is not None else None
 
         tscore = trend_score(close, ma50, ma200, rsi)
 
         t = yf.Ticker(sym)
-        info = t.info or {}
+        try:
+            info = t.info or {}
+        except Exception:
+            info = {}
+
         raw_yield = info.get("dividendYield")
         if not raw_yield:
             return None
@@ -129,7 +158,29 @@ def _fetch_single_stock_dividend(sym: str, name: str, mkt: str, tech_row: dict) 
         raw_pe = info.get("trailingPE")
         pe = float(raw_pe) if raw_pe is not None and raw_pe == raw_pe else None
 
-        score_data = score_dividend_stock(yield_pct, payout_pct, pe, tscore)
+        # Beräkna utdelningskontinuitet via t.dividends
+        streak_years = None
+        try:
+            divs = getattr(t, "dividends", None)
+            if divs is not None and not divs.empty and len(divs) >= 2:
+                annual = divs.groupby(divs.index.year).sum()
+                curr_year = datetime.datetime.now().year
+                past_years = [y for y in sorted(annual.index) if y < curr_year]
+                if len(past_years) >= 2:
+                    streak = 0
+                    for i in range(len(past_years) - 1, 0, -1):
+                        curr_val = float(annual.loc[past_years[i]])
+                        prev_val = float(annual.loc[past_years[i - 1]])
+                        if curr_val >= prev_val * 0.98:
+                            streak += 1
+                        else:
+                            break
+                    streak_years = streak
+        except Exception as ex:
+            logger.debug(f"Kunde inte hämta dividend-streak för {sym}: {ex}")
+            streak_years = None
+
+        score_data = score_dividend_stock(yield_pct, payout_pct, pe, tscore, streak_years=streak_years)
         curr = "$" if mkt == "NASDAQ" else "kr"
 
         return {
@@ -142,6 +193,8 @@ def _fetch_single_stock_dividend(sym: str, name: str, mkt: str, tech_row: dict) 
             "payout_ratio": round(payout_pct, 1) if payout_pct is not None else None,
             "pe": round(pe, 1) if pe is not None else None,
             "trend_score": tscore,
+            "streak_years": streak_years,
+            "continuity_score": score_data["continuity_score"],
             "dividend_score": score_data["dividend_score"],
             "yield_score": score_data["yield_score"],
             "payout_score": score_data["payout_score"],

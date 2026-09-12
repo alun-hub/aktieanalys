@@ -171,11 +171,53 @@ footer { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: var
     </div>
   </section>
 
+  <!-- ============ REKOMMENDATIONER ============ -->
+  <section class="pane" id="pane-recommendations">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+        <div>
+          <h2>Målallokering & Rekommendationer</h2>
+          <p class="lead">Blandad portfölj av breda UCITS-indexfonder, likaviktade ETF:er, kvalitetsutdelare och tillväxt – anpassad efter marknadsregim och koncentrationsrisk.</p>
+        </div>
+        <div style="min-width: 190px;">
+          <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.2rem;">Marknadskontext</label>
+          <select id="rec-market" onchange="loadRecommendations()" style="padding:0.4rem 0.6rem; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text); width:100%;">
+            <option value="all">Alla marknader (Global / OMX / US)</option>
+            <option value="omxs">Stockholm (OMX)</option>
+            <option value="nasdaq">USA (Nasdaq / S&P 500)</option>
+          </select>
+        </div>
+      </div>
+      <div class="callout info" style="margin-top:0.8rem;">
+        <b>💡 ISK-anpassat urval:</b> Alla rekommenderade fonder och ETF:er är europeiska UCITS-instrument som kan handlas skatteeffektivt på svenskt ISK via Avanza och Nordnet.
+      </div>
+    </div>
+
+    <!-- Makro- och allokeringsöversikt -->
+    <div id="rec-macro-container"></div>
+
+    <!-- Rekommenderade innehav per tillgångsklass -->
+    <div id="rec-cards-container"></div>
+
+    <!-- Portföljbacktest -->
+    <div class="card" id="rec-backtest-box" style="margin-top:1.5rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.8rem;">
+        <div>
+          <h3>Historiskt portföljbacktest (10 år)</h3>
+          <p class="muted">Simulerar hela allokeringsmodellen historiskt dag för dag utan framåtblickande lookahead jämfört med Global Index (VT) och S&P 500 (SPY).</p>
+        </div>
+        <button class="btn btn-primary" id="rec-bt-btn" onclick="loadPortfolioBacktest()">Kör 10-års backtest</button>
+      </div>
+      <div id="rec-backtest-out"></div>
+    </div>
+  </section>
+
   <!-- ============ MIN PORTFÖLJ ============ -->
   <section class="pane" id="pane-portfolio">
     <div class="card">
       <h2>Portfölj-hälsokoll</h2>
       <p class="muted">Lägg in de innehav du äger. Du får tillbaka totalt värde, vinst/förlust och – viktigast – hur riskerna är fördelade (klumprisk, branscher, regioner och avgifter). Inget köps eller säljs här.</p>
+      <div id="pf-alerts-container" style="margin: 0.8rem 0;"></div>
 
       <div class="row" style="margin-bottom:1.2rem; gap:0.5rem;">
         <button class="btn btn-primary" id="pf-mode-shares-btn" onclick="setPfMode('shares')">Aktie / ETF (Antal & GAV)</button>
@@ -463,7 +505,7 @@ function withTerms(text) {
 
 // ---------- tabs ----------
 const TABS = [
-  ["plan", "Din plan"], ["portfolio", "Min portfölj"], ["opportunities", "Möjligheter"],
+  ["plan", "Din plan"], ["recommendations", "Rekommendationer"], ["portfolio", "Min portfölj"], ["opportunities", "Möjligheter"],
   ["dividends", "Utdelning"],
   ["analyze", "Analysera bolag"], ["market", "Marknadsläge"], ["backtest", "Backtest"],
   ["insider", "Insyn"], ["congress", "Kongress"], ["crypto", "Krypto"], ["glossary", "Ordlista"],
@@ -808,6 +850,7 @@ function breakdown(title, obj) {
 }
 
 async function loadPortfolio() {
+  loadSellAlerts();
   const h = await getJSON("/api/portal/portfolio/health");
   const out = $("#pf-out");
   if (h.empty) { out.innerHTML = '<div class="card muted">Inga innehav inlagda ännu.</div>'; return; }
@@ -1478,12 +1521,308 @@ async function loadCrypto() {
   </tr>`).join("") || `<tr><td colspan="6" class="muted">Ingen data.</td></tr>`;
 }
 
+// ---------- SÄLJVARNINGAR ----------
+async function loadSellAlerts() {
+  const c = $("#pf-alerts-container");
+  if (!c) return;
+  try {
+    const d = await getJSON("/api/portal/sell-alerts");
+    const alerts = d.alerts || [];
+    if (!alerts.length) {
+      c.innerHTML = "";
+      return;
+    }
+    c.innerHTML = `
+      <div class="card" style="border-left: 4px solid var(--down); background: var(--surface-2); margin-bottom: 1.2rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.4rem;">
+          <h3 style="color:var(--down); margin:0;">⚠️ Aktiva sälj- och trimförslag (${alerts.length} st)</h3>
+          <span class="pill down">Förslag – ej auto-sälj</span>
+        </div>
+        <p class="muted" style="font-size:0.84rem;">Regelbaserade förslag baserade på marknadsregim eller stop-loss. Appen säljer aldrig automatiskt – du beslutar.</p>
+        <div class="tbl-wrap" style="margin-top:0.6rem;">
+          <table>
+            <thead>
+              <tr>
+                <th>Innehav</th>
+                <th>Typ av åtgärd</th>
+                <th>Orsak & Motivering</th>
+                <th class="num">Senaste kurs</th>
+                <th class="num">GAV</th>
+                <th>Åtgärd</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${alerts.map(a => `
+                <tr>
+                  <td><b>${esc(a.name || a.symbol)}</b><br><small class="muted">${esc(a.symbol)}</small></td>
+                  <td><span class="pill ${a.severity === 'exit' ? 'down' : 'neutral'}">${a.severity === 'exit' ? '🛑 Sälj / Exit' : '✂️ Trimma'}</span></td>
+                  <td style="max-width:320px; font-size:0.86rem;">${esc(a.reason_text)}</td>
+                  <td class="num">${a.close != null ? a.close : '–'}</td>
+                  <td class="num">${a.avg_price != null ? a.avg_price : '–'}</td>
+                  <td>
+                    <button class="btn sm" onclick="ackSellAlert(${a.id})">Kvittera</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    console.error("Fel vid laddning av säljvarningar:", e);
+  }
+}
+
+async function ackSellAlert(id) {
+  await fetch(`/api/portal/sell-alerts/${id}/acknowledge`, { method: "POST" });
+  await loadSellAlerts();
+}
+
+// ---------- REKOMMENDATIONER ----------
+async function loadRecommendations() {
+  const mkt = $("#rec-market") ? $("#rec-market").value : "all";
+  const macroDiv = $("#rec-macro-container");
+  const cardsDiv = $("#rec-cards-container");
+  if (!macroDiv || !cardsDiv) return;
+
+  macroDiv.innerHTML = '<div class="card muted">Hämtar målallokering och regimdata…</div>';
+  cardsDiv.innerHTML = "";
+
+  try {
+    const d = await getJSON(`/api/portal/recommendations?market=${encodeURIComponent(mkt)}`);
+    if (d.error) {
+      macroDiv.innerHTML = `<div class="card neg">Fel: ${esc(d.error)}</div>`;
+      return;
+    }
+
+    const reg = d.regime || {};
+    const conc = d.concentration || {};
+    const al = d.allocation || {};
+
+    let regBadgeCls = "neutral";
+    if (reg.regime === "bull") regBadgeCls = "up";
+    else if (reg.regime === "bear") regBadgeCls = "down";
+    else if (reg.regime === "correction") regBadgeCls = "warn";
+
+    let concBadgeCls = "neutral";
+    if (conc.level === "high") concBadgeCls = "down";
+    else if (conc.level === "elevated") concBadgeCls = "warn";
+    else concBadgeCls = "up";
+
+    const colors = {
+      broad_etf: "#3b82f6",
+      equalweight_etf: "#6366f1",
+      dividend_stocks: "#10b981",
+      growth_stocks: "#f59e0b",
+      defensive: "#8b5cf6",
+    };
+
+    macroDiv.innerHTML = `
+      <div class="grid cols-3" style="margin-bottom:1rem;">
+        <div class="card" style="margin:0;">
+          <div class="stat">
+            <div class="lbl">Marknadsregim</div>
+            <div class="val sm"><span class="pill ${regBadgeCls}">${esc(reg.label || reg.regime || 'Neutral')}</span></div>
+            <p class="muted" style="margin-top:0.4rem; font-size:0.78rem;">${esc(reg.description || '')}</p>
+          </div>
+        </div>
+        <div class="card" style="margin:0;">
+          <div class="stat">
+            <div class="lbl">Koncentrationsrisk (Mag7 / US-tech)</div>
+            <div class="val sm"><span class="pill ${concBadgeCls}">${conc.level === 'high' ? '⚠️ Hög risk' : (conc.level === 'elevated' ? '⚡ Förhöjd risk' : '✅ Normal risk')}</span></div>
+            <p class="muted" style="margin-top:0.4rem; font-size:0.78rem;">${esc(conc.detail || '')}</p>
+          </div>
+        </div>
+        <div class="card" style="margin:0;">
+          <div class="stat">
+            <div class="lbl">Målfördelning</div>
+            <div style="margin-top:0.5rem; display:flex; height:18px; border-radius:999px; overflow:hidden; background:var(--surface-2);">
+              <div style="width:${al.broad_etf || 0}%; background:${colors.broad_etf};" title="Bred ETF: ${al.broad_etf}%"></div>
+              <div style="width:${al.equalweight_etf || 0}%; background:${colors.equalweight_etf};" title="Likaviktat: ${al.equalweight_etf}%"></div>
+              <div style="width:${al.dividend_stocks || 0}%; background:${colors.dividend_stocks};" title="Utdelning: ${al.dividend_stocks}%"></div>
+              <div style="width:${al.growth_stocks || 0}%; background:${colors.growth_stocks};" title="Tillväxt: ${al.growth_stocks}%"></div>
+              <div style="width:${al.defensive || 0}%; background:${colors.defensive};" title="Defensivt: ${al.defensive}%"></div>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:0.4rem; font-size:0.72rem; margin-top:0.5rem;">
+              <span><i style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${colors.broad_etf};"></i> Global: ${al.broad_etf}%</span>
+              <span><i style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${colors.equalweight_etf};"></i> Likaviktat: ${al.equalweight_etf}%</span>
+              <span><i style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${colors.dividend_stocks};"></i> Utdelning: ${al.dividend_stocks}%</span>
+              <span><i style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${colors.growth_stocks};"></i> Tillväxt: ${al.growth_stocks}%</span>
+              <span><i style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${colors.defensive};"></i> Guld/Ränta: ${al.defensive}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const groups = [
+      { key: "broad_etf", title: "1. Breda Globala Index-ETF:er (Målvikt: " + (al.broad_etf || 0) + " %)", color: colors.broad_etf },
+      { key: "equalweight_etf", title: "2. Likaviktade ETF:er – Motvikt mot tech (Målvikt: " + (al.equalweight_etf || 0) + " %)", color: colors.equalweight_etf },
+      { key: "dividend_stocks", title: "3. Kvalitetsutdelare med stabila kassaflöden (Målvikt: " + (al.dividend_stocks || 0) + " %)", color: colors.dividend_stocks },
+      { key: "growth_stocks", title: "4. Tillväxt / Momentum med verifierad edge (Målvikt: " + (al.growth_stocks || 0) + " %)", color: colors.growth_stocks },
+      { key: "defensive", title: "5. Defensivt kapitalbevarande (Guld & Räntor) (Målvikt: " + (al.defensive || 0) + " %)", color: colors.defensive },
+    ];
+
+    let html = "";
+    for (const g of groups) {
+      const items = (d.recommendations || []).filter(r => r.type === g.key);
+      if (!items.length && (al[g.key] === 0 || al[g.key] == null)) {
+        continue;
+      }
+      html += `
+        <div class="card" style="border-left: 4px solid ${g.color};">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+            <h3>${esc(g.title)}</h3>
+          </div>
+          ${items.length ? `
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Namn & Ticker</th>
+                    <th>Region / Marknad</th>
+                    <th>Nyckeltal</th>
+                    <th>Motivering</th>
+                    <th class="num">Åtgärd</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${items.map(it => `
+                    <tr>
+                      <td>
+                        <a href="#" onclick="goToAnalyze('${esc(it.symbol)}'); return false;" style="font-weight:700; color:var(--text); text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(it.name || it.symbol)}</a>
+                        <br><small class="muted">${esc(it.symbol)} <span class="pill sm" style="font-size:0.7rem;">${esc(it.badge || '')}</span></small>
+                      </td>
+                      <td>${esc(it.region || it.market || 'Global')}</td>
+                      <td>
+                        ${it.fee_pct != null ? `Avgift: <b>${it.fee_pct}%</b>` : ''}
+                        ${it.yield_pct != null ? `Direktavk: <b>${it.yield_pct}%</b>` : ''}
+                        ${it.streak_years != null ? `<br><small class="muted">Utdelningsstreak: ${it.streak_years} år</small>` : ''}
+                        ${it.strategy ? `Strategi: <b>${esc(it.strategy)}</b>` : ''}
+                      </td>
+                      <td style="max-width:300px; font-size:0.86rem;">${esc(it.reason || '')}</td>
+                      <td class="num">
+                        <button class="btn sm" onclick="goToAnalyze('${esc(it.symbol)}')">Analysera</button>
+                      </td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          ` : `<p class="muted">Inga aktiva förslag för denna tillgångsklass just nu (målvikt är ${al[g.key] || 0}%).</p>`}
+        </div>
+      `;
+    }
+
+    cardsDiv.innerHTML = html;
+
+  } catch (e) {
+    macroDiv.innerHTML = `<div class="card neg">Fel vid laddning: ${esc(e.message)}</div>`;
+  }
+}
+
+// ---------- PORTFÖLJBACKTEST ----------
+async function loadPortfolioBacktest() {
+  const btn = $("#rec-bt-btn");
+  const out = $("#rec-backtest-out");
+  if (!out) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Kör simulering…"; }
+  out.innerHTML = '<p class="muted">Hämtar 10-års kursdata och kör no-lookahead-simulering…</p>';
+
+  try {
+    const d = await getJSON("/api/portal/portfolio-backtest?years=10");
+    if (d.error) {
+      out.innerHTML = `<div class="callout neg">Fel: ${esc(d.error)}</div>`;
+      if (btn) { btn.disabled = false; btn.textContent = "Kör 10-års backtest"; }
+      return;
+    }
+
+    const st = d.strategy || {};
+    const vt = d.benchmark_global || {};
+    const spy = d.benchmark_sp500 || {};
+
+    let chartHtml = "";
+    if (d.equity_curve && d.equity_curve.length > 2) {
+      const curve = d.equity_curve;
+      const sVals = curve.map(c => c.strategy);
+      const vVals = curve.map(c => c.benchmark_global);
+      const spVals = curve.map(c => c.benchmark_sp500);
+      const allVals = [...sVals, ...vVals, ...spVals];
+      const minVal = Math.min(...allVals) * 0.95;
+      const maxVal = Math.max(...allVals) * 1.05;
+      const W = 640, H = 220;
+
+      chartHtml = `
+        <svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="margin-top:1rem; background:var(--surface-2); border-radius:8px; padding:8px 0;">
+          <path d="${linePath(spVals, W, H, minVal, maxVal)}" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="4 3"/>
+          <path d="${linePath(vVals, W, H, minVal, maxVal)}" fill="none" stroke="#3b82f6" stroke-width="2"/>
+          <path d="${linePath(sVals, W, H, minVal, maxVal)}" fill="none" stroke="var(--accent)" stroke-width="2.8"/>
+        </svg>
+        <div class="chart-legend" style="margin-top:0.6rem;">
+          <span><i style="background:var(--accent); width:14px; height:4px; display:inline-block; vertical-align:middle;"></i> <b>Modellstrategi</b> (${st.cagr} %/år, maxDD ${st.max_drawdown} %)</span>
+          <span><i style="background:#3b82f6; width:14px; height:4px; display:inline-block; vertical-align:middle;"></i> Global Index VT (${vt.cagr} %/år, maxDD ${vt.max_drawdown} %)</span>
+          <span><i style="background:#f59e0b; width:14px; height:4px; display:inline-block; vertical-align:middle;"></i> S&P 500 SPY (${spy.cagr} %/år, maxDD ${spy.max_drawdown} %)</span>
+        </div>
+      `;
+    }
+
+    out.innerHTML = `
+      <div class="grid cols-3" style="margin-top:1rem;">
+        <div class="card" style="margin:0; border-top: 3px solid var(--accent);">
+          <h4>Modellstrategin</h4>
+          <div class="stat" style="margin-top:0.4rem;">
+            <div class="lbl">Årlig avkastning (CAGR)</div>
+            <div class="val sm pos">${st.cagr != null ? st.cagr + ' %' : '–'}</div>
+          </div>
+          <p style="font-size:0.8rem; margin-top:0.4rem;">Max drawdown: <b class="neg">${st.max_drawdown}%</b></p>
+          <p style="font-size:0.8rem;">Årlig volatilitet: <b>${st.volatility}%</b></p>
+          <p style="font-size:0.8rem;">Slutvärde (100k): <b>${kr(st.final_value)}</b></p>
+        </div>
+
+        <div class="card" style="margin:0; border-top: 3px solid #3b82f6;">
+          <h4>Global Index (VT)</h4>
+          <div class="stat" style="margin-top:0.4rem;">
+            <div class="lbl">Årlig avkastning (CAGR)</div>
+            <div class="val sm">${vt.cagr != null ? vt.cagr + ' %' : '–'}</div>
+          </div>
+          <p style="font-size:0.8rem; margin-top:0.4rem;">Max drawdown: <b class="neg">${vt.max_drawdown}%</b></p>
+          <p style="font-size:0.8rem;">Årlig volatilitet: <b>${vt.volatility}%</b></p>
+          <p style="font-size:0.8rem;">Slutvärde (100k): <b>${kr(vt.final_value)}</b></p>
+        </div>
+
+        <div class="card" style="margin:0; border-top: 3px solid #f59e0b;">
+          <h4>S&P 500 (SPY)</h4>
+          <div class="stat" style="margin-top:0.4rem;">
+            <div class="lbl">Årlig avkastning (CAGR)</div>
+            <div class="val sm">${spy.cagr != null ? spy.cagr + ' %' : '–'}</div>
+          </div>
+          <p style="font-size:0.8rem; margin-top:0.4rem;">Max drawdown: <b class="neg">${spy.max_drawdown}%</b></p>
+          <p style="font-size:0.8rem;">Årlig volatilitet: <b>${spy.volatility}%</b></p>
+          <p style="font-size:0.8rem;">Slutvärde (100k): <b>${kr(spy.final_value)}</b></p>
+        </div>
+      </div>
+
+      ${chartHtml}
+
+      <div class="callout" style="margin-top:1rem; font-size:0.82rem;">
+        <b>Om testet:</b> Simuleringen kördes över ${d.years} år (${d.start_date} till ${d.end_date}) med ${d.rebalance_count} rebalanseringar. ${esc(d.disclaimer)}
+      </div>
+    `;
+  } catch (e) {
+    out.innerHTML = `<div class="callout neg">Fel vid körning: ${esc(e.message)}</div>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Kör 10-års backtest"; }
+  }
+}
+
 // ---------- ORDLISTA ----------
 $("#gl-list").innerHTML = Object.entries(GLOSSARY).map(([k, v]) =>
   `<p><b>${esc(k)}</b> — ${esc(v)}</p>`).join("");
 
 // ---------- boot ----------
 const TABLOADERS = {
+  recommendations: loadRecommendations,
   opportunities: loadOpportunities,
   dividends: () => loadDividends(currentDivMarket),
   portfolio: loadPortfolio, market: () => loadMarket("all"),

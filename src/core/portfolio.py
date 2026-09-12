@@ -9,6 +9,7 @@ Detta är ingen handelssimulator. Inga köp/sälj-knappar rör den här tabellen
 import json
 import re
 import time
+import datetime
 import yfinance as yf
 
 from src.core.data import get_db
@@ -400,3 +401,158 @@ def portfolio_health():
         "positions": sorted(positions, key=lambda p: -p["value"]),
         "warnings": warnings,
     }
+
+
+def generate_sell_alerts() -> list[dict]:
+    """Går igenom alla innehav i portföljen och flaggar sälj- och trimförslag:
+    - Endast för enskilda aktier (kind == 'aktie'), ALDRIG för fonder/ETF:er (kind == 'fond').
+    - severity='exit': Bear market i aktiens marknad ELLER pris under ATR-stop.
+    - severity='trim': Korrektion i marknaden för momentum-aktier, eller brott under MA50.
+    - reason: 'regime_bear', 'atr_stop', eller 'trend_break'.
+
+    Sparar nya varningar i `sell_alerts`-tabellen om de inte redan är aktiva.
+    Exekverar ALDRIG faktiska sälj och rör ALDRIG holdings-tabellen.
+    """
+    from src.core.regime import get_market_regime
+
+    holdings = list_holdings()
+    if not holdings:
+        return []
+
+    conn = get_db()
+    created_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    alerts = []
+
+    regime_omx = get_market_regime("omx")
+    regime_ndx = get_market_regime("nasdaq")
+
+    try:
+        for h in holdings:
+            sym = h["symbol"].upper()
+            kind = h.get("kind", "aktie")
+            # Fonder och manuella poster säljs aldrig pga regimskifte
+            if kind == "fond" or sym.startswith("MANUAL:"):
+                continue
+
+            is_us = not sym.endswith(".ST") and not sym.endswith("-USD")
+            market_regime = regime_ndx if is_us else regime_omx
+            regime = market_regime.get("regime", "bull")
+
+            row = conn.execute(
+                "SELECT close, open, ma50, ma200, atr FROM history WHERE symbol = ? AND close IS NOT NULL ORDER BY date DESC LIMIT 1",
+                (sym,),
+            ).fetchone()
+
+            if not row:
+                continue
+
+            close = float(row["close"])
+            ma50 = float(row["ma50"]) if row["ma50"] is not None else None
+            ma200 = float(row["ma200"]) if row["ma200"] is not None else None
+            atr = float(row["atr"]) if row["atr"] is not None else close * 0.03
+            avg_price = float(h.get("avg_price") or close)
+
+            stop_level = avg_price - (atr * 2.5)
+
+            new_alert = None
+
+            # 1. Stop loss triggad?
+            if close < stop_level and avg_price > 0:
+                new_alert = {
+                    "symbol": sym,
+                    "name": h.get("name") or sym,
+                    "reason": "atr_stop",
+                    "severity": "exit",
+                    "reason_text": f"Kursen ({close:.1f}) har brutit under stop-loss ({stop_level:.1f}). Begränsa nedsidan.",
+                }
+            # 2. Bear market för hela marknaden?
+            elif regime == "bear":
+                if ma200 and close < ma200:
+                    new_alert = {
+                        "symbol": sym,
+                        "name": h.get("name") or sym,
+                        "reason": "regime_bear",
+                        "severity": "exit",
+                        "reason_text": f"Index handlas i Bear Market och {sym} har brutit under MA200 ({close:.1f} < {ma200:.1f}).",
+                    }
+                else:
+                    new_alert = {
+                        "symbol": sym,
+                        "name": h.get("name") or sym,
+                        "reason": "regime_bear",
+                        "severity": "trim",
+                        "reason_text": f"Marknaden är i Bear Market. Överväg att trimma positionen och säkra likviditet.",
+                    }
+            # 3. Korrektion i marknaden + svaghet i aktien
+            elif regime == "correction" and ma50 and close < ma50:
+                new_alert = {
+                    "symbol": sym,
+                    "name": h.get("name") or sym,
+                    "reason": "trend_break",
+                    "severity": "trim",
+                    "reason_text": f"Marknadskorrektion: Kursen har brutit under 50-dagars medelvärde ({close:.1f} < {ma50:.1f}).",
+                }
+
+            if new_alert:
+                existing = conn.execute(
+                    "SELECT id FROM sell_alerts WHERE symbol = ? AND acknowledged = 0",
+                    (sym,),
+                ).fetchone()
+                if not existing:
+                    cursor = conn.execute(
+                        """INSERT INTO sell_alerts (symbol, created_at, reason, severity, acknowledged)
+                        VALUES (?, ?, ?, ?, 0)""",
+                        (sym, created_now, new_alert["reason"], new_alert["severity"]),
+                    )
+                    conn.commit()
+                    alert_id = cursor.lastrowid
+                else:
+                    try:
+                        alert_id = existing["id"]
+                    except (KeyError, TypeError, IndexError):
+                        alert_id = None
+
+                alerts.append({
+                    "id": alert_id,
+                    "symbol": sym,
+                    "name": new_alert["name"],
+                    "reason": new_alert["reason"],
+                    "severity": new_alert["severity"],
+                    "reason_text": new_alert["reason_text"],
+                    "close": round(close, 2),
+                    "avg_price": round(avg_price, 2),
+                    "created_at": created_now,
+                })
+    finally:
+        conn.close()
+
+    return alerts
+
+
+def list_sell_alerts(include_acknowledged: bool = False) -> list[dict]:
+    """Hämtar alla genererade säljvarningar från databasen."""
+    generate_sell_alerts()
+    conn = get_db()
+    if include_acknowledged:
+        query = "SELECT * FROM sell_alerts ORDER BY id DESC"
+        rows = conn.execute(query).fetchall()
+    else:
+        query = "SELECT * FROM sell_alerts WHERE acknowledged = 0 ORDER BY id DESC"
+        rows = conn.execute(query).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def acknowledge_sell_alert(alert_id: int) -> bool:
+    """Markerar en säljvarning som kvitterad av användaren."""
+    conn = get_db()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    cursor = conn.execute(
+        "UPDATE sell_alerts SET acknowledged = 1, acknowledged_at = ? WHERE id = ?",
+        (now_str, int(alert_id)),
+    )
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
+

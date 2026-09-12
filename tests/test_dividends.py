@@ -132,3 +132,38 @@ class TestDividends(unittest.TestCase):
         data2 = get_top_dividend_stocks(market="omx", limit=3, force_refresh=False)
         self.assertGreater(len(data2["stocks"]), 1)
 
+    def test_streak_years_continuity_scoring(self):
+        # Med hög kontinuitet (10+ år streak)
+        res_high = score_dividend_stock(
+            yield_pct=5.0, payout_ratio=50.0, pe=15.0, trend_score_val=60.0, streak_years=10
+        )
+        self.assertEqual(res_high["continuity_score"], 100.0)
+        self.assertEqual(res_high["streak_years"], 10)
+
+        # Med låg kontinuitet (0 år streak / sänkt nyligen)
+        res_low = score_dividend_stock(
+            yield_pct=5.0, payout_ratio=50.0, pe=15.0, trend_score_val=60.0, streak_years=0
+        )
+        self.assertEqual(res_low["continuity_score"], 25.0)
+        self.assertGreater(res_high["dividend_score"], res_low["dividend_score"])
+
+    @patch("src.core.dividends.get_db")
+    @patch("src.core.dividends.yf.Ticker")
+    def test_broken_info_and_dividends_resilience(self, mock_ticker, mock_get_db):
+        mock_conn = MagicMock()
+        mock_get_db.return_value = mock_conn
+        mock_conn.execute.return_value.fetchone.return_value = {
+            "close": 100.0, "ma50": 95.0, "ma200": 90.0, "rsi": 50.0, "atr": 2.0
+        }
+
+        # Mock ticker where info raises Exception and dividends is broken
+        mock_t = MagicMock()
+        type(mock_t).info = property(lambda self: (_ for _ in ()).throw(RuntimeError("Yahoo API error")))
+        type(mock_t).dividends = property(lambda self: (_ for _ in ()).throw(ValueError("Dividends unavailable")))
+        mock_ticker.return_value = mock_t
+
+        # Calling get_top_dividend_stocks must not raise any exceptions
+        data = get_top_dividend_stocks(market="omx", limit=5, force_refresh=True)
+        self.assertIn("stocks", data)
+        self.assertEqual(data["stocks"], [])
+
