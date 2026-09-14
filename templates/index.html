@@ -513,6 +513,12 @@ const kr = n => n == null ? "–" : Math.round(n).toLocaleString("sv-SE") + " kr
 const money = (n, c) => n == null ? "–" : Math.round(n).toLocaleString("sv-SE") + " " + (c || "kr");
 const pct = (n, d = 1) => n == null ? "–" : (n > 0 ? "+" : "") + Number(n).toFixed(d) + " %";
 const esc = s => { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
+// esc() escapar bara textnodskontext (&<>) - inte citattecken, som HTML bara tolkar
+// speciellt inom attributvärden. escAttr() täcker även " och ' för attributkontext.
+const escAttr = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// Säker inbäddning av ett JS-strängvärde i ett HTML-attribut (t.ex. onclick="fn(JSATTR(x))"):
+// JSON.stringify citerar/escapar JS-syntax, escAttr() escapar HTML-attributkontexten (inkl. citattecken).
+const jsAttr = s => escAttr(JSON.stringify(s == null ? "" : String(s)));
 const cls = n => n == null ? "" : (n >= 0 ? "pos" : "neg");
 async function getJSON(u, o) { const r = await fetch(u, o); return r.json(); }
 
@@ -700,7 +706,7 @@ function initPfSearch() {
             : esc(r.symbol);
           return `
             <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
-                 onclick="selectPfStock('${esc(r.symbol)}', '${esc(r.name)}', '${esc(r.type || '')}', ${r.fee_pct || 0}, '${esc(r.region || '')}')">
+                 onclick="selectPfStock(${jsAttr(r.symbol)}, ${jsAttr(r.name)}, ${jsAttr(r.type || '')}, ${r.fee_pct || 0}, ${jsAttr(r.region || '')})">
               <div>
                 <b>${esc(r.name)}</b>
                 <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${metaSub}</small>
@@ -739,7 +745,7 @@ function initPfSearch() {
           const metaSub = `${esc(r.region || "Fond")}${r.fee_pct != null ? " · " + r.fee_pct + " % avgift" : ""}`;
           return `
             <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
-                 onclick="selectPfFund('${esc(r.symbol)}', '${esc(r.name)}', ${r.fee_pct || 0}, '${esc(r.region || '')}')">
+                 onclick="selectPfFund(${jsAttr(r.symbol)}, ${jsAttr(r.name)}, ${r.fee_pct || 0}, ${jsAttr(r.region || '')})">
               <div>
                 <b>${esc(r.name)}</b>
                 <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${metaSub}</small>
@@ -794,7 +800,7 @@ function initAnSearch() {
           : esc(r.symbol);
         return `
           <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
-               onclick="selectAnResult('${esc(r.symbol)}', '${esc(r.name)}')">
+               onclick="selectAnResult(${jsAttr(r.symbol)}, ${jsAttr(r.name)})">
             <div>
               <b>${esc(r.name)}</b>
               <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${metaSub}</small>
