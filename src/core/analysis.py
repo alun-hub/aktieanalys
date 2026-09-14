@@ -118,33 +118,45 @@ def resolve_symbol(query):
     if q_upper.endswith("-USD"):
         return q_upper
 
-    # Kolla svenska fonder
-    for key, item in POPULAR_SWEDISH_FUNDS.items():
-        norm_name = _normalize_query(item["name"])
-        aliases = [_normalize_query(a) for a in item.get("aliases", [])]
-        if norm_q == norm_name or norm_q in norm_name or any(norm_q == a or norm_q in a for a in aliases):
-            return f"MANUAL:{key}"
-
-    # Kolla ETF:er
-    if q_upper in POPULAR_ETFS:
-        return q_upper
-    if f"{q_upper}.ST" in POPULAR_ETFS:
-        return f"{q_upper}.ST"
-    for sym, item in POPULAR_ETFS.items():
-        norm_name = _normalize_query(item["name"])
-        if norm_q == norm_name or norm_q in norm_name or norm_name in norm_q:
-            return sym
-
     all_tickers = {**OMXS_50, **NASDAQ_100}
     if q_upper in all_tickers:
         return q_upper
     if f"{q_upper}.ST" in all_tickers:
         return f"{q_upper}.ST"
+    if q_upper in POPULAR_ETFS:
+        return q_upper
+    if f"{q_upper}.ST" in POPULAR_ETFS:
+        return f"{q_upper}.ST"
 
+    # Exakta namnträffar går före delsträngsträffar, oavsett kategori, så att t.ex.
+    # "handelsbanken" ger aktien SHB-A.ST och inte en fond som råkar innehålla ordet.
+    for sym, name in all_tickers.items():
+        if norm_q == _normalize_query(name):
+            return sym
+    for sym, item in POPULAR_ETFS.items():
+        if norm_q == _normalize_query(item["name"]):
+            return sym
+    for key, item in POPULAR_SWEDISH_FUNDS.items():
+        norm_name = _normalize_query(item["name"])
+        aliases = [_normalize_query(a) for a in item.get("aliases", [])]
+        if norm_q == norm_name or any(norm_q == a for a in aliases):
+            return f"MANUAL:{key}"
+
+    # Delsträngsträffar: aktier/ETF:er före fonder, eftersom bolagsnamn ofta är en
+    # delsträng av ett fondnamn med samma varumärke (t.ex. "Handelsbanken Global Småbolag").
     for sym, name in all_tickers.items():
         norm_name = _normalize_query(name)
-        if norm_q == norm_name or norm_q in norm_name or norm_name in norm_q:
+        if norm_q in norm_name or norm_name in norm_q:
             return sym
+    for sym, item in POPULAR_ETFS.items():
+        norm_name = _normalize_query(item["name"])
+        if norm_q in norm_name or norm_name in norm_q:
+            return sym
+    for key, item in POPULAR_SWEDISH_FUNDS.items():
+        norm_name = _normalize_query(item["name"])
+        aliases = [_normalize_query(a) for a in item.get("aliases", [])]
+        if norm_q in norm_name or any(norm_q in a for a in aliases):
+            return f"MANUAL:{key}"
 
     results = search_symbols(q)
     if results and results[0].get("symbol"):
