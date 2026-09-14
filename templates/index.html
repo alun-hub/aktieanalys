@@ -369,7 +369,11 @@ footer { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: va
     <div class="card">
       <h2>Analysera bolag</h2>
       <div class="row">
-        <div class="field" style="flex:3;"><label>Sök aktie, fond eller krypto</label><input id="an-q" placeholder="Investor, Volvo, Nvidia, Bitcoin…" onkeydown="if(event.key==='Enter')analyze()"></div>
+        <div class="field" style="position:relative; flex:3;">
+          <label>Sök aktie, fond eller krypto</label>
+          <input id="an-q" placeholder="Investor, Volvo, Nvidia, Bitcoin…" autocomplete="off" onkeydown="if(event.key==='Enter'){$('#an-dropdown').classList.add('hidden');analyze()}">
+          <div id="an-dropdown" class="hidden" style="position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; max-height:280px; overflow-y:auto; box-shadow:0 6px 18px rgba(0,0,0,0.5); margin-top:3px;"></div>
+        </div>
         <div class="field" style="flex:0; min-width:auto; align-self:end;"><button class="btn btn-primary" onclick="analyze()">Analysera</button></div>
       </div>
       <div class="muted" id="an-quick"></div>
@@ -761,6 +765,63 @@ function initPfSearch() {
       dropFund.classList.add("hidden");
     }
   });
+}
+
+let anSearchTimer = null;
+
+function initAnSearch() {
+  const input = $("#an-q");
+  const drop = $("#an-dropdown");
+  if (!input || !drop) return;
+
+  input.addEventListener("input", () => {
+    clearTimeout(anSearchTimer);
+    const q = input.value.trim();
+    if (q.length < 1) {
+      drop.classList.add("hidden");
+      return;
+    }
+    anSearchTimer = setTimeout(async () => {
+      const results = await getJSON(`/api/portal/search?q=${encodeURIComponent(q)}`);
+      if (!Array.isArray(results) || !results.length) {
+        drop.innerHTML = '<div style="padding:0.6rem 0.8rem; color:var(--text-dim); font-size:0.88rem;">Inga instrument hittades</div>';
+        drop.classList.remove("hidden");
+        return;
+      }
+      drop.innerHTML = results.slice(0, 10).map(r => {
+        const metaSub = r.type === "Fond"
+          ? `${esc(r.region || "Fond")}${r.fee_pct != null ? " · " + r.fee_pct + " % avgift" : ""}`
+          : esc(r.symbol);
+        return `
+          <div class="pf-search-item" style="padding:0.55rem 0.8rem; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border);"
+               onclick="selectAnResult('${esc(r.symbol)}', '${esc(r.name)}')">
+            <div>
+              <b>${esc(r.name)}</b>
+              <small style="display:block; color:var(--text-dim); font-size:0.8rem;">${metaSub}</small>
+            </div>
+            <span class="pill sm" style="font-size:0.75rem;">${esc(r.type || "Aktie")}</span>
+          </div>
+        `;
+      }).join("");
+      drop.classList.remove("hidden");
+    }, 180);
+  });
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Escape") drop.classList.add("hidden");
+  });
+
+  document.addEventListener("click", e => {
+    if (!input.contains(e.target) && !drop.contains(e.target)) {
+      drop.classList.add("hidden");
+    }
+  });
+}
+
+function selectAnResult(symbol, name) {
+  $("#an-q").value = name;
+  $("#an-dropdown").classList.add("hidden");
+  analyze(symbol);
 }
 
 async function addHolding() {
@@ -1947,6 +2008,7 @@ const TABLOADERS = {
   insider: loadInsider, congress: loadCongress, crypto: loadCrypto,
 };
 initPfSearch();
+initAnSearch();
 loadMkt();
 const start = (location.hash || "#plan").slice(1);
 showTab(TABS.some(t => t[0] === start) ? start : "plan");
