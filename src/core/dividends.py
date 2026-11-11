@@ -141,10 +141,9 @@ def _fetch_single_stock_dividend(sym: str, name: str, mkt: str, tech_row: dict) 
         if not raw_yield:
             return None
 
-        # yfinance returnerar procent (t.ex. 5.4) eller decimal (0.054)
+        # yfinance (>= 0.2.4x) returnerar redan procent (t.ex. 5.4 = 5,4 %). Ingen
+        # decimalheuristik: den gjorde en verklig 0,2 % till 20 %.
         yield_pct = float(raw_yield)
-        if yield_pct < 0.25:
-            yield_pct = yield_pct * 100.0
 
         raw_payout = info.get("payoutRatio")
         if raw_payout is not None:

@@ -69,7 +69,11 @@ def fetch_short_interest(symbol, company_name=None):
                 "risk": "Hög" if total > 5.0 else ("Medel" if total > 2.0 else "Låg")
             }
         except Exception:
-            result = {"short_pct": 0.0, "positions": [], "source": "Finansinspektionen", "risk": "Låg"}
+            # Misslyckad hämtning är inte detsamma som "ingen blankning": rapportera okänt
+            # och cacha inte, så nästa anrop försöker igen.
+            return {"short_pct": None, "positions": [], "source": "Finansinspektionen", "risk": "Okänd"}
 
+    if result.get("risk") == "Okänd":
+        return result
     _short_cache[symbol] = {"result": result, "ts": time.time()}
     return result

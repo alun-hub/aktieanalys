@@ -7,7 +7,7 @@ from src.core.indicators import calc_rsi, calc_atr, calculate_indicators
 from src.core.patterns import detect_patterns
 from src.core.short_interest import fetch_short_interest
 from src.core.signals import trend_score, trend_label
-from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS, POPULAR_SWEDISH_FUNDS
+from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS, POPULAR_SWEDISH_FUNDS, fallback_currency
 
 CRYPTO_NAMES = {
     "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana",
@@ -90,6 +90,9 @@ def search_symbols(query):
     return matches[:15]
 
 
+_MIN_SUBSTRING_QUERY = 3  # minsta frågelängd för delsträngsmatchning mot namn
+
+
 def resolve_symbol(query):
     """Mappar en söksträng (t.ex. 'investor', 'volvo', 'bitcoin', 'vwce', 'lf global') till rätt ticker."""
     q = query.strip()
@@ -144,19 +147,22 @@ def resolve_symbol(query):
 
     # Delsträngsträffar: aktier/ETF:er före fonder, eftersom bolagsnamn ofta är en
     # delsträng av ett fondnamn med samma varumärke (t.ex. "Handelsbanken Global Småbolag").
-    for sym, name in all_tickers.items():
-        norm_name = _normalize_query(name)
-        if norm_q in norm_name or norm_name in norm_q:
-            return sym
-    for sym, item in POPULAR_ETFS.items():
-        norm_name = _normalize_query(item["name"])
-        if norm_q in norm_name or norm_name in norm_q:
-            return sym
-    for key, item in POPULAR_SWEDISH_FUNDS.items():
-        norm_name = _normalize_query(item["name"])
-        aliases = [_normalize_query(a) for a in item.get("aliases", [])]
-        if norm_q in norm_name or any(norm_q in a for a in aliases):
-            return f"MANUAL:{key}"
+    # Korta sökningar (t.ex. "BA", "V", "T") är delsträngar i nästan vilket namn som helst
+    # och får inte tolkas som bolagsnamn – de går vidare till Yahoo-sökningen.
+    if len(norm_q) >= _MIN_SUBSTRING_QUERY:
+        for sym, name in all_tickers.items():
+            norm_name = _normalize_query(name)
+            if norm_q in norm_name or (len(norm_name) >= _MIN_SUBSTRING_QUERY and norm_name in norm_q):
+                return sym
+        for sym, item in POPULAR_ETFS.items():
+            norm_name = _normalize_query(item["name"])
+            if norm_q in norm_name or (len(norm_name) >= _MIN_SUBSTRING_QUERY and norm_name in norm_q):
+                return sym
+        for key, item in POPULAR_SWEDISH_FUNDS.items():
+            norm_name = _normalize_query(item["name"])
+            aliases = [_normalize_query(a) for a in item.get("aliases", [])]
+            if norm_q in norm_name or any(norm_q in a for a in aliases):
+                return f"MANUAL:{key}"
 
     results = search_symbols(q)
     if results and results[0].get("symbol"):
@@ -371,8 +377,8 @@ def calc_context(symbol, is_crypto, is_us):
     else:
         try:
             from src.core.congress import scan_congress_trades
-            cg = scan_congress_trades(months=6)
-            ctx["congress"] = [t for t in cg.get("trades", []) if t.get("ticker") == symbol][:12]
+            cg = scan_congress_trades(months=6, ticker=symbol, limit=12)
+            ctx["congress"] = cg.get("trades", [])
         except Exception:
             pass
     return ctx
@@ -483,7 +489,7 @@ def generate_recommendation(symbol, close, ma50, ma200, rsi, atr, tscore, valuat
         }
 
     if tscore >= 45:
-        if rec_key in ("strong_buy", "buy") or v_verdict in ("lågt", "rimligt"):
+        if rec_key in ("strong_buy", "buy") or v_verdict in ("lågt värderat", "rimligt värderat"):
             target = round(target_analyst, 2) if (target_analyst and target_analyst > close) else round(close + 4.0 * atr_val, 2)
             stop = round(close - 2.5 * atr_val, 2)
             return {
@@ -507,7 +513,7 @@ def generate_recommendation(symbol, close, ma50, ma200, rsi, atr, tscore, valuat
             }
 
     # tscore < 45
-    if rec_key in ("strong_buy", "buy") and v_verdict in ("lågt", "rimligt"):
+    if rec_key in ("strong_buy", "buy") and v_verdict in ("lågt värderat", "rimligt värderat"):
         return {
             "action": "Behåll",
             "badge": "hold",
@@ -577,8 +583,9 @@ def analyze_any_stock(symbol):
         df.index = df.index.normalize()
 
         is_crypto = symbol.endswith("-USD")
-        is_us = (symbol in NASDAQ_100) or (not symbol.endswith(".ST") and not is_crypto)
-        curr = "$" if (is_crypto or is_us) else "kr"
+        is_us = (symbol in NASDAQ_100) or (not is_crypto and fallback_currency(symbol) == "USD")
+        _cur_code = "USD" if (is_crypto or is_us) else fallback_currency(symbol)
+        curr = {"USD": "$", "SEK": "kr", "EUR": "€", "GBX": "p", "NOK": "kr", "DKK": "kr", "CHF": "CHF", "CAD": "C$"}.get(_cur_code, _cur_code)
 
         df = calculate_indicators(df)
 

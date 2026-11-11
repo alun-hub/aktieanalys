@@ -22,7 +22,7 @@ def fetch_congress_trades_raw():
         print(f"Fel vid hämtning av kongressdata: {e}")
     return _congress_cache["data"] or []
 
-def scan_congress_trades(months=3, txn_type="all", chamber="all", party="all"):
+def scan_congress_trades(months=3, txn_type="all", chamber="all", party="all", ticker=None, limit=100):
     """Skannar politiker-köp och sälj och returnerar sammanställning och avkastning."""
     raw = fetch_congress_trades_raw()
     if not raw:
@@ -32,7 +32,7 @@ def scan_congress_trades(months=3, txn_type="all", chamber="all", party="all"):
 
     filtered = []
     for t in raw:
-        t_date = t.get("transaction_date") or t.get("filing_date", "")
+        t_date = t.get("transaction_date") or t.get("filing_date") or ""
         if t_date < cutoff:
             continue
         
@@ -61,20 +61,22 @@ def scan_congress_trades(months=3, txn_type="all", chamber="all", party="all"):
         if party != "all" and c_party != party.upper():
             continue
 
-        ticker = (t.get("ticker") or "").strip().upper()
-        if not ticker or ticker in ("--", "N/A", "NONE"):
+        t_ticker = (t.get("ticker") or "").strip().upper()
+        if not t_ticker or t_ticker in ("--", "N/A", "NONE"):
+            continue
+        if ticker and t_ticker != ticker.strip().upper():
             continue
 
         ret = t.get("ret_since")
         ret_val = round(float(ret), 2) if ret is not None else None
 
         filtered.append({
-            "ticker":        ticker,
+            "ticker":        t_ticker,
             "politician":    t.get("filer_name") or t.get("filer_id", "Okänd"),
             "party":         c_party or "—",
             "chamber":       (t.get("chamber") or "Congress").capitalize(),
-            "txn_date":      t.get("transaction_date", "")[:10],
-            "report_date":   t.get("filing_date", "")[:10],
+            "txn_date":      (t.get("transaction_date") or t.get("filing_date") or "")[:10],
+            "report_date":   (t.get("filing_date") or "")[:10],
             "action":        action,
             "action_badge":  action_badge,
             "transaction":   ttype,
@@ -117,4 +119,4 @@ def scan_congress_trades(months=3, txn_type="all", chamber="all", party="all"):
         "top_tickers":     top_tickers,
     }
 
-    return {"trades": filtered[:100], "stats": stats, "months": months}
+    return {"trades": filtered[:limit] if limit else filtered, "stats": stats, "months": months}

@@ -62,18 +62,24 @@ def _resolve_ticker(fi_company, instrument=""):
     _ticker_resolve_cache[cache_key] = (None, fi_company)
     return None, fi_company
 
+def _filter_trades(trades, days, action="all"):
+    """Begränsar till de senaste `days` dagarna (publiceringsdatum) och valfri köp/sälj-typ."""
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    out = [t for t in trades if (t.get("pub_date") or t.get("date") or "") >= cutoff]
+    if action == "buy":
+        out = [t for t in out if t["action"] == "KÖP"]
+    elif action == "sell":
+        out = [t for t in out if t["action"] == "SÄLJ"]
+    return out
+
+
 def fetch_all_insider_buys(days=30, action="all", force=False):
     """Hämtar insynshandel (både köp/förvärv och sälj/avyttring) från Finansinspektionen."""
     global _insider_cache
     now = time.time()
     
     if not force and _insider_cache["data"] and (now - _insider_cache["ts"] < 1800) and (_insider_cache["days"] >= days):
-        trades = _insider_cache["data"]
-        if action == "buy":
-            trades = [t for t in trades if t["action"] == "KÖP"]
-        elif action == "sell":
-            trades = [t for t in trades if t["action"] == "SÄLJ"]
-        return trades, None
+        return _filter_trades(_insider_cache["data"], days, action), None
 
     today = datetime.now()
     intervals = []
@@ -81,12 +87,14 @@ def fetch_all_insider_buys(days=30, action="all", force=False):
     remaining = days
     while remaining > 0:
         chunk_days = min(remaining, 30)
-        chunk_start = chunk_end - timedelta(days=chunk_days)
+        # Inklusiva datumintervall som inte överlappar: dagen före nästa chunk-slut
+        # ingår inte i föregående chunk, så ingen rad hämtas två gånger.
+        chunk_start = chunk_end - timedelta(days=chunk_days - 1)
         intervals.append((
             chunk_start.strftime("%Y-%m-%d"),
             chunk_end.strftime("%Y-%m-%d"),
         ))
-        chunk_end = chunk_start
+        chunk_end = chunk_start - timedelta(days=1)
         remaining -= chunk_days
 
     all_lines = []
@@ -157,13 +165,7 @@ def fetch_all_insider_buys(days=30, action="all", force=False):
     trades.sort(key=lambda x: (x["pub_date"], x["amount"]), reverse=True)
     _insider_cache = {"data": trades, "ts": now, "days": days}
 
-    filtered_trades = trades
-    if action == "buy":
-        filtered_trades = [t for t in trades if t["action"] == "KÖP"]
-    elif action == "sell":
-        filtered_trades = [t for t in trades if t["action"] == "SÄLJ"]
-
-    return filtered_trades, None
+    return _filter_trades(trades, days, action), None
 
 def get_insider_transactions_for_symbol(symbol, days=120):
     """Returnerar insynstransaktioner (både KÖP och SÄLJ) för en symbol, senaste N dagar.
