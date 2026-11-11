@@ -21,6 +21,7 @@ import pandas as pd
 from src.core.data import get_db
 from src.core.config import OMXS_50, NASDAQ_100
 from src.core.costs import transaction_cost
+from src.core.allocation import target_weights
 
 TRADING_DAYS = 252
 POSITION_SIZE = 0.20
@@ -248,8 +249,9 @@ def _run_engine(hist, index_close, dates, params, market):
             px = float(r["open"])
             equity = cash + sum(h["qty"] * h["last_price"] for h in holdings.values())
             budget = min(cash, equity * POSITION_SIZE)
-            qty = int(budget // px)
-            if qty < 1:
+            # Krypto handlas i bråkdelar (annars blir qty 0 när kursen > budget, t.ex. BTC)
+            qty = (budget / px) if market == "crypto" else int(budget // px)
+            if qty < 1e-8 or (market != "crypto" and qty < 1):
                 continue
             gross = qty * px
             entry_cost = transaction_cost(gross, market)
@@ -568,6 +570,9 @@ def optimize_omx(years=8):
     }
 
 
+PROFIT_FACTOR_CAP = 10.0  # tak för profit factor när förlustaffärer saknas
+
+
 def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct=0.0015):
     """Kör en isolerad handelssimulering för en enskild aktie."""
     if df is None or df.empty:
@@ -594,6 +599,7 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
     trades = []
     cash = float(initial_capital)
     position = None
+    pending_atr = None  # ATR på signaldagen när en köporder väntar på nästa öppning
     curve = []
 
     for i, date in enumerate(dates):
@@ -601,6 +607,28 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
         px_open = float(r["open"]) if ("open" in r and not pd.isna(r["open"])) else float(r["close"])
         px_close = float(r["close"])
         atr = float(r["atr"]) if ("atr" in r and not pd.isna(r["atr"])) else px_close * 0.02
+
+        # 0. Fyll väntande köporder på dagens öppning
+        if position is None and pending_atr is not None:
+            fill_px = px_open
+            qty = int((cash * 0.95) // fill_px) if fill_px > 0 else 0
+            if qty > 0:
+                cost_basis = qty * fill_px * (1.0 + fee_pct)
+                cash -= cost_basis
+                stop_loss = fill_px - atr_mult * pending_atr
+                # Target: 2.0x risk
+                risk = fill_px - stop_loss
+                target = fill_px + max(risk * 1.8, pending_atr * 3.0)
+                position = {
+                    "entry_date": date,
+                    "entry_price": fill_px,
+                    "qty": qty,
+                    "cost_basis": cost_basis,
+                    "stop_loss": stop_loss,
+                    "target": target,
+                    "days": -1,  # räknas upp till 0 nedan, så första fyllnadsdagen räknas inte som hållen dag
+                }
+            pending_atr = None
 
         # 1. Hantera öppen position (check exit)
         if position:
@@ -655,26 +683,10 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
                 })
                 position = None
 
-        # 2. Hantera ny köpsignal om vi saknar position
-        if position is None and bool(r.get("entry_sig", False)):
-            qty = int((cash * 0.95) // px_close)
-            if qty > 0:
-                cost_basis = qty * px_close * (1.0 + fee_pct)
-                cash -= cost_basis
-                stop_loss = px_close - atr_mult * atr
-                # Target: 2.0x risk
-                risk = px_close - stop_loss
-                target = px_close + max(risk * 1.8, atr * 3.0)
-
-                position = {
-                    "entry_date": date,
-                    "entry_price": px_close,
-                    "qty": qty,
-                    "cost_basis": cost_basis,
-                    "stop_loss": stop_loss,
-                    "target": target,
-                    "days": 0,
-                }
+        # 2. Köpsignal på dagens stängning -> order fylls nästa handelsdags öppning
+        #    (ingen lookahead: signalen kan inte köpas till kursen den beräknades på).
+        if position is None and pending_atr is None and bool(r.get("entry_sig", False)):
+            pending_atr = atr
 
         # Värdera portfölj idag
         total_equity = cash + (position["qty"] * px_close if position else 0.0)
@@ -704,7 +716,12 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
     win_rate = round(len(wins) / len(closed) * 100.0, 1) if closed else 0.0
     tot_win = sum(t["profit"] for t in wins)
     tot_loss = abs(sum(t["profit"] for t in losses))
-    profit_factor = round(tot_win / tot_loss, 2) if tot_loss > 0 else (round(float(tot_win), 2) if tot_win > 0 else 1.0)
+    # Utan förlustaffärer är profit factor oändlig (och JSON klarar inte inf), så den
+    # kapas. Annars skulle rankingen (win_rate * profit_factor) dominera av kronvinsten.
+    if tot_loss > 0:
+        profit_factor = min(round(tot_win / tot_loss, 2), PROFIT_FACTOR_CAP)
+    else:
+        profit_factor = PROFIT_FACTOR_CAP if tot_win > 0 else 1.0
 
     # Buy & hold jämförelse för samma aktie
     first_px = float(df.iloc[0]["close"])
@@ -875,18 +892,8 @@ def run_portfolio_backtest(years: int = 10) -> dict:
             else:
                 conc = "normal"
 
-            # 2. Målvikter
-            if regime == "bull":
-                if conc == "high":
-                    target_w = {"broad_etf": 0.20, "equalweight_etf": 0.25, "dividend_stocks": 0.30, "growth_stocks": 0.10, "defensive": 0.15}
-                elif conc == "elevated":
-                    target_w = {"broad_etf": 0.30, "equalweight_etf": 0.20, "dividend_stocks": 0.25, "growth_stocks": 0.15, "defensive": 0.10}
-                else:
-                    target_w = {"broad_etf": 0.40, "equalweight_etf": 0.15, "dividend_stocks": 0.20, "growth_stocks": 0.20, "defensive": 0.05}
-            elif regime == "correction":
-                target_w = {"broad_etf": 0.25, "equalweight_etf": 0.20, "dividend_stocks": 0.25, "growth_stocks": 0.10, "defensive": 0.20}
-            else:  # bear
-                target_w = {"broad_etf": 0.10, "equalweight_etf": 0.10, "dividend_stocks": 0.15, "growth_stocks": 0.00, "defensive": 0.65}
+            # 2. Målvikter (delad regeltabell i allocation.py)
+            target_w = target_weights(regime, conc)
 
             # 3. Omviktningskontroll (månadsvis eller regimbyte)
             should_rebalance = (i - last_rebalance_idx >= 21) or any(abs(target_w[k] - current_weights[k]) >= 0.15 for k in target_w)

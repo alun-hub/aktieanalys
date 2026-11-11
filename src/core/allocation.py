@@ -96,6 +96,23 @@ def assess_concentration_risk() -> dict:
     return fallback
 
 
+
+def target_weights(regime: str, conc_level: str) -> dict:
+    """Målvikter (andelar som summerar till 1.0) per marknadsregim och koncentrationsnivå.
+
+    Enda källan för allokeringsreglerna – används av både rekommendationen och backtestet.
+    """
+    if regime == "bull":
+        if conc_level == "high":
+            return {"broad_etf": 0.20, "equalweight_etf": 0.25, "dividend_stocks": 0.30, "growth_stocks": 0.10, "defensive": 0.15}
+        if conc_level == "elevated":
+            return {"broad_etf": 0.30, "equalweight_etf": 0.20, "dividend_stocks": 0.25, "growth_stocks": 0.15, "defensive": 0.10}
+        return {"broad_etf": 0.40, "equalweight_etf": 0.15, "dividend_stocks": 0.20, "growth_stocks": 0.20, "defensive": 0.05}
+    if regime == "correction":
+        return {"broad_etf": 0.25, "equalweight_etf": 0.20, "dividend_stocks": 0.25, "growth_stocks": 0.10, "defensive": 0.20}
+    return {"broad_etf": 0.10, "equalweight_etf": 0.10, "dividend_stocks": 0.15, "growth_stocks": 0.00, "defensive": 0.65}
+
+
 def compute_target_allocation(market: str = "all") -> dict:
     """Kombinerar get_market_regime() + assess_concentration_risk() till en
     målfördelning i procent mellan:
@@ -125,47 +142,7 @@ def compute_target_allocation(market: str = "all") -> dict:
     if conc_level not in ("normal", "elevated", "high"):
         conc_level = "normal"
 
-    if regime == "bull":
-        if conc_level == "high":
-            alloc = {
-                "broad_etf": 20.0,
-                "equalweight_etf": 25.0,
-                "dividend_stocks": 30.0,
-                "growth_stocks": 10.0,
-                "defensive": 15.0,
-            }
-        elif conc_level == "elevated":
-            alloc = {
-                "broad_etf": 30.0,
-                "equalweight_etf": 20.0,
-                "dividend_stocks": 25.0,
-                "growth_stocks": 15.0,
-                "defensive": 10.0,
-            }
-        else:  # normal
-            alloc = {
-                "broad_etf": 40.0,
-                "equalweight_etf": 15.0,
-                "dividend_stocks": 20.0,
-                "growth_stocks": 20.0,
-                "defensive": 5.0,
-            }
-    elif regime == "correction":
-        alloc = {
-            "broad_etf": 25.0,
-            "equalweight_etf": 20.0,
-            "dividend_stocks": 25.0,
-            "growth_stocks": 10.0,
-            "defensive": 20.0,
-        }
-    else:  # bear
-        alloc = {
-            "broad_etf": 10.0,
-            "equalweight_etf": 10.0,
-            "dividend_stocks": 15.0,
-            "growth_stocks": 0.0,
-            "defensive": 65.0,
-        }
+    alloc = {k: round(v * 100.0, 1) for k, v in target_weights(regime, conc_level).items()}
 
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
