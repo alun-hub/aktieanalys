@@ -992,7 +992,7 @@ async function loadPortfolio() {
       const isManual = p.is_manual || (p.symbol && p.symbol.startsWith("MANUAL:"));
       const titleCol = isManual
         ? `<b>${esc(p.name)}</b><br><span class="pill sm" style="font-size:0.75rem; background:var(--surface-3);">${esc(p.region || "Fond")} · Fond</span>`
-        : `<a href="#" onclick="goToAnalyze('${esc(p.symbol)}'); return false;" style="color:var(--text); text-decoration:none; font-weight:700;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(p.name || p.symbol)}</a><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
+        : `<a href="#" onclick="goToAnalyze(${jsAttr(p.symbol)}); return false;" style="color:var(--text); text-decoration:none; font-weight:700;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(p.name || p.symbol)}</a><br><small style="color:var(--text-dim);">${esc(p.symbol)} · <span class="pill sm" style="font-size:0.72rem;">${esc(p.kind === 'fond' ? 'ETF/Fond' : 'Aktie')}</span></small>`;
 
       const rec = p.recommendation || { action: "Behåll", badge: "hold", reason: "", horizon: "" };
       let recCls = "neutral";
@@ -1018,7 +1018,7 @@ async function loadPortfolio() {
       const valueCol = `<b>${kr(p.value)}</b>${foreignValSub}`;
 
       const analyzeBtn = !isManual
-        ? `<button class="btn sm" title="Analysera bolag" onclick="goToAnalyze('${esc(p.symbol)}')">🔍</button> `
+        ? `<button class="btn sm" title="Analysera bolag" onclick="goToAnalyze(${jsAttr(p.symbol)})">🔍</button> `
         : "";
 
       return `<tr>
@@ -1032,8 +1032,8 @@ async function loadPortfolio() {
         <td class="num ${cls(p.pl)}">${kr(p.pl)}<br><small class="${cls(p.pl_pct)}">${pct(p.pl_pct)}</small></td>
         <td class="num" style="white-space:nowrap;">
           ${analyzeBtn}
-          <button class="btn sm" title="Ändra innehav" onclick="editHolding('${esc(p.symbol)}')">✎</button>
-          <button class="btn sm" title="Ta bort" onclick="delHolding('${esc(p.symbol)}')">✕</button>
+          <button class="btn sm" title="Ändra innehav" onclick="editHolding(${jsAttr(p.symbol)})">✎</button>
+          <button class="btn sm" title="Ta bort" onclick="delHolding(${jsAttr(p.symbol)})">✕</button>
         </td>
       </tr>`;
     }).join("");
@@ -1103,7 +1103,7 @@ async function analyze(sym) {
         <td class="num">${s.trades_count} st</td>
         <td class="num">${s.profit_factor}</td>
         <td class="num ${cls(s.total_return)}">${pct(s.total_return)}</td>
-        <td><button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem;" onclick="openStockBacktest('${esc(d.symbol)}', '${k}')">Testa</button></td>
+        <td><button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem;" onclick="openStockBacktest(${jsAttr(d.symbol)}, ${jsAttr(k)})">Testa</button></td>
       </tr>
     `).join("");
     edgeCard = `
@@ -1236,7 +1236,7 @@ async function loadMarket(m, btn) {
       <td class="num ${cls(s.change_pct)}">${pct(s.change_pct, 1)}</td>
       <td class="num">${s.rsi ?? "–"}</td>
       <td><span class="pill ${s.trend_class}">${esc(s.trend_label)}</span> <small>${s.trend_score}</small></td>
-      <td><button class="btn" onclick="showTab('analyze');$('#an-q').value='${esc(s.symbol)}';analyze('${esc(s.symbol)}')">Analysera</button></td>
+      <td><button class="btn" onclick="showTab('analyze');$('#an-q').value=${jsAttr(s.symbol)};analyze(${jsAttr(s.symbol)})">Analysera</button></td>
     </tr>`).join("")}</tbody></table></div>`;
 }
 
@@ -1348,8 +1348,8 @@ async function loadOpportunities(forceRefresh = false) {
         <div style="margin-top:0.3rem; font-size:0.82rem; color:var(--text-dim);">Risk/Reward-kvot: <b>${esc(op.levels.rr_label)}</b></div>
 
         <div style="display:flex; gap:0.5rem; margin-top:0.9rem;">
-          <button class="btn btn-primary" onclick="showTab('analyze'); $('#an-q').value='${esc(op.symbol)}'; analyze('${esc(op.symbol)}')">Analysera bolag</button>
-          <button class="btn" onclick="openStockBacktest('${esc(op.symbol)}', '${esc(op.strategy)}')">Visa historiska affärer</button>
+          <button class="btn btn-primary" onclick="showTab('analyze'); $('#an-q').value=${jsAttr(op.symbol)}; analyze(${jsAttr(op.symbol)})">Analysera bolag</button>
+          <button class="btn" onclick="openStockBacktest(${jsAttr(op.symbol)}, ${jsAttr(op.strategy)})">Visa historiska affärer</button>
         </div>
       </div>
     `;
@@ -1434,7 +1434,7 @@ async function loadDividends(market = currentDivMarket, refresh = false) {
           <td style="text-align:center; font-weight:700; white-space:nowrap; font-size:1.05rem;">${medal}</td>
           <td style="white-space:nowrap;">
             <div style="font-weight:600; display:flex; align-items:center; gap:0.4rem;">
-              <a href="javascript:void(0)" onclick="goToAnalyze('${esc(s.symbol)}')" style="color:var(--text); text-decoration:none;">
+              <a href="javascript:void(0)" onclick="goToAnalyze(${jsAttr(s.symbol)})" style="color:var(--text); text-decoration:none;">
                 ${esc(s.name)}
               </a>
               ${mktBadge}
@@ -1461,7 +1461,7 @@ async function loadDividends(market = currentDivMarket, refresh = false) {
           </td>
           <td style="white-space:nowrap;">${statusBadge}</td>
           <td style="text-align:right; white-space:nowrap;">
-            <button class="btn btn-sm btn-primary" onclick="goToAnalyze('${esc(s.symbol)}')">Analysera</button>
+            <button class="btn btn-sm btn-primary" onclick="goToAnalyze(${jsAttr(s.symbol)})">Analysera</button>
           </td>
         </tr>
       `;
@@ -1657,7 +1657,7 @@ async function loadInsider() {
     <td>${esc(x.company)}${x.ticker ? ` <small>${esc(x.ticker)}</small>` : ""}</td>
     <td>${esc(x.insider || "")}<br><small>${esc(x.role || "")}</small></td>
     <td class="num">${kr(x.amount)}</td>
-    <td>${x.ticker ? `<button class="btn" onclick="showTab('analyze');analyze('${esc(x.ticker)}')">Analysera</button>` : ""}</td>
+    <td>${x.ticker ? `<button class="btn" onclick="showTab('analyze');analyze(${jsAttr(x.ticker)})">Analysera</button>` : ""}</td>
   </tr>`).join("") : `<tr><td colspan="6" class="muted">${esc(d.error || "Inga transaktioner i perioden.")}</td></tr>`;
 }
 async function loadCongress() {
@@ -1875,7 +1875,7 @@ async function loadRecommendations(forceRefresh = false) {
                   ${items.map(it => `
                     <tr>
                       <td>
-                        <a href="#" onclick="goToAnalyze('${esc(it.symbol)}'); return false;" style="font-weight:700; color:var(--text); text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(it.name || it.symbol)}</a>
+                        <a href="#" onclick="goToAnalyze(${jsAttr(it.symbol)}); return false;" style="font-weight:700; color:var(--text); text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${esc(it.name || it.symbol)}</a>
                         <br><small class="muted">${esc(it.symbol)} <span class="pill sm" style="font-size:0.7rem;">${esc(it.badge || '')}</span></small>
                       </td>
                       <td>${esc(it.region || it.market || 'Global')}</td>
@@ -1888,7 +1888,7 @@ async function loadRecommendations(forceRefresh = false) {
                       </td>
                       <td style="max-width:300px; font-size:0.86rem;">${esc(it.reason || '')}</td>
                       <td class="num">
-                        <button class="btn sm" onclick="goToAnalyze('${esc(it.symbol)}')">Analysera</button>
+                        <button class="btn sm" onclick="goToAnalyze(${jsAttr(it.symbol)})">Analysera</button>
                       </td>
                     </tr>
                   `).join("")}
