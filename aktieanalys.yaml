@@ -34,11 +34,6 @@ spec:
           value: /etc/ssl/certs/ca-certificates.crt
         - name: SSL_CERT_FILE
           value: /etc/ssl/certs/ca-certificates.crt
-        - name: GEMINI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: gemini-api
-              key: GEMINI_API_KEY
         volumeMounts:
         - name: data
           mountPath: /app/data
