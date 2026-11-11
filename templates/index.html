@@ -1160,7 +1160,8 @@ async function analyze(sym) {
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.5rem">
         <h2>${esc(d.name)} <small>${esc(d.symbol)}</small></h2>
         <div style="font-size:1.3rem;font-weight:650">${money(d.close, d.currency)}
-          <span class="${cls(d.change_pct)}" style="font-size:.95rem">${pct(d.change_pct, 2)}</span></div>
+          <span class="${cls(d.change_pct)}" style="font-size:.95rem">${pct(d.change_pct, 2)}</span>
+          ${d.as_of ? `<div class="muted" style="font-size:.72rem;font-weight:400;text-align:right">Stängningskurs ${esc(d.as_of)}${d.price_source === "live" ? " · live" : ""}</div>` : ""}</div>
       </div>
       ${recBox}
       <p class="lead" style="margin-top:1rem;">${esc(d.summary)}</p>

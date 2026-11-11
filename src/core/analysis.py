@@ -3,6 +3,7 @@ import time
 import datetime
 import pandas as pd
 import yfinance as yf
+from src.core.data import load_history_df
 from src.core.indicators import calc_rsi, calc_atr, calculate_indicators
 from src.core.patterns import detect_patterns
 from src.core.short_interest import fetch_short_interest
@@ -566,7 +567,12 @@ def analyze_any_stock(symbol):
         return hit[1]
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.history(period="5y", auto_adjust=True)
+        # Kurser: använd den synkade databasen när den är färsk, annars live från Yahoo
+        df = load_history_df(symbol, years=5)
+        price_source = "db"
+        if df is None:
+            price_source = "live"
+            df = ticker.history(period="5y", auto_adjust=True)
         if df.empty:
             return {"error": f"Kunde inte hämta kursdata för {symbol}. "
                              "Prova fullständig ticker (t.ex. INVE-B.ST, AAPL eller BTC-USD)."}
@@ -685,6 +691,8 @@ def analyze_any_stock(symbol):
             "symbol": symbol, "name": name, "currency": curr,
             "asset_type": "krypto" if is_crypto else "aktie",
             "close": close, "change_pct": change_pct,
+            "price_source": price_source,
+            "as_of": df.index[-1].strftime("%Y-%m-%d"),
             "recommendation": rec,
             "summary": _summary(name, tlabel, valuation, rec, is_crypto),
             "valuation": valuation,

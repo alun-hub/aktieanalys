@@ -114,6 +114,46 @@ def update_stock_data(symbol):
     conn.commit()
     conn.close()
 
+def _last_business_day_before(day):
+    """Senaste vardagen före `day` (söndag/lördag/måndag -> fredagen före)."""
+    from datetime import timedelta
+    d = day - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def load_history_df(symbol, years=5, today=None):
+    """Läser kurshistorik för `symbol` från databasen i yfinance-format, om den är färsk.
+
+    Returnerar en DataFrame (DatetimeIndex, kolumnerna Open/High/Low/Close/Volume) för de
+    senaste `years` åren, eller None om symbolen saknas, har för få rader eller sista
+    kursen är äldre än föregående vardag (då får anroparen hämta live från Yahoo).
+    Helgdagar gör att datan ibland räknas som gammal – det är medvetet konservativt.
+    """
+    from datetime import date as _date, timedelta
+    today = today or _date.today()
+    cutoff = (today - timedelta(days=int(365.25 * years))).strftime("%Y-%m-%d")
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT date, open, high, low, close, volume FROM history "
+            "WHERE symbol = ? AND date >= ? AND close IS NOT NULL ORDER BY date",
+            (symbol, cutoff)).fetchall()
+    finally:
+        conn.close()
+    if len(rows) < 30:
+        return None
+    df = pd.DataFrame([dict(r) for r in rows])
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.set_index("date")
+    df.index.name = "Date"
+    df.columns = ["Open", "High", "Low", "Close", "Volume"]
+    if df.index[-1].date() < _last_business_day_before(today):
+        return None
+    return df
+
+
 def sync_all_stocks():
     """Total synkronisering av marknaden med realtidsstatus.
 
