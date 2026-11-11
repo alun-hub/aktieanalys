@@ -3,6 +3,7 @@ import pandas as pd
 import sqlite3
 import os
 import json
+import time
 import fcntl
 from datetime import datetime
 from src.core.config import OMXS_50, NASDAQ_100, INDEX_TICKERS
@@ -88,13 +89,13 @@ def update_stock_data(symbol):
     df = yf.download(symbol, period=HISTORY_PERIOD, interval="1d",
                      progress=False, auto_adjust=True)
     if df.empty:
-        return
+        return None
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     if "Close" in df.columns:
         df = df.dropna(subset=["Close"]).copy()
     if df.empty:
-        return
+        return None
     df = calculate_indicators(df)
     conn = get_db()
     rows = [
@@ -113,6 +114,7 @@ def update_stock_data(symbol):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", rows)
     conn.commit()
     conn.close()
+    return df.index[-1].strftime('%Y-%m-%d')
 
 def _last_business_day_before(day):
     """Senaste vardagen före `day` (söndag/lördag/måndag -> fredagen före)."""
@@ -154,6 +156,30 @@ def load_history_df(symbol, years=5, today=None):
     return df
 
 
+def _log_sync_summary(status, total, expected, empty, failed, stale):
+    """Loggar och sparar i statusen hur synken gick, så tysta luckor syns.
+
+    `stale` = symboler vars senaste kurs är äldre än föregående vardag (helgdagar ger
+    enstaka sådana, men många på en gång – t.ex. alla .ST – tyder på ett Yahoo-problem).
+    """
+    status["empty"], status["failed"], status["stale"] = empty, failed, stale
+    ok = total - len(empty) - len(failed)
+    print(f"Synk: {ok}/{total} ok, {len(empty)} tomma svar, {len(failed)} fel, "
+          f"{len(stale)} med kurs äldre än {expected}.", flush=True)
+    if len(empty) + len(failed) > max(3, total // 5):
+        print(f"Synk VARNING: många symboler fick inget svar ({len(empty)} tomma, {len(failed)} fel) – "
+              f"troligen ett Yahoo-problem. Exempel: {', '.join((empty + failed)[:8])}", flush=True)
+    if stale:
+        groups = {}
+        for sym in stale:
+            key = sym.rsplit(".", 1)[-1] if "." in sym else "övriga"
+            groups[key] = groups.get(key, 0) + 1
+        detail = ", ".join(f"{k}: {v}" for k, v in sorted(groups.items()))
+        level = "VARNING" if len(stale) > max(3, total // 5) else "Info"
+        print(f"Synk {level}: inaktuella symboler per marknad – {detail}. "
+              f"Exempel: {', '.join(stale[:8])}", flush=True)
+
+
 def sync_all_stocks():
     """Total synkronisering av marknaden med realtidsstatus.
 
@@ -182,15 +208,30 @@ def sync_all_stocks():
         _write_status(status)
 
         count = 0
+        empty, failed, stale = [], [], []
+        expected = _last_business_day_before(datetime.now().date()).strftime("%Y-%m-%d")
         for symbol in all_tickers.keys():
             try:
                 status["current"] = symbol
-                update_stock_data(symbol)
+                last_date = update_stock_data(symbol)
+                if last_date is None:
+                    # Yahoo ibland tomt svar utan fel – försök en gång till innan vi ger upp
+                    print(f"Synk: tomt svar för {symbol}, försöker igen…", flush=True)
+                    time.sleep(2)
+                    last_date = update_stock_data(symbol)
+                if last_date is None:
+                    empty.append(symbol)
+                    print(f"Synk: tomt svar för {symbol} även efter nytt försök – kursdata ej uppdaterad.", flush=True)
+                elif last_date < expected:
+                    stale.append(symbol)
                 count += 1
                 status["progress"] = count
             except Exception as e:
-                print(f"Fel vid synk av {symbol}: {e}")
+                failed.append(symbol)
+                print(f"Fel vid synk av {symbol}: {e}", flush=True)
             _write_status(status)
+
+        _log_sync_summary(status, len(all_tickers), expected, empty, failed, stale)
 
         try:
             from src.core.dividends import get_top_dividend_stocks
