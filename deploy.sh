@@ -1,16 +1,22 @@
 #!/bin/bash
-# Bygger image lokalt och deployar till k3s på <deploy-host>.
+# Bygger image lokalt och deployar till ett k3s-kluster.
 #
-# Image:n byggs med podman på den här datorn och strömmas via ssh till DEPLOY_HOST,
-# där den importeras i k3s containerd (namespace k8s.io). kubectl körs lokalt och
-# pratar med <deploy-host>s kluster via kubeconfig.
+# Image:n byggs med podman, strömmas via ssh till DEPLOY_HOST och importeras i k3s
+# containerd (namespace k8s.io). kubectl körs lokalt mot klustret via kubeconfig.
 #
-# Miljövariabler:
-#   DEPLOY_HOST   ssh-värd med k3s (standard: <deploy-host>). Sätt till "local" om k3s
-#                 körs på den här datorn.
+# Konfiguration (miljövariabler, eller i en lokal deploy.env som är gitignorerad):
+#   DEPLOY_HOST    ssh-värd som kör k3s, eller "local" om k3s körs på den här datorn.
+#   INGRESS_HOSTS  kommaseparerade värdnamn för ingressen, t.ex. "aktieanalys.example.com".
+#
+# Se deploy.env.example.
 set -euo pipefail
 
-DEPLOY_HOST="${DEPLOY_HOST:-local}"
+cd "$(dirname "$0")"
+[ -f deploy.env ] && . ./deploy.env
+
+: "${DEPLOY_HOST:?Sätt DEPLOY_HOST (ssh-värd eller 'local') – se deploy.env.example}"
+: "${INGRESS_HOSTS:?Sätt INGRESS_HOSTS (kommaseparerade värdnamn) – se deploy.env.example}"
+
 VERSION="v24.6-$(date +%s)"
 IMAGE_NAME="localhost/aktieanalys:$VERSION"
 
@@ -29,11 +35,38 @@ else
   podman save "$IMAGE_NAME" | ssh "$DEPLOY_HOST" "sudo k3s ctr -n k8s.io images import -"
 fi
 
-echo "4. Uppdaterar YAML och tvingar omstart..."
-sed -i "s|image: localhost/aktieanalys:.*|image: $IMAGE_NAME|g" aktieanalys.yaml
-kubectl apply -f aktieanalys.yaml
-kubectl delete pod -l app=aktieanalys
+echo "4. Applicerar manifest och väntar på utrullning..."
+# Image-taggen sätts i flykten – den spårade aktieanalys.yaml ändras inte.
+sed "s|image: localhost/aktieanalys:.*|image: $IMAGE_NAME|" aktieanalys.yaml | kubectl apply -f -
+
+{
+  cat <<'YAML'
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aktieanalys
+spec:
+  rules:
+YAML
+  IFS=',' read -ra HOSTS <<< "$INGRESS_HOSTS"
+  for h in "${HOSTS[@]}"; do
+    h="${h// /}"
+    [ -n "$h" ] || continue
+    cat <<YAML
+  - host: $h
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: aktieanalys
+            port:
+              number: 80
+YAML
+  done
+} | kubectl apply -f -
+
 kubectl rollout status deploy/aktieanalys --timeout=180s
 
 echo "KLART! Verifiera att rubriken visar $VERSION"
-echo "Kom ihåg att committa aktieanalys.yaml (ny image-tagg)."

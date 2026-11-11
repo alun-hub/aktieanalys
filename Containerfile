@@ -1,7 +1,8 @@
 FROM python:3.12-slim
 
-# Trust UniFi SSL inspection certificate
-COPY unifi-ca.crt /usr/local/share/ca-certificates/unifi-ca.crt
+# Valfria extra CA-certifikat (t.ex. för SSL-inspektion i ett företags- eller hemmanätverk):
+# lägg *.crt-filer i certs/ innan bygget. Katalogen är tom i repot.
+COPY certs/ /usr/local/share/ca-certificates/
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && update-ca-certificates && rm -rf /var/lib/apt/lists/*
 

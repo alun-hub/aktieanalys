@@ -7,3 +7,5 @@ portfolio.json
 data/
 .venv/
 *.tar
+certs/*.crt
+deploy.env

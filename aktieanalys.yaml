@@ -25,7 +25,7 @@ spec:
             value: "2"
       containers:
       - name: aktieanalys
-        image: localhost/aktieanalys:v24.6-1794425254
+        image: localhost/aktieanalys:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 4000
@@ -57,31 +57,3 @@ spec:
   ports:
   - port: 80
     targetPort: 4000
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: aktieanalys
-spec:
-  rules:
-  - host: aktieanalys.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: aktieanalys
-            port:
-              number: 80
-  - host: aktieanalys.example.org
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: aktieanalys
-            port:
-              number: 80
-

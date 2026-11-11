@@ -41,7 +41,11 @@ podman build -t localhost/aktieanalys:latest -f Containerfile .
 podman run -d --name aktieanalys -p 4000:4000 -v aktieanalys-data:/app/data localhost/aktieanalys:latest
 ```
 
-k3s: `./deploy.sh` (bygger, importerar till containerd, uppdaterar `aktieanalys.yaml`, startar om).
+k3s: `./deploy.sh` bygger image:n, strömmar den via ssh till k3s-värden, applicerar `aktieanalys.yaml`
+och en genererad ingress samt väntar på utrullningen. Kopiera `deploy.env.example` till `deploy.env`
+och ange `DEPLOY_HOST` (ssh-värd, eller `local`) och `INGRESS_HOSTS`. Extra CA-certifikat (t.ex. vid
+SSL-inspektion) läggs som `*.crt` i `certs/` före bygget. Appen läser `GEMINI_API_KEY` från en
+Kubernetes-secret `gemini-api`, och `vol.yaml` skapar datavolymen.
 
 ## Datakällor & förbehåll
 
