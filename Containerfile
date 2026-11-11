@@ -28,6 +28,6 @@ RUN mkdir -p /app/data
 VOLUME /app/data
 EXPOSE 4000
 
-# gunicorn: 2 workers, 120s timeout (yfinance calls can be slow).
+# gunicorn: 1 worker med 4 trådar (cache-uppvärmningen efter synk gäller då alla anrop), 120s timeout (yfinance kan vara långsamt).
 # Nattsynken skyddas av ett fillås i data.sync_all_stocks mot dubbelkörning.
-CMD ["gunicorn", "--bind", "0.0.0.0:4000", "--workers", "2", "--timeout", "120", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:4000", "--workers", "1", "--threads", "4", "--timeout", "120", "app:app"]
