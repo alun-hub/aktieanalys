@@ -13,7 +13,7 @@ import datetime
 import yfinance as yf
 
 from src.core.data import get_db
-from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS
+from src.core.config import OMXS_50, NASDAQ_100, POPULAR_ETFS, fallback_currency
 from src.core.signals import trend_score
 
 _meta_cache = {}   # symbol -> (ts, {price, sector, country, currency, dividend_yield})
@@ -21,12 +21,15 @@ _META_TTL = 7200
 _fx_cache = {}
 _FX_TTL = 7200
 
+ACK_COOLDOWN_DAYS = 30      # kvitterat säljlarm med samma orsak återskapas inte inom denna tid
 CONCENTRATION_WARN = 20.0   # % av portföljen i ett enda innehav
 
 
 def get_exchange_rate(currency):
     """Hämtar växelkurs till SEK (t.ex. USD -> SEK, EUR -> SEK)."""
-    curr = (currency or "SEK").upper().strip()
+    raw_curr = (currency or "SEK").strip()
+    # Yahoo anger brittiska pence som "GBp" (liten p) – versaler skulle göra det till pund (100x fel).
+    curr = "GBX" if raw_curr == "GBp" else raw_curr.upper()
     if curr in ("SEK", "KR", ""):
         return 1.0
     now = time.time()
@@ -89,8 +92,26 @@ def add_holding(symbol=None, qty=None, avg_price=None, name=None, kind="aktie",
         val_f = float(value if value is not None else (float(qty) * float(avg_price) if qty and avg_price else 0))
         cost_f = float(cost if cost is not None else val_f)
         if qty is None or avg_price is None:
-            qty = 1.0
-            avg_price = cost_f
+            derived = None
+            if not is_manual:
+                # Riktig ticker: räkna om kronvärdet till antal/GAV i aktiens egen valuta,
+                # annars skulle portfolio_health värdera qty=1 × kurs i stället för kronvärdet.
+                try:
+                    m = _meta(symbol)
+                    px = m.get("price")
+                    fx = get_exchange_rate(m.get("currency") or fallback_currency(symbol))
+                    if px and fx and val_f > 0:
+                        q = val_f / (px * fx)
+                        derived = (q, cost_f / q / fx)
+                except Exception:
+                    derived = None
+            if derived:
+                qty, avg_price = derived
+            else:
+                # Ingen kurs tillgänglig: lagra som manuellt värderat innehav (statiskt kronvärde)
+                is_manual = True
+                qty = 1.0
+                avg_price = cost_f
         reg = region or ("Global" if kind == "fond" else "Övrigt")
         meta_dict = {
             "is_manual": is_manual,
@@ -258,7 +279,7 @@ def _meta(symbol):
     if meta["country"] is None:
         meta["country"] = "Sverige" if symbol.endswith(".ST") else ("USA" if not symbol.endswith("-USD") else "—")
     if meta["currency"] is None:
-        meta["currency"] = "SEK" if symbol.endswith(".ST") else ("USD" if not symbol.endswith("-USD") else "USD")
+        meta["currency"] = fallback_currency(symbol)
 
     _meta_cache[symbol] = (time.time(), meta)
     return meta
@@ -333,7 +354,7 @@ def portfolio_health():
             rec = {"action": "Behåll", "badge": "hold", "reason": "Långsiktigt fondsparande"}
         else:
             m = _meta(h["symbol"])
-            curr = (m.get("currency") or ("SEK" if h["symbol"].endswith(".ST") else "USD")).upper()
+            curr = (m.get("currency") or fallback_currency(h["symbol"]))
             fx_rate = get_exchange_rate(curr)
 
             raw_price = m["price"] or h["avg_price"]
@@ -436,8 +457,11 @@ def generate_sell_alerts() -> list[dict]:
         return []
 
     conn = get_db()
-    created_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now_dt = datetime.datetime.now()
+    created_now = now_dt.strftime("%Y-%m-%d %H:%M")
+    ack_cutoff = (now_dt - datetime.timedelta(days=ACK_COOLDOWN_DAYS)).strftime("%Y-%m-%d %H:%M")
     alerts = []
+    keep_symbols = set()  # symboler vars larm ska behållas (villkor gäller eller data saknas)
 
     regime_omx = get_market_regime("omx")
     regime_ndx = get_market_regime("nasdaq")
@@ -447,10 +471,10 @@ def generate_sell_alerts() -> list[dict]:
             sym = h["symbol"].upper()
             kind = h.get("kind", "aktie")
             # Fonder och manuella poster säljs aldrig pga regimskifte
-            if kind == "fond" or sym.startswith("MANUAL:"):
+            if kind == "fond" or sym.startswith("MANUAL:") or '"is_manual": true' in (h.get("note") or ""):
                 continue
 
-            is_us = not sym.endswith(".ST") and not sym.endswith("-USD")
+            is_us = fallback_currency(sym) == "USD" and not sym.endswith("-USD")
             market_regime = regime_ndx if is_us else regime_omx
             regime = market_regime.get("regime", "bull")
 
@@ -460,6 +484,7 @@ def generate_sell_alerts() -> list[dict]:
             ).fetchone()
 
             if not row:
+                keep_symbols.add(sym)
                 continue
 
             close = float(row["close"])
@@ -510,11 +535,29 @@ def generate_sell_alerts() -> list[dict]:
                 }
 
             if new_alert:
+                keep_symbols.add(sym)
                 existing = conn.execute(
-                    "SELECT id FROM sell_alerts WHERE symbol = ? AND acknowledged = 0",
+                    "SELECT id, reason FROM sell_alerts WHERE symbol = ? AND acknowledged = 0 "
+                    "ORDER BY id DESC LIMIT 1",
                     (sym,),
                 ).fetchone()
-                if not existing:
+                if existing:
+                    alert_id = existing["id"]
+                    # Uppdatera orsak/allvarlighet om villkoret har ändrats sedan larmet skapades
+                    conn.execute(
+                        "UPDATE sell_alerts SET reason = ?, severity = ? WHERE id = ?",
+                        (new_alert["reason"], new_alert["severity"], alert_id),
+                    )
+                    conn.commit()
+                else:
+                    # Redan kvitterat med samma orsak nyligen? Då ska inte samma larm återuppstå.
+                    recent_ack = conn.execute(
+                        "SELECT 1 FROM sell_alerts WHERE symbol = ? AND reason = ? AND acknowledged = 1 "
+                        "AND acknowledged_at >= ? LIMIT 1",
+                        (sym, new_alert["reason"], ack_cutoff),
+                    ).fetchone()
+                    if recent_ack:
+                        continue
                     cursor = conn.execute(
                         """INSERT INTO sell_alerts (symbol, created_at, reason, severity, acknowledged)
                         VALUES (?, ?, ?, ?, 0)""",
@@ -522,11 +565,6 @@ def generate_sell_alerts() -> list[dict]:
                     )
                     conn.commit()
                     alert_id = cursor.lastrowid
-                else:
-                    try:
-                        alert_id = existing["id"]
-                    except (KeyError, TypeError, IndexError):
-                        alert_id = None
 
                 alerts.append({
                     "id": alert_id,
@@ -538,7 +576,20 @@ def generate_sell_alerts() -> list[dict]:
                     "close": round(close, 2),
                     "avg_price": round(avg_price, 2),
                     "created_at": created_now,
+                    "acknowledged": 0,
                 })
+
+        # Stäng okvitterade larm vars villkor inte längre gäller (eller vars innehav är borta).
+        # acknowledged_at lämnas NULL så att det skiljer sig från manuell kvittering (karenstiden).
+        stale = [r["id"] for r in conn.execute(
+            "SELECT id, symbol FROM sell_alerts WHERE acknowledged = 0").fetchall()
+            if r["symbol"] not in keep_symbols]
+        for sid in stale:
+            conn.execute(
+                "UPDATE sell_alerts SET acknowledged = 1, acknowledged_at = NULL WHERE id = ?",
+                (sid,))
+        if stale:
+            conn.commit()
     finally:
         conn.close()
 
@@ -546,17 +597,26 @@ def generate_sell_alerts() -> list[dict]:
 
 
 def list_sell_alerts(include_acknowledged: bool = False) -> list[dict]:
-    """Hämtar alla genererade säljvarningar från databasen."""
-    generate_sell_alerts()
+    """Aktiva säljvarningar (berikade med namn, motivering och kurser).
+
+    Med include_acknowledged=True läggs även kvitterade larm till (råa DB-rader
+    kompletterade med innehavets namn).
+    """
+    active = generate_sell_alerts()
+    if not include_acknowledged:
+        return active
+
+    names = {h["symbol"].upper(): (h.get("name") or h["symbol"]) for h in list_holdings()}
     conn = get_db()
-    if include_acknowledged:
-        query = "SELECT * FROM sell_alerts ORDER BY id DESC"
-        rows = conn.execute(query).fetchall()
-    else:
-        query = "SELECT * FROM sell_alerts WHERE acknowledged = 0 ORDER BY id DESC"
-        rows = conn.execute(query).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM sell_alerts WHERE acknowledged = 1 ORDER BY id DESC").fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    done = []
+    for r in rows:
+        d = dict(r)
+        d["name"] = names.get(d["symbol"].upper(), d["symbol"])
+        done.append(d)
+    return active + done
 
 
 def acknowledge_sell_alert(alert_id: int) -> bool:

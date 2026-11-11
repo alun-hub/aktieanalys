@@ -460,3 +460,21 @@ POPULAR_SWEDISH_FUNDS = {
 }
 
 
+
+
+# Börssuffix -> handelsvaluta (fallback när Yahoo inte anger valuta). Utan suffix antas USD.
+_SUFFIX_CURRENCY = {
+    ".ST": "SEK", ".CO": "DKK", ".OL": "NOK", ".HE": "EUR",
+    ".DE": "EUR", ".F": "EUR", ".AS": "EUR", ".PA": "EUR", ".MI": "EUR",
+    ".MC": "EUR", ".BR": "EUR", ".LS": "EUR", ".VI": "EUR",
+    ".L": "GBX", ".SW": "CHF", ".TO": "CAD", ".V": "CAD",
+}
+
+
+def fallback_currency(symbol: str) -> str:
+    """Valuta utifrån tickerns börssuffix (krypto och suffixlösa tickers = USD)."""
+    sym = (symbol or "").upper()
+    for suffix, cur in _SUFFIX_CURRENCY.items():
+        if sym.endswith(suffix):
+            return cur
+    return "USD"
