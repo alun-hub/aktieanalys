@@ -66,10 +66,12 @@ class TestScanOpportunities(unittest.TestCase):
         # Set last row RSI <= 30 to trigger dip entry_sig (close > ma200 and rsi <= 30)
         self.df_history.loc[self.df_history.index[-1], "rsi"] = 28.0
 
+    @patch("src.core.signals.get_strategy_prior", return_value={"n": 100, "mean_ret": 1.5, "win_rate": 55.0})
+    @patch("src.core.regime.regime_entry_mask", return_value=pd.Series(dtype=bool))
     @patch("src.core.signals.get_db")
     @patch("src.core.signals.OMXS_50", {"ABB.ST": "ABB"})
     @patch("src.core.signals.NASDAQ_100", {})
-    def test_scan_opportunities_detects_dip(self, mock_get_db):
+    def test_scan_opportunities_detects_dip(self, mock_get_db, _mask, _prior):
         conn = sqlite3.connect(":memory:")
         mock_get_db.return_value = conn
         self.df_history.to_sql("history", conn, index=False)
@@ -89,6 +91,8 @@ class TestScanOpportunities(unittest.TestCase):
         self.assertIn("score", opp)
         self.assertIn("win_rate", opp["edge"])
         self.assertIn("profit_factor", opp["edge"])
+        self.assertIn("expectancy_pct", opp["edge"])
+        self.assertIn("confidence", opp["edge"])
         self.assertIn("relative_strength", opp)
 
     @patch("src.core.signals.get_db")
@@ -115,10 +119,12 @@ class TestScanOpportunities(unittest.TestCase):
         opps = scan_opportunities(market="omxs")
         self.assertEqual(len(opps), 0)
 
+    @patch("src.core.signals.get_strategy_prior", return_value={"n": 100, "mean_ret": 1.5, "win_rate": 55.0})
+    @patch("src.core.regime.regime_entry_mask", return_value=pd.Series(dtype=bool))
     @patch("src.core.signals.get_db")
     @patch("src.core.signals.OMXS_50", {"ABB.ST": "ABB"})
     @patch("src.core.signals.NASDAQ_100", {})
-    def test_scan_opportunities_caching_and_force_refresh(self, mock_get_db):
+    def test_scan_opportunities_caching_and_force_refresh(self, mock_get_db, _mask, _prior):
         def make_conn():
             c = sqlite3.connect(":memory:")
             self.df_history.to_sql("history", c, index=False)
@@ -139,6 +145,64 @@ class TestScanOpportunities(unittest.TestCase):
         opps3 = scan_opportunities(market="omxs", strategy_filter="dip", force_refresh=True)
         self.assertEqual(len(opps3), 1)
         self.assertEqual(mock_get_db.call_count, 2)
+
+    @patch("src.core.signals.get_strategy_prior", return_value={"n": 100, "mean_ret": 1.5, "win_rate": 55.0})
+    @patch("src.core.signals.get_db")
+    @patch("src.core.signals.OMXS_50", {"ABB.ST": "ABB"})
+    @patch("src.core.signals.NASDAQ_100", {})
+    def test_bear_market_blocks_signals(self, mock_get_db, _prior):
+        conn = sqlite3.connect(":memory:")
+        mock_get_db.return_value = conn
+        self.df_history.to_sql("history", conn, index=False)
+        # Index i bear (alla datum False) ska stoppa den annars giltiga dipp-signalen
+        blocked = pd.Series(False, index=pd.to_datetime(["2020-01-01", "2030-01-01"]))
+        with patch("src.core.regime.regime_entry_mask", return_value=blocked):
+            self.assertEqual(len(scan_opportunities(market="omxs", strategy_filter="dip")), 0)
+
+    @patch("src.core.signals.get_strategy_prior", return_value={"n": 100, "mean_ret": -2.0, "win_rate": 40.0})
+    @patch("src.core.regime.regime_entry_mask", return_value=pd.Series(dtype=bool))
+    @patch("src.core.signals.get_db")
+    @patch("src.core.signals.OMXS_50", {"ABB.ST": "ABB"})
+    @patch("src.core.signals.NASDAQ_100", {})
+    def test_negative_pooled_expectancy_drops_signal(self, mock_get_db, _mask, _prior):
+        conn = sqlite3.connect(":memory:")
+        mock_get_db.return_value = conn
+        self.df_history.to_sql("history", conn, index=False)
+        self.assertEqual(len(scan_opportunities(market="omxs", strategy_filter="dip")), 0)
+
+
+class TestBlendEdge(unittest.TestCase):
+    PRIOR = {"n": 200, "mean_ret": 1.0, "win_rate": 55.0}
+
+    @staticmethod
+    def _trades(rets):
+        return [{"return_pct": r, "open": False} for r in rets]
+
+    def test_few_trades_shrink_toward_prior(self):
+        from src.core.signals import blend_edge
+        # 3 fantastiska affärer (+20 %) ska inte ge +20 % förväntat
+        e = blend_edge(self._trades([20, 20, 20]), {}, self.PRIOR)
+        self.assertLess(e["expectancy_pct"], 5.0)
+        self.assertGreater(e["expectancy_pct"], 1.0)
+        self.assertEqual(e["confidence"], "låg")
+        self.assertTrue(e["qualifies"])
+
+    def test_many_trades_dominate(self):
+        from src.core.signals import blend_edge
+        e = blend_edge(self._trades([-3.0] * 60), {}, self.PRIOR)
+        self.assertLess(e["expectancy_pct"], 0)
+        self.assertFalse(e["qualifies"])
+        self.assertEqual(e["confidence"], "hög")
+
+    def test_no_prior_requires_enough_own_trades(self):
+        from src.core.signals import blend_edge
+        self.assertFalse(blend_edge(self._trades([5, 5, 5]), {}, None)["qualifies"])
+        self.assertTrue(blend_edge(self._trades([5] * 12), {}, None)["qualifies"])
+
+    def test_open_trades_ignored(self):
+        from src.core.signals import blend_edge
+        t = self._trades([2.0]) + [{"return_pct": 99.0, "open": True}]
+        self.assertEqual(blend_edge(t, {}, self.PRIOR)["trades_count"], 1)
 
 
 if __name__ == "__main__":

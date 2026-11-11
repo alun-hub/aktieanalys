@@ -147,3 +147,47 @@ def get_market_regime(market: str = "all") -> dict:
 
     _REGIME_CACHE[index_sym] = {"data": result, "ts": now_ts}
     return result
+
+
+_MASK_CACHE = {}
+
+
+def regime_entry_mask(market: str, strategy: str) -> pd.Series:
+    """Per datum: får nya köp öppnas i den här marknadsregimen? (True = tillåtet)
+
+    Samma regel som `evaluate_regime_from_indicators`, men över hela indexhistoriken så att
+    backtest/edge-statistik bedöms med filtret på. Bear (index < MA200) stoppar alla nya köp;
+    korrektion (index < MA50) tillåter bara dipp-strategin; i övrigt är allt tillåtet.
+    Saknas indexdata returneras en tom serie (= ingen begränsning).
+    """
+    market_key = (market or "omx").lower()
+    index_sym = "^NDX" if market_key in ("nasdaq", "us", "usa") else "^OMX"
+    cached = _MASK_CACHE.get(index_sym)
+    now_ts = datetime.datetime.now().timestamp()
+    if cached and now_ts - cached["ts"] < _REGIME_TTL:
+        idx = cached["df"]
+    else:
+        try:
+            db = get_db()
+            try:
+                idx = pd.read_sql_query(
+                    "SELECT date, close, ma50, ma200 FROM history WHERE symbol = ? AND close IS NOT NULL ORDER BY date",
+                    db, params=[index_sym])
+            finally:
+                db.close()
+        except Exception as e:
+            logger.debug(f"Kunde inte läsa indexhistorik för regimfilter: {e}")
+            return pd.Series(dtype=bool)
+        if not idx.empty:
+            idx["date"] = pd.to_datetime(idx["date"])
+            idx = idx.set_index("date")
+        _MASK_CACHE[index_sym] = {"df": idx, "ts": now_ts}
+    if idx.empty:
+        return pd.Series(dtype=bool)
+    bear = idx["ma200"].notna() & (idx["close"] < idx["ma200"])
+    correction = ~bear & idx["ma50"].notna() & (idx["close"] < idx["ma50"])
+    if strategy == "dip":
+        allowed = ~bear
+    else:
+        allowed = ~bear & ~correction
+    return allowed

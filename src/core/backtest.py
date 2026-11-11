@@ -71,10 +71,12 @@ def _load_history(conn, symbols):
     return out
 
 
+TREND_SIGNAL_WINDOW = 10  # dagar efter trendstart som trendsignalen är aktiv
+
 STRATEGIES = {
     "dip": {
         "name": "Kvalitets-dipp i upptrend",
-        "desc": "Köp starka bolag i upptrend vid tillfällig rekyl (RSI <= 38 eller test av MA50)",
+        "desc": "Köp starka bolag i upptrend vid tillfällig rekyl (RSI <= 40 eller test av MA50)",
         "default_rsi_exit": 65,
         "default_max_days": 20,
         "atr_stop_mult": 2.5,
@@ -88,7 +90,7 @@ STRATEGIES = {
     },
     "trend": {
         "name": "Långsiktig Trendföljare",
-        "desc": "Position i stark trend över MA200 med Golden Cross",
+        "desc": "Går in när en ny trend startat (Golden Cross över MA200) och följer den",
         "default_rsi_exit": 85,
         "default_max_days": 252,
         "atr_stop_mult": 3.5,
@@ -139,8 +141,13 @@ def prep_strategy_signals(g, strategy="dip", **custom_params):
 
     elif strategy == "trend":
         # Golden Cross eller etablerad stängning över stigande MA200
-        golden_cross = (ma50 > ma200) & (c > ma200)
-        g["entry_sig"] = golden_cross
+        # Signalen är en HÄNDELSE, inte ett tillstånd: trenden (MA50 > MA200 och kurs > MA200)
+        # ska ha *börjat* inom de senaste 10 handelsdagarna och fortfarande gälla. Annars
+        # vore nästan varje stigande aktie en "köpsignal" varje dag.
+        trend_state = ((ma50 > ma200) & (c > ma200)).fillna(False)
+        started = trend_state & ~trend_state.shift(1, fill_value=False)
+        recent_start = started.rolling(TREND_SIGNAL_WINDOW, min_periods=1).max().astype(bool)
+        g["entry_sig"] = trend_state & recent_start
         g["entry_rank"] = ((c / ma200.replace(0, np.nan)) - 1.0).fillna(0.0)
 
     else:
@@ -573,8 +580,16 @@ def optimize_omx(years=8):
 PROFIT_FACTOR_CAP = 10.0  # tak för profit factor när förlustaffärer saknas
 
 
-def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct=0.0015):
-    """Kör en isolerad handelssimulering för en enskild aktie."""
+def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct=None,
+                          market="omxs", entry_allowed=None):
+    """Kör en isolerad handelssimulering för en enskild aktie.
+
+    Kostnader: som standard samma modell som portföljbacktestet (`costs.transaction_cost`:
+    courtage + spread + ev. valutaväxling för `market`). Anges `fee_pct` används en platt
+    avgift per sida i stället.
+    `entry_allowed`: valfri bool-serie per datum (se `regime.regime_entry_mask`); signaler
+    på datum där den är False öppnas inte.
+    """
     if df is None or df.empty:
         return [], [], {
             "trades_count": 0,
@@ -596,6 +611,15 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
     atr_mult = strat_cfg.get("atr_stop_mult", 2.5)
 
     dates = list(df.index)
+    if entry_allowed is not None and len(entry_allowed) > 0:
+        ea = entry_allowed[~entry_allowed.index.duplicated(keep="last")].sort_index()
+        allowed_arr = ea.reindex(pd.to_datetime(df.index), method="ffill").fillna(True).astype(bool).values
+    else:
+        allowed_arr = np.ones(len(dates), dtype=bool)
+
+    def _cost(gross):
+        return gross * fee_pct if fee_pct is not None else transaction_cost(gross, market)
+
     trades = []
     cash = float(initial_capital)
     position = None
@@ -613,7 +637,7 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
             fill_px = px_open
             qty = int((cash * 0.95) // fill_px) if fill_px > 0 else 0
             if qty > 0:
-                cost_basis = qty * fill_px * (1.0 + fee_pct)
+                cost_basis = qty * fill_px + _cost(qty * fill_px)
                 cash -= cost_basis
                 stop_loss = fill_px - atr_mult * pending_atr
                 # Target: 2.0x risk
@@ -664,7 +688,7 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
 
             if exit_now:
                 gross = position["qty"] * exit_price
-                cost = gross * fee_pct
+                cost = _cost(gross)
                 net_val = gross - cost
                 cash += net_val
                 pnl = net_val - position["cost_basis"]
@@ -685,7 +709,7 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
 
         # 2. Köpsignal på dagens stängning -> order fylls nästa handelsdags öppning
         #    (ingen lookahead: signalen kan inte köpas till kursen den beräknades på).
-        if position is None and pending_atr is None and bool(r.get("entry_sig", False)):
+        if position is None and pending_atr is None and bool(r.get("entry_sig", False)) and allowed_arr[i]:
             pending_atr = atr
 
         # Värdera portfölj idag
@@ -764,7 +788,11 @@ def run_single_stock_backtest(symbol, strategy="dip", years=5):
     df_sub = df.iloc[cutoff:].copy()
 
     df_signals = prep_strategy_signals(df_sub, strategy=strategy)
-    trades, curve, stats = simulate_stock_trades(df_signals, strategy=strategy)
+    from src.core.regime import regime_entry_mask
+    mkt = "nasdaq" if symbol in NASDAQ_100 else "omxs"
+    trades, curve, stats = simulate_stock_trades(
+        df_signals, strategy=strategy, market=mkt,
+        entry_allowed=regime_entry_mask("nasdaq" if mkt == "nasdaq" else "omx", strategy))
 
     # Nedskalad graf (max 50 punkter)
     step = max(1, len(curve) // 45)

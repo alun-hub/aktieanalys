@@ -46,7 +46,9 @@ def opportunities_route():
     refresh = request.args.get('refresh', '0') in ('1', 'true', 'True')
     opps = scan_opportunities(market=market, strategy_filter=strategy, force_refresh=refresh)
     regime = get_market_regime(market=market)
-    return jsonify({"opportunities": opps, "total": len(opps), "regime": regime})
+    from src.core.signals import get_strategy_prior
+    priors = {k: get_strategy_prior(k) for k in ("dip", "momentum", "trend")}
+    return jsonify({"opportunities": opps, "total": len(opps), "regime": regime, "strategy_priors": priors})
 
 
 @api_bp.route('/market_overview')

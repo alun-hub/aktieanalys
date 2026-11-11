@@ -183,6 +183,133 @@ def calculate_trade_levels(close: float, atr: float, strategy: str = "dip") -> d
     }
 
 
+EDGE_CREDIBILITY_K = 15   # antal egna affärer som ger aktiens egen statistik 50 % vikt
+MIN_PRIOR_TRADES = 30     # minsta antal affärer i universumet för att lita på snittet
+MIN_OWN_TRADES_NO_PRIOR = 10
+SCORE_W_MRS = 0.05        # vikt för Mansfield RS i rangordningen
+SCORE_W_MOM = 0.03        # vikt för momentum-percentil (12–1 mån) i rangordningen
+
+_PRIOR_CACHE = {}
+_PRIOR_TTL = 6 * 3600
+
+
+def _cost_market(mkt):
+    return "nasdaq" if str(mkt).upper() in ("NASDAQ", "US", "USA") else "omxs"
+
+
+def _regime_market(mkt):
+    return "nasdaq" if _cost_market(mkt) == "nasdaq" else "omx"
+
+
+def _closed_returns(trades):
+    return [float(t["return_pct"]) for t in trades if not t.get("open")]
+
+
+def entry_allowed_now(mkt, strategy, date):
+    """Tillåter marknadsregimen nya köp enligt `strategy` på `date`? (True om data saknas)"""
+    import pandas as pd
+    from src.core.regime import regime_entry_mask
+    mask = regime_entry_mask(_regime_market(mkt), strategy)
+    if mask is None or len(mask) == 0:
+        return True
+    mask = mask[~mask.index.duplicated(keep="last")].sort_index()
+    val = mask.reindex([pd.Timestamp(str(date)[:10])], method="ffill")
+    return bool(val.iloc[0]) if not val.isna().all() else True
+
+
+def get_strategy_prior(strategy, force_refresh=False):
+    """Poolad statistik för en strategi över hela universumet (5 år, med kostnader och
+    regimfilter). Används som utgångspunkt som enskilda aktiers få affärer krymps mot –
+    annars blir 5–10 affärer per aktie mest slump."""
+    import time
+    import pandas as pd
+    from src.core.backtest import prep_strategy_signals, simulate_stock_trades
+    from src.core.regime import regime_entry_mask
+    now = time.time()
+    hit = _PRIOR_CACHE.get(strategy)
+    if hit and not force_refresh and now - hit[0] < _PRIOR_TTL:
+        return hit[1]
+
+    db = get_db()
+    rets = []
+    try:
+        for sym, name in {**OMXS_50, **NASDAQ_100}.items():
+            mkt = "NASDAQ" if sym in NASDAQ_100 else "OMX"
+            df = pd.read_sql_query(
+                "SELECT date, open, high, low, close, volume, ma50, ma200, rsi, atr "
+                "FROM history WHERE symbol = ? AND close IS NOT NULL ORDER BY date",
+                db, params=[sym])
+            if len(df) < 300:
+                continue
+            df = df.set_index("date")
+            sig = prep_strategy_signals(df, strategy=strategy).tail(252 * 5)
+            mask = regime_entry_mask(_regime_market(mkt), strategy)
+            trades, _, _ = simulate_stock_trades(sig, strategy=strategy, market=_cost_market(mkt),
+                                                 entry_allowed=mask)
+            rets.extend(_closed_returns(trades))
+    finally:
+        db.close()
+
+    prior = None
+    if rets:
+        wins = [r for r in rets if r > 0]
+        prior = {"n": len(rets), "mean_ret": sum(rets) / len(rets),
+                 "win_rate": len(wins) / len(rets) * 100.0}
+    _PRIOR_CACHE[strategy] = (now, prior)
+    return prior
+
+
+def blend_edge(trades, stats, prior):
+    """Krymper en akties egen affärsstatistik mot universumssnittet.
+
+    expectancy_pct = förväntad nettoavkastning per affär (efter kostnader). `qualifies`
+    kräver att den är > 0 *och* att strategin i snitt är lönsam över hela universumet – bygger
+    på poolad statistik, inte på aktiens egna fåtal affärer.
+    """
+    rets = _closed_returns(trades)
+    n = len(rets)
+    own_mean = sum(rets) / n if n else 0.0
+    own_win = (sum(1 for r in rets if r > 0) / n * 100.0) if n else 0.0
+    if prior and prior["n"] >= MIN_PRIOR_TRADES:
+        w = n / (n + EDGE_CREDIBILITY_K)
+        exp = w * own_mean + (1 - w) * prior["mean_ret"]
+        win = w * own_win + (1 - w) * prior["win_rate"]
+        # Kräver att strategin fungerar i universumet som helhet. Annars är en aktie med några
+        # lyckade affärer bara en av 98 som av slump ser bra ut (multipla jämförelser).
+        qualifies = exp > 0 and prior["mean_ret"] > 0
+        prior_n, prior_exp = prior["n"], round(prior["mean_ret"], 2)
+    else:
+        w = 1.0 if n else 0.0
+        exp, win = own_mean, own_win
+        qualifies = n >= MIN_OWN_TRADES_NO_PRIOR and exp > 0
+        prior_n, prior_exp = 0, None
+    confidence = "hög" if n >= 20 else ("medel" if n >= 8 else "låg")
+    return {
+        "win_rate": round(win, 1),
+        "trades_count": n,
+        "profit_factor": stats.get("profit_factor"),
+        "avg_gain_pct": stats.get("avg_gain_pct"),
+        "total_return": stats.get("total_return"),
+        "expectancy_pct": round(exp, 2),
+        "own_expectancy_pct": round(own_mean, 2),
+        "credibility": round(w, 2),
+        "confidence": confidence,
+        "prior_trades": prior_n,
+        "prior_expectancy_pct": prior_exp,
+        "qualifies": bool(qualifies),
+    }
+
+
+def compute_edge(df_sig, strategy, mkt):
+    """Historisk edge för `strategy` på en akties signaldata (5 år, kostnader + regimfilter)."""
+    from src.core.backtest import simulate_stock_trades
+    from src.core.regime import regime_entry_mask
+    mask = regime_entry_mask(_regime_market(mkt), strategy)
+    trades, _, stats = simulate_stock_trades(df_sig.tail(252 * 5), strategy=strategy,
+                                             market=_cost_market(mkt), entry_allowed=mask)
+    return blend_edge(trades, stats, get_strategy_prior(strategy))
+
+
 _OPPORTUNITIES_CACHE = {}
 _OPPORTUNITIES_TTL = 3600
 
@@ -195,6 +322,7 @@ def clear_signals_cache():
     global _OPPORTUNITIES_CACHE, _RECOMMENDATIONS_CACHE
     _OPPORTUNITIES_CACHE.clear()
     _RECOMMENDATIONS_CACHE.clear()
+    _PRIOR_CACHE.clear()
 
 
 def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool = False):
@@ -208,7 +336,7 @@ def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool 
         if now - ts < _OPPORTUNITIES_TTL:
             return [dict(x) for x in cached_data]
 
-    from src.core.backtest import prep_strategy_signals, simulate_stock_trades, STRATEGIES
+    from src.core.backtest import prep_strategy_signals, STRATEGIES
     from src.core.relative_strength import get_stock_relative_strength
     import pandas as pd
 
@@ -245,19 +373,18 @@ def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool 
             last_row = df_sig.iloc[-1]
 
             if bool(last_row.get("entry_sig", False)):
+                # Marknadsregimen: inga nya köp i bear (och bara dipp-köp i korrektion)
+                if not entry_allowed_now(mkt, strat, df_sig.index[-1]):
+                    continue
                 close = float(last_row["close"])
                 atr = float(last_row["atr"]) if not pd.isna(last_row["atr"]) else close * 0.02
                 levels = calculate_trade_levels(close, atr, strategy=strat)
 
-                # Beräkna historisk edge på 5 års historik
-                sub_df = df_sig.tail(252 * 5)
-                _, _, stats = simulate_stock_trades(sub_df, strategy=strat)
-
-                # Statistisk kvalitetsspärr:
-                # Om det finns tillräckligt med historiska affärer (>=5), kräv sund win-rate och vinstfaktor
-                if stats["trades_count"] >= 5:
-                    if stats["win_rate"] < 50.0 or stats["profit_factor"] < 1.3:
-                        continue
+                # Historisk edge: 5 år, med kostnader och regimfilter, krympt mot
+                # universumssnittet. Kräver positiv förväntad nettoavkastning per affär.
+                stats = compute_edge(df_sig, strat, mkt)
+                if not stats["qualifies"]:
+                    continue
 
                 # Beräkna RS endast för kandidater som kvalificerat sig
                 if rs is None:
@@ -269,9 +396,14 @@ def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool 
                 elif strat == "momentum":
                     reason = "Utbrott mot nytt fleraveckorshögsta med förhöjd handelsvolym och OBV-bekräftelse."
                 else:
-                    reason = "Stark upptrend bekräftad av Golden Cross och stängning över MA200."
+                    reason = "Ny långsiktig trend: Golden Cross (MA50 över MA200) och kurs över MA200 har precis inträffat."
 
-                score_val = round(stats["win_rate"] * stats["profit_factor"] + max(0.0, float(rs.get("mrs") or 0)), 1)
+                # Rangordning: förväntad nettoavkastning per affär (%), plus relativ styrka och
+                # 12–1-månaders momentum (vikter överst i filen).
+                score_val = round(
+                    stats["expectancy_pct"]
+                    + SCORE_W_MRS * float(rs.get("mrs") or 0)
+                    + SCORE_W_MOM * (float(rs.get("mom_pct", 50.0)) - 50.0), 2)
 
                 opportunities.append({
                     "symbol": sym,
@@ -284,12 +416,7 @@ def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool 
                     "reason": reason,
                     "levels": levels,
                     "relative_strength": rs,
-                    "edge": {
-                        "win_rate": stats["win_rate"],
-                        "trades_count": stats["trades_count"],
-                        "profit_factor": stats["profit_factor"],
-                        "avg_gain_pct": stats["avg_gain_pct"],
-                    },
+                    "edge": {k: v for k, v in stats.items() if k != "qualifies"},
                     "score": score_val,
                 })
 
@@ -386,9 +513,14 @@ def build_recommendations(market="all", force_refresh: bool = False) -> dict:
 
     # 4. Tillväxt / Momentum
     if alloc.get("growth_stocks", 0) > 0:
-        opps = scan_opportunities(market=market)
+        # Kandidater: bolagen med starkast relativ momentum (12–1 mån) i universumet – den enda
+        # indikator som i våra tester hängt ihop med överavkastning. Tekniska köpsignaler
+        # (scan_opportunities) läggs till när de klarar den statistiska spärren.
+        from src.core.relative_strength import get_top_momentum
         growth_limit = 2 if conc_level == "high" else (4 if conc_level == "elevated" else 5)
-        for op in opps[:growth_limit]:
+        seen = set()
+        for op in scan_opportunities(market=market)[:growth_limit]:
+            seen.add(op["symbol"])
             recommendations.append({
                 "type": "growth_stocks",
                 "type_label": "Tillväxt / Momentum",
@@ -400,8 +532,27 @@ def build_recommendations(market="all", force_refresh: bool = False) -> dict:
                 "close": op["close"],
                 "strategy": op["strategy_name"],
                 "score": op["score"],
-                "badge": f"Edge {op['edge']['win_rate']:.0f}% win",
+                "badge": f"Förväntat {op['edge']['expectancy_pct']:+.1f}% / affär",
                 "reason": op["reason"],
+            })
+        for m in get_top_momentum(market=market, limit=growth_limit):
+            if m["symbol"] in seen or len(seen) >= growth_limit:
+                continue
+            seen.add(m["symbol"])
+            recommendations.append({
+                "type": "growth_stocks",
+                "type_label": "Tillväxt / Momentum",
+                "target_pct": alloc["growth_stocks"],
+                "symbol": m["symbol"],
+                "name": m["name"],
+                "market": m["market"],
+                "currency": m["currency"],
+                "close": m["close"],
+                "strategy": "Relativ momentum",
+                "score": m["mom_pct"],
+                "badge": f"Momentum {m['mom_pct']:.0f}:e percentilen",
+                "reason": f"Bland de starkaste bolagen i universumet på 12–1 månaders momentum ({m['mom_12_1']:+.0f} %). "
+                          "Effekten är liten och ingen garanti.",
             })
 
     # 5. Defensivt (Guld & Räntor)

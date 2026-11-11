@@ -1098,10 +1098,10 @@ async function analyze(sym) {
     const rows = Object.entries(d.edge_summary).map(([k, s]) => `
       <tr>
         <td><b>${esc(stratNames[k] || k)}</b></td>
-        <td>${s.active_signal ? '<span class="pill up">KÖPSIGNAL IDAG</span>' : '<span class="muted">Ingen signal</span>'}</td>
+        <td>${s.active_signal ? (s.qualifies ? '<span class="pill up">KÖPSIGNAL IDAG</span>' : '<span class="pill neutral" title="Signal finns, men strategin saknar historiskt positiv förväntad nettoavkastning">Signal – saknar historisk edge</span>') : (s.regime_blocked ? '<span class="pill neutral" title="Signal finns men marknadsregimen (bear/korrektion) stoppar nya köp">Blockerad av marknadsläget</span>' : '<span class="muted">Ingen signal</span>')}</td>
         <td class="num">${s.win_rate}%</td>
-        <td class="num">${s.trades_count} st</td>
-        <td class="num">${s.profit_factor}</td>
+        <td class="num">${s.trades_count} st <small class="muted">(${esc(s.confidence || "")})</small></td>
+        <td class="num ${cls(s.expectancy_pct)}" title="Förväntad nettoavkastning per affär efter kostnader, krympt mot universumssnittet">${s.expectancy_pct > 0 ? "+" : ""}${s.expectancy_pct}%</td>
         <td class="num ${cls(s.total_return)}">${pct(s.total_return)}</td>
         <td><button class="btn" style="padding:0.2rem 0.5rem;font-size:0.8rem;" onclick="openStockBacktest(${jsAttr(d.symbol)}, ${jsAttr(k)})">Testa</button></td>
       </tr>
@@ -1110,7 +1110,7 @@ async function analyze(sym) {
       <div class="card tbl-wrap">
         <h3>Statistisk Edge & Strategier <small>– historiskt utfall i ${esc(d.name)}</small></h3>
         <table>
-          <thead><tr><th>Strategi</th><th>Signal idag</th><th class="num">Träffsäkerhet</th><th class="num">Affärer</th><th class="num">Vinstfaktor</th><th class="num">Avkastning</th><th></th></tr></thead>
+          <thead><tr><th>Strategi</th><th>Signal idag</th><th class="num">Träffsäkerhet</th><th class="num">Affärer</th><th class="num">Förv. per affär</th><th class="num">Avkastning</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
@@ -1304,6 +1304,13 @@ async function loadOpportunities(forceRefresh = false) {
     container.innerHTML = `
       <div class="card" style="grid-column:1/-1;">
         <p class="muted">Inga aktier uppfyller kvalitetskraven och den statistiska spärren just idag. Tålamod och disciplin skyddar ditt kapital.</p>
+        ${(() => {
+          const pr = d.strategy_priors || {};
+          const names = { dip: "Kvalitets-dipp", momentum: "Momentum & Utbrott", trend: "Långsiktig Trendföljare" };
+          const rows = Object.entries(pr).filter(([, v]) => v).map(([k, v]) =>
+            `<li>${esc(names[k] || k)}: <b class="${cls(v.mean_ret)}">${v.mean_ret > 0 ? "+" : ""}${v.mean_ret.toFixed(2)} %</b> per affär efter kostnader (${v.n} affärer, ${v.win_rate.toFixed(0)} % vinster)</li>`).join("");
+          return rows ? `<p class="muted" style="margin-bottom:.3rem;">Genomsnittlig nettoavkastning per affär för respektive strategi över hela universumet de senaste 5 åren (med marknadsregimen som filter). En signal visas bara om strategin i snitt är lönsam:</p><ul class="muted" style="margin-top:0">${rows}</ul>` : "";
+        })()}
       </div>`;
     return;
   }
@@ -1333,8 +1340,10 @@ async function loadOpportunities(forceRefresh = false) {
         <p style="margin:0.7rem 0 0.5rem 0; font-size:0.95rem;">${esc(op.reason)}</p>
 
         <div class="callout info" style="margin:0.5rem 0; padding:0.6rem;">
-          <b>Statistisk edge (5 år):</b> ${op.edge.win_rate} % vinstaffärer (${op.edge.trades_count} st), vinstfaktor <b>${op.edge.profit_factor}</b>
-          ${op.edge.avg_gain_pct ? ` · Snittvinst <b>+${op.edge.avg_gain_pct}%</b>` : ""}
+          <b>Statistisk edge (5 år, efter kostnader):</b> förväntat <b class="${cls(op.edge.expectancy_pct)}">${op.edge.expectancy_pct > 0 ? "+" : ""}${op.edge.expectancy_pct}%</b> per affär,
+          ${op.edge.win_rate} % vinstaffärer (${op.edge.trades_count} egna affärer, säkerhet: ${esc(op.edge.confidence || "låg")})
+          ${op.edge.prior_trades ? ` · jämfört med ${op.edge.prior_trades} affärer i hela universumet (${op.edge.prior_expectancy_pct > 0 ? "+" : ""}${op.edge.prior_expectancy_pct}% per affär)` : ""}
+          ${op.relative_strength && op.relative_strength.mom_pct != null ? ` · Momentum 12–1 mån: ${Math.round(op.relative_strength.mom_pct)}:e percentilen` : ""}
         </div>
 
         <div class="grid cols-4" style="margin-top:0.6rem; background:rgba(255,255,255,0.03); padding:0.6rem; border-radius:6px;">

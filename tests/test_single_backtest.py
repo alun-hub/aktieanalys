@@ -41,6 +41,33 @@ class TestSingleStockBacktest(unittest.TestCase):
         self.assertIn("avg_loss_pct", stats)
         self.assertIn("avg_days_held", stats)
 
+    def _one_trade_df(self):
+        self.df["entry_sig"] = False
+        self.df.loc[self.df.index[10], "entry_sig"] = True
+        self.df["entry_rank"] = 1.0
+        self.df.loc[self.df.index[20], "rsi"] = 80.0  # RSI-exit så att affären stängs
+        return self.df
+
+    def test_cost_model_is_applied_by_default(self):
+        df = self._one_trade_df()
+        free, _, _ = simulate_stock_trades(df, strategy="dip", fee_pct=0.0)
+        modeled, _, _ = simulate_stock_trades(df, strategy="dip")             # courtage + spread
+        us, _, _ = simulate_stock_trades(df, strategy="dip", market="nasdaq")  # + valutaväxling
+        r = lambda t: [x for x in t if not x["open"]][0]["return_pct"]
+        self.assertLess(r(modeled), r(free))
+        self.assertLess(r(us), r(modeled))
+
+    def test_entry_allowed_false_blocks_trade(self):
+        df = self._one_trade_df()
+        blocked = pd.Series(False, index=pd.to_datetime(["2000-01-01"]))  # ffill -> False över hela perioden
+        # df-datumen i fixturen är skenbara strängar; använd riktiga datum för reindex
+        df.index = pd.bdate_range("2023-01-02", periods=len(df)).strftime("%Y-%m-%d")
+        trades, _, _ = simulate_stock_trades(df, strategy="dip", entry_allowed=blocked)
+        self.assertEqual(trades, [])
+        allowed = pd.Series(True, index=pd.to_datetime(["2000-01-01"]))
+        trades, _, _ = simulate_stock_trades(df, strategy="dip", entry_allowed=allowed)
+        self.assertGreaterEqual(len(trades), 1)
+
     def test_stop_loss_exit(self):
         self.df["entry_sig"] = False
         self.df.loc[self.df.index[10], "entry_sig"] = True

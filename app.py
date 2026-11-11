@@ -1,6 +1,7 @@
 from flask import Flask, render_template
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
+import threading
 
 from src.api.routes import api_bp
 from src.core.data import init_db, sync_all_stocks
@@ -22,6 +23,20 @@ if RUN_SCHEDULER:
     scheduler.add_job(_nightly_sync, "cron", hour=4, minute=0)
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown(wait=False))
+
+def _warm_caches():
+    """Räknar de tunga cacharna i bakgrunden så första användaren inte väntar."""
+    try:
+        from src.core.signals import get_strategy_prior
+        from src.core.relative_strength import get_universe_momentum
+        get_universe_momentum()
+        for strat in ("dip", "momentum", "trend"):
+            get_strategy_prior(strat)
+    except Exception as e:
+        print(f"Cache-uppvärmning misslyckades: {e}", flush=True)
+
+
+threading.Thread(target=_warm_caches, daemon=True).start()
 
 app.register_blueprint(api_bp, url_prefix="/api/portal")
 app.register_blueprint(api_bp, url_prefix="/api", name="api_direct")

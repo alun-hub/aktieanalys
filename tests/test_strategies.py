@@ -34,10 +34,25 @@ class TestStrategies(unittest.TestCase):
         self.assertIn("entry_sig", res.columns)
         self.assertTrue(bool(res.iloc[-1]["entry_sig"]))
 
-    def test_trend_strategy_signals(self):
+    def test_trend_signal_is_event_not_state(self):
+        # En trend som pågått hela perioden är inget färskt köptillfälle
         res = prep_strategy_signals(self.df, "trend")
         self.assertIn("entry_sig", res.columns)
+        self.assertFalse(bool(res.iloc[-1]["entry_sig"]))
+
+    def test_trend_signal_fires_after_recent_golden_cross(self):
+        df = self.df.copy()
+        n = len(df)
+        # MA50 under MA200 fram till 5 dagar före slutet, sedan golden cross
+        df["ma50"] = df["ma200"] - 5.0
+        df.iloc[n - 5:, df.columns.get_loc("ma50")] = df["ma200"].iloc[n - 5:] + 5.0
+        res = prep_strategy_signals(df, "trend")
         self.assertTrue(bool(res.iloc[-1]["entry_sig"]))
+        # ...men inte långt efteråt (trenden är då inte längre "ny")
+        df2 = self.df.copy()
+        df2["ma50"] = df2["ma200"] - 5.0
+        df2.iloc[n - 40:, df2.columns.get_loc("ma50")] = df2["ma200"].iloc[n - 40:] + 5.0
+        self.assertFalse(bool(prep_strategy_signals(df2, "trend").iloc[-1]["entry_sig"]))
 
     def test_dip_panic_dump_filtered(self):
         # Om volymen på dippen är extrem (panikförsäljning, 5x snittet), ska signalen filtreras bort

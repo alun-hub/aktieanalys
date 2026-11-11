@@ -67,11 +67,14 @@ class TestAllocation(unittest.TestCase):
                 self.assertIn(res["level"], ["normal", "elevated", "high"])
                 self.assertIn("spread_pct", res)
 
+    @patch("src.core.relative_strength.get_top_momentum", return_value=[{
+        "symbol": "VOLV-B.ST", "name": "Volvo B", "market": "OMX", "currency": "kr",
+        "close": 300.0, "mom_12_1": 35.0, "mom_pct": 92.0}])
     @patch("src.core.allocation.compute_target_allocation")
     @patch("src.core.dividends.get_top_dividend_stocks")
     @patch("src.core.signals.scan_opportunities")
     def test_build_recommendations_category_types(
-        self, mock_scan, mock_div, mock_alloc
+        self, mock_scan, mock_div, mock_alloc, _mom
     ):
         from src.core.signals import build_recommendations
 
@@ -110,7 +113,7 @@ class TestAllocation(unittest.TestCase):
             "strategy": "trend",
             "strategy_name": "Långsiktig Trendföljare",
             "score": 90.0,
-            "edge": {"win_rate": 65.0, "trades_count": 8, "profit_factor": 2.0, "avg_gain_pct": 5.0},
+            "edge": {"win_rate": 65.0, "trades_count": 8, "profit_factor": 2.0, "avg_gain_pct": 5.0, "expectancy_pct": 1.8},
             "reason": "Upptrend",
         }]
 
@@ -125,6 +128,9 @@ class TestAllocation(unittest.TestCase):
         self.assertIn("broad_etf", types)
         self.assertIn("equalweight_etf", types)
         self.assertIn("defensive", types)
+        # Tillväxtkandidater: både signal och momentum-topp, utan dubletter
+        growth = [r["symbol"] for r in res["recommendations"] if r["type"] == "growth_stocks"]
+        self.assertEqual(growth, ["SEB-A.ST", "VOLV-B.ST"])
 
 
 if __name__ == "__main__":
