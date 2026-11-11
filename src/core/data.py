@@ -121,9 +121,9 @@ def sync_all_stocks():
     köra synken samtidigt. Statusen skrivs till en delad fil, inte en
     processlokal dict, så alla workers ser samma (korrekta) förlopp.
     """
-    if _read_status().get("running"):
-        return
-
+    # Fillåset är den enda auktoritativa kontrollen: det släpps av OS när
+    # processen dör, så en kraschad synk (running=True kvar i statusfilen)
+    # blockerar inte framtida synkar.
     lock_file = open(_LOCK_PATH, "w")
     try:
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)

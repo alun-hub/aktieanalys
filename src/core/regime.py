@@ -7,6 +7,7 @@ eftersom majoriteten av enskilda köpsignaler misslyckas i fallande marknad.
 import datetime
 import logging
 import sqlite3
+import pandas as pd
 import yfinance as yf
 from src.core.data import get_db
 from src.core.config import INDEX_TICKERS
