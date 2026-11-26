@@ -148,19 +148,16 @@ def run_market_screener(market="all"):
 
 
 def calculate_trade_levels(close: float, atr: float, strategy: str = "dip") -> dict:
-    """Beräknar konkreta handelsnivåer baserat på vald strategi, ATR och dynamisk 50% TP1/TP2."""
-    if strategy == "dip":
-        stop_dist = 2.2 * atr
-        tp1_dist = 2.2 * atr
-        target_dist = 3.5 * atr
-    elif strategy == "momentum":
-        stop_dist = 2.5 * atr
-        tp1_dist = 2.5 * atr
-        target_dist = 5.0 * atr
-    else:  # trend
-        stop_dist = 3.0 * atr
-        tp1_dist = 3.0 * atr
-        target_dist = 6.5 * atr
+    """Beräknar konkreta handelsnivåer baserat på vald strategi, ATR och dynamisk 50% TP1/TP2.
+
+    Använder samma ATR-multiplar som `STRATEGIES` i backtest.py så att simuleringen och
+    den visade handelsplanen stämmer överens.
+    """
+    from src.core.backtest import STRATEGIES
+    cfg = STRATEGIES.get(strategy, STRATEGIES["trend"])
+    stop_dist = cfg.get("atr_stop_mult", 3.0) * atr
+    tp1_dist = cfg.get("tp1_atr_mult", stop_dist / atr if atr else 3.0) * atr
+    target_dist = cfg.get("target_atr_mult", 6.5) * atr
 
     stop_loss = round(close - stop_dist, 2)
     tp1 = round(close + tp1_dist, 2)
@@ -217,24 +214,44 @@ def entry_allowed_now(mkt, strategy, date):
     return bool(val.iloc[0]) if not val.isna().all() else True
 
 
-def get_strategy_prior(strategy, force_refresh=False):
-    """Poolad statistik för en strategi över hela universumet (5 år, med kostnader och
-    regimfilter). Används som utgångspunkt som enskilda aktiers få affärer krymps mot –
-    annars blir 5–10 affärer per aktie mest slump."""
+def _prior_market(mkt):
+    m = str(mkt or "all").lower()
+    if m in ("nasdaq", "us", "usa"):
+        return "nasdaq"
+    if m in ("omx", "omxs"):
+        return "omxs"
+    return "all"
+
+
+def get_strategy_prior(strategy, market="all", force_refresh=False):
+    """Poolad statistik för en strategi per marknad (5 år, med kostnader och regimfilter).
+
+    Delas upp på OMXS resp. Nasdaq så att valutaväxlingskostnader och regim på ena
+    marknaden inte drar ner snittet för den andra. Används som utgångspunkt som enskilda
+    aktiers få affärer krymps mot – annars blir 5–10 affärer per aktie mest slump.
+    """
     import time
     import pandas as pd
     from src.core.backtest import prep_strategy_signals, simulate_stock_trades
     from src.core.regime import regime_entry_mask
     now = time.time()
-    hit = _PRIOR_CACHE.get(strategy)
+    mkt_key = _prior_market(market)
+    cache_key = (strategy, mkt_key)
+    hit = _PRIOR_CACHE.get(cache_key)
     if hit and not force_refresh and now - hit[0] < _PRIOR_TTL:
         return hit[1]
+
+    if mkt_key == "omxs":
+        universe = {s: "OMX" for s in OMXS_50}
+    elif mkt_key == "nasdaq":
+        universe = {s: "NASDAQ" for s in NASDAQ_100}
+    else:
+        universe = {**{s: "OMX" for s in OMXS_50}, **{s: "NASDAQ" for s in NASDAQ_100}}
 
     db = get_db()
     rets = []
     try:
-        for sym, name in {**OMXS_50, **NASDAQ_100}.items():
-            mkt = "NASDAQ" if sym in NASDAQ_100 else "OMX"
+        for sym, mkt in universe.items():
             df = pd.read_sql_query(
                 "SELECT date, open, high, low, close, volume, ma50, ma200, rsi, atr "
                 "FROM history WHERE symbol = ? AND close IS NOT NULL ORDER BY date",
@@ -254,8 +271,8 @@ def get_strategy_prior(strategy, force_refresh=False):
     if rets:
         wins = [r for r in rets if r > 0]
         prior = {"n": len(rets), "mean_ret": sum(rets) / len(rets),
-                 "win_rate": len(wins) / len(rets) * 100.0}
-    _PRIOR_CACHE[strategy] = (now, prior)
+                 "win_rate": len(wins) / len(rets) * 100.0, "market": mkt_key}
+    _PRIOR_CACHE[cache_key] = (now, prior)
     return prior
 
 
@@ -300,14 +317,15 @@ def blend_edge(trades, stats, prior):
     }
 
 
-def compute_edge(df_sig, strategy, mkt):
+def compute_edge(df_sig, strategy, mkt, force_refresh=False):
     """Historisk edge för `strategy` på en akties signaldata (5 år, kostnader + regimfilter)."""
     from src.core.backtest import simulate_stock_trades
     from src.core.regime import regime_entry_mask
+    cost_mkt = _cost_market(mkt)
     mask = regime_entry_mask(_regime_market(mkt), strategy)
     trades, _, stats = simulate_stock_trades(df_sig.tail(252 * 5), strategy=strategy,
-                                             market=_cost_market(mkt), entry_allowed=mask)
-    return blend_edge(trades, stats, get_strategy_prior(strategy))
+                                             market=cost_mkt, entry_allowed=mask)
+    return blend_edge(trades, stats, get_strategy_prior(strategy, market=cost_mkt, force_refresh=force_refresh))
 
 
 _OPPORTUNITIES_CACHE = {}
@@ -325,12 +343,17 @@ def clear_signals_cache():
     _PRIOR_CACHE.clear()
 
 
-def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool = False):
-    """Skannar alla bolag för dagens datum efter köpmöjligheter med kvalitetsspärr och relativ styrka."""
+def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool = False,
+                       include_watchlist: bool = False):
+    """Skannar alla bolag för dagens datum efter köpmöjligheter med kvalitetsspärr och relativ styrka.
+
+    Om `include_watchlist=True` returneras även tekniska signaler som inte passerar
+    regim- eller edge-spärren, tydligt märkta med `qualified=False` och `watchlist_reason`.
+    """
     import time
     global _OPPORTUNITIES_CACHE
     now = time.time()
-    cache_key = (market, strategy_filter)
+    cache_key = (market, strategy_filter, bool(include_watchlist))
     if not force_refresh and cache_key in _OPPORTUNITIES_CACHE:
         ts, cached_data = _OPPORTUNITIES_CACHE[cache_key]
         if now - ts < _OPPORTUNITIES_TTL:
@@ -340,16 +363,23 @@ def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool 
     from src.core.relative_strength import get_stock_relative_strength
     import pandas as pd
 
+    strategies_to_check = ["leader", "dip", "momentum", "trend"]
+    if strategy_filter in strategies_to_check:
+        strategies_to_check = [strategy_filter]
+
+    if force_refresh:
+        # Rensa berörda prior-cachningar en gång per körning (inte per aktie i loopen)
+        mkts_to_clear = ["omxs", "nasdaq"] if _prior_market(market) == "all" else [_prior_market(market)]
+        for s in strategies_to_check:
+            for mk in mkts_to_clear:
+                _PRIOR_CACHE.pop((s, mk), None)
+
     db = get_db()
     tickers = {}
     if market in ("all", "omx", "omxs"):
         tickers.update({s: (n, "OMX") for s, n in OMXS_50.items()})
     if market in ("all", "nasdaq"):
         tickers.update({s: (n, "NASDAQ") for s, n in NASDAQ_100.items()})
-
-    strategies_to_check = ["dip", "momentum", "trend"]
-    if strategy_filter in strategies_to_check:
-        strategies_to_check = [strategy_filter]
 
     opportunities = []
 
@@ -373,25 +403,50 @@ def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool 
             last_row = df_sig.iloc[-1]
 
             if bool(last_row.get("entry_sig", False)):
-                # Marknadsregimen: inga nya köp i bear (och bara dipp-köp i korrektion)
-                if not entry_allowed_now(mkt, strat, df_sig.index[-1]):
+                # Marknadsregimen: inga nya köp i bear (och bara dipp/leader i korrektion)
+                allowed = entry_allowed_now(mkt, strat, df_sig.index[-1])
+                if not allowed and not include_watchlist:
                     continue
+
                 close = float(last_row["close"])
                 atr = float(last_row["atr"]) if not pd.isna(last_row["atr"]) else close * 0.02
                 levels = calculate_trade_levels(close, atr, strategy=strat)
 
                 # Historisk edge: 5 år, med kostnader och regimfilter, krympt mot
-                # universumssnittet. Kräver positiv förväntad nettoavkastning per affär.
+                # marknadens universumssnitt. Kräver positiv förväntad nettoavkastning per affär.
                 stats = compute_edge(df_sig, strat, mkt)
-                if not stats["qualifies"]:
+                is_qualified = bool(allowed and stats["qualifies"])
+                if not is_qualified and not include_watchlist:
                     continue
 
-                # Beräkna RS endast för kandidater som kvalificerat sig
+                watchlist_reason = None
+                if not is_qualified:
+                    if not allowed:
+                        watchlist_reason = f"Blockerad av marknadsregim ({mkt})"
+                    elif stats.get("prior_expectancy_pct") is not None and stats["prior_expectancy_pct"] <= 0:
+                        watchlist_reason = (
+                            f"Strategins snitt på {mkt} är negativt efter kostnader "
+                            f"({stats['prior_expectancy_pct']:+.2f}% / affär)"
+                        )
+                    else:
+                        watchlist_reason = (
+                            f"Förväntad nettoavkastning ej positiv "
+                            f"({stats['expectancy_pct']:+.2f}% / affär)"
+                        )
+
+                # Beräkna RS endast för kandidater som tas med
                 if rs is None:
                     rs = get_stock_relative_strength(sym, market=mkt)
 
                 # Motivering i klarspråk
-                if strat == "dip":
+                if strat == "leader":
+                    mom_txt = f"{rs['mom_12_1']:+.0f} %" if rs.get("mom_12_1") is not None else "starkt"
+                    pct_txt = f" ({round(rs['mom_pct'])}:e percentilen)" if rs.get("mom_pct") is not None else ""
+                    reason = (
+                        f"Momentum-ledare (12–1 mån: {mom_txt}{pct_txt}) i upptrend "
+                        f"vid lugn rekyl (RSI {last_row.get('rsi', 0):.0f})."
+                    )
+                elif strat == "dip":
                     reason = f"Översåld dipp (RSI {last_row.get('rsi', 0):.0f}) i långsiktig upptrend över MA200."
                 elif strat == "momentum":
                     reason = "Utbrott mot nytt fleraveckorshögsta med förhöjd handelsvolym och OBV-bekräftelse."
@@ -418,11 +473,13 @@ def scan_opportunities(market="all", strategy_filter="all", force_refresh: bool 
                     "relative_strength": rs,
                     "edge": {k: v for k, v in stats.items() if k != "qualifies"},
                     "score": score_val,
+                    "qualified": is_qualified,
+                    "watchlist_reason": watchlist_reason,
                 })
 
     db.close()
-    # Sortera på starkast statistisk edge
-    opportunities.sort(key=lambda x: x["score"], reverse=True)
+    # Kvalificerade lägen först, därefter starkast statistisk edge / relativ styrka
+    opportunities.sort(key=lambda x: (x["qualified"], x["score"]), reverse=True)
     _OPPORTUNITIES_CACHE[cache_key] = (now, opportunities)
     return opportunities
 

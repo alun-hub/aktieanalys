@@ -326,6 +326,7 @@ footer { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: va
         <div class="field"><label>Strategi</label>
           <select id="opp-strategy" onchange="loadOpportunities()">
             <option value="all">Alla strategier</option>
+            <option value="leader">Momentum-ledare vid rekyl</option>
             <option value="dip">Kvalitets-dipp i upptrend</option>
             <option value="momentum">Momentum & Utbrott</option>
             <option value="trend">Långsiktig Trendföljare</option>
@@ -334,6 +335,12 @@ footer { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: va
         <div class="field" style="align-self:end;">
           <button class="btn btn-primary" onclick="loadOpportunities(true)">Uppdatera lägen</button>
         </div>
+      </div>
+      <div style="margin-top:0.6rem;">
+        <label style="display:inline-flex; align-items:center; gap:0.45rem; cursor:pointer; font-size:0.88rem; color:var(--text-dim);">
+          <input type="checkbox" id="opp-watchlist" onchange="loadOpportunities()">
+          Visa även tekniska bevakningslägen (ej verifierad strategi-edge)
+        </label>
       </div>
       <div id="opp-regime-banner"></div>
     </div>
@@ -1274,61 +1281,87 @@ async function loadOpportunities(forceRefresh = false) {
   `;
   const mkt = $("#opp-market") ? $("#opp-market").value : "all";
   const strat = $("#opp-strategy") ? $("#opp-strategy").value : "all";
-  const url = `/api/portal/opportunities?market=${encodeURIComponent(mkt)}&strategy=${encodeURIComponent(strat)}${forceRefresh ? '&refresh=1' : ''}`;
+  const showWatchlist = $("#opp-watchlist") ? $("#opp-watchlist").checked : false;
+  const url = `/api/portal/opportunities?market=${encodeURIComponent(mkt)}&strategy=${encodeURIComponent(strat)}${forceRefresh ? '&refresh=1' : ''}${showWatchlist ? '&include_watchlist=1' : ''}`;
   const d = await getJSON(url);
   if (d.error) {
     container.innerHTML = `<div class="card" style="grid-column:1/-1;"><p class="neg">${esc(d.error)}</p></div>`;
     return;
   }
 
-  const regime = d.regime;
-  if (regBanner && regime) {
-    const isBear = regime.regime === "bear";
-    const bgCallout = isBear ? 'danger' : (regime.regime === 'correction' ? 'warn' : 'info');
-    regBanner.innerHTML = `
-      <div class="callout ${bgCallout}" style="margin:0.8rem 0 0.2rem; padding:0.65rem 0.85rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;">
+  const renderRegimeCard = (reg) => {
+    if (!reg) return "";
+    const isBear = reg.regime === "bear";
+    const bgCallout = isBear ? 'danger' : (reg.regime === 'correction' ? 'warn' : 'info');
+    return `
+      <div class="callout ${bgCallout}" style="margin:0.5rem 0 0.2rem; padding:0.65rem 0.85rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;">
         <div>
-          <b>Marknadsklimat (${esc(regime.index_name || "")}):</b> <span class="pill ${regime.badge || 'neutral'}">${esc(regime.label || "")}</span>
-          <div class="muted" style="margin-top:0.2rem; font-size:0.82rem;">${esc(regime.description || "")}</div>
+          <b>Marknadsklimat (${esc(reg.index_name || "")}):</b> <span class="pill ${reg.badge || 'neutral'}">${esc(reg.label || "")}</span>
+          <div class="muted" style="margin-top:0.2rem; font-size:0.82rem;">${esc(reg.description || "")}</div>
         </div>
         <div style="font-size:0.82rem; color:var(--text-dim); text-align:right;">
-          ${regime.close ? `Index: <b>${money(regime.close, regime.index_symbol === '^NDX' ? '$' : 'kr')}</b>` : ""}
-          ${regime.ma200 ? ` · MA200: <b>${money(regime.ma200, regime.index_symbol === '^NDX' ? '$' : 'kr')}</b>` : ""}
+          ${reg.close ? `Index: <b>${money(reg.close, reg.index_symbol === '^NDX' ? '$' : 'kr')}</b>` : ""}
+          ${reg.ma200 ? ` · MA200: <b>${money(reg.ma200, reg.index_symbol === '^NDX' ? '$' : 'kr')}</b>` : ""}
         </div>
-      </div>
-    `;
-  }
-
-  const list = d.opportunities || [];
-  if (!list.length) {
-    container.innerHTML = `
-      <div class="card" style="grid-column:1/-1;">
-        <p class="muted">Inga aktier uppfyller kvalitetskraven och den statistiska spärren just idag. Tålamod och disciplin skyddar ditt kapital.</p>
-        ${(() => {
-          const pr = d.strategy_priors || {};
-          const names = { dip: "Kvalitets-dipp", momentum: "Momentum & Utbrott", trend: "Långsiktig Trendföljare" };
-          const rows = Object.entries(pr).filter(([, v]) => v).map(([k, v]) =>
-            `<li>${esc(names[k] || k)}: <b class="${cls(v.mean_ret)}">${v.mean_ret > 0 ? "+" : ""}${v.mean_ret.toFixed(2)} %</b> per affär efter kostnader (${v.n} affärer, ${v.win_rate.toFixed(0)} % vinster)</li>`).join("");
-          return rows ? `<p class="muted" style="margin-bottom:.3rem;">Genomsnittlig nettoavkastning per affär för respektive strategi över hela universumet de senaste 5 åren (med marknadsregimen som filter). En signal visas bara om strategin i snitt är lönsam:</p><ul class="muted" style="margin-top:0">${rows}</ul>` : "";
-        })()}
       </div>`;
-    return;
+  };
+
+  if (regBanner) {
+    if (d.regimes && d.regimes.omxs && d.regimes.nasdaq) {
+      regBanner.innerHTML = `<div class="grid cols-2" style="gap:0.6rem; margin-top:0.4rem;">${renderRegimeCard(d.regimes.omxs)}${renderRegimeCard(d.regimes.nasdaq)}</div>`;
+    } else if (d.regime) {
+      regBanner.innerHTML = renderRegimeCard(d.regime);
+    }
   }
 
-  container.innerHTML = list.map(op => {
-    const stratClass = op.strategy === "dip" ? "up" : (op.strategy === "momentum" ? "info" : "neutral");
+  const renderPriorsBlock = () => {
+    const names = {
+      leader: "Momentum-ledare vid rekyl",
+      dip: "Kvalitets-dipp",
+      momentum: "Momentum & Utbrott",
+      trend: "Långsiktig Trendföljare",
+    };
+    const byMkt = d.strategy_priors_by_market;
+    const mktLabels = { omxs: "Stockholm (OMXS)", nasdaq: "USA (Nasdaq)" };
+    if (byMkt && Object.keys(byMkt).length) {
+      const blocks = Object.entries(byMkt).map(([mk, pr]) => {
+        const rows = Object.entries(pr || {}).filter(([, v]) => v).map(([k, v]) =>
+          `<li>${esc(names[k] || k)}: <b class="${cls(v.mean_ret)}">${v.mean_ret > 0 ? "+" : ""}${v.mean_ret.toFixed(2)} %</b> per affär efter kostnader (${v.n} affärer, ${v.win_rate.toFixed(0)} % vinster)</li>`
+        ).join("");
+        return rows ? `<div><b style="font-size:0.88rem;">${esc(mktLabels[mk] || mk)}</b><ul class="muted" style="margin:0.25rem 0 0.5rem;">${rows}</ul></div>` : "";
+      }).filter(Boolean).join("");
+      if (blocks) {
+        return `<p class="muted" style="margin-bottom:.4rem;">Genomsnittlig nettoavkastning per affär per strategi och marknad de senaste 5 åren (med marknadsregimen som filter). En kvalificerad signal visas bara om strategin i snitt är lönsam på marknaden:</p><div class="grid cols-2" style="gap:0.8rem;">${blocks}</div>`;
+      }
+    }
+    const pr = d.strategy_priors || {};
+    const rows = Object.entries(pr).filter(([, v]) => v).map(([k, v]) =>
+      `<li>${esc(names[k] || k)}: <b class="${cls(v.mean_ret)}">${v.mean_ret > 0 ? "+" : ""}${v.mean_ret.toFixed(2)} %</b> per affär efter kostnader (${v.n} affärer, ${v.win_rate.toFixed(0)} % vinster)</li>`).join("");
+    return rows ? `<p class="muted" style="margin-bottom:.3rem;">Genomsnittlig nettoavkastning per affär för respektive strategi de senaste 5 åren (med marknadsregimen som filter). En signal visas bara om strategin i snitt är lönsam:</p><ul class="muted" style="margin-top:0">${rows}</ul>` : "";
+  };
+
+  const renderOppCard = (op) => {
+    const isWatch = op.qualified === false;
+    const stratClass = op.strategy === "leader" ? "up-strong" : (op.strategy === "dip" ? "up" : (op.strategy === "momentum" ? "info" : "neutral"));
     const rs = op.relative_strength;
     const rsBadge = (rs && rs.rs_label)
       ? `<span class="pill ${rs.badge || 'neutral'}" style="font-size:0.75rem; margin-left:0.3rem;">${esc(rs.rs_label)}</span>`
       : "";
+    const watchBadge = isWatch
+      ? `<span class="pill warn" style="font-size:0.75rem;">Bevakning (ej verifierad edge)</span>`
+      : "";
+    const watchNote = (isWatch && op.watchlist_reason)
+      ? `<div class="callout warn" style="margin:0.5rem 0; padding:0.5rem 0.65rem; font-size:0.84rem;"><b>Ej kvalificerad signal:</b> ${esc(op.watchlist_reason)}</div>`
+      : "";
 
     return `
-      <div class="card">
+      <div class="card" style="${isWatch ? 'opacity:0.9; border:1px dashed var(--border);' : ''}">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
           <div>
             <h3 style="margin-bottom:0.3rem;">${esc(op.name)} <small class="muted">${esc(op.symbol)}</small></h3>
             <div style="display:flex; gap:0.3rem; align-items:center; flex-wrap:wrap;">
               <span class="pill ${stratClass}">${esc(op.strategy_name)}</span>
+              ${watchBadge}
               ${rsBadge}
             </div>
           </div>
@@ -1338,11 +1371,12 @@ async function loadOpportunities(forceRefresh = false) {
           </div>
         </div>
         <p style="margin:0.7rem 0 0.5rem 0; font-size:0.95rem;">${esc(op.reason)}</p>
+        ${watchNote}
 
-        <div class="callout info" style="margin:0.5rem 0; padding:0.6rem;">
+        <div class="callout ${isWatch ? 'neutral' : 'info'}" style="margin:0.5rem 0; padding:0.6rem;">
           <b>Statistisk edge (5 år, efter kostnader):</b> förväntat <b class="${cls(op.edge.expectancy_pct)}">${op.edge.expectancy_pct > 0 ? "+" : ""}${op.edge.expectancy_pct}%</b> per affär,
           ${op.edge.win_rate} % vinstaffärer (${op.edge.trades_count} egna affärer, säkerhet: ${esc(op.edge.confidence || "låg")})
-          ${op.edge.prior_trades ? ` · jämfört med ${op.edge.prior_trades} affärer i hela universumet (${op.edge.prior_expectancy_pct > 0 ? "+" : ""}${op.edge.prior_expectancy_pct}% per affär)` : ""}
+          ${op.edge.prior_trades ? ` · jämfört med ${op.edge.prior_trades} affärer på ${esc(op.market)} (${op.edge.prior_expectancy_pct > 0 ? "+" : ""}${op.edge.prior_expectancy_pct}% per affär)` : ""}
           ${op.relative_strength && op.relative_strength.mom_pct != null ? ` · Momentum 12–1 mån: ${Math.round(op.relative_strength.mom_pct)}:e percentilen` : ""}
         </div>
 
@@ -1363,7 +1397,34 @@ async function loadOpportunities(forceRefresh = false) {
         </div>
       </div>
     `;
-  }).join("");
+  };
+
+  const list = d.opportunities || [];
+  const qualified = list.filter(op => op.qualified !== false);
+  const watchlist = list.filter(op => op.qualified === false);
+
+  let html = "";
+  if (!qualified.length) {
+    html += `
+      <div class="card" style="grid-column:1/-1;">
+        <p class="muted">Inga aktier uppfyller kvalitetskraven och den statistiska spärren just idag. Tålamod och disciplin skyddar ditt kapital.</p>
+        ${renderPriorsBlock()}
+        ${!showWatchlist ? `<div style="margin-top:0.8rem;"><button class="btn" onclick="const cb=$('#opp-watchlist'); if(cb){cb.checked=true;} loadOpportunities();">Visa dagens tekniska bevakningslägen</button></div>` : ""}
+      </div>`;
+  } else {
+    html += qualified.map(renderOppCard).join("");
+  }
+
+  if (watchlist.length) {
+    html += `
+      <div class="card" style="grid-column:1/-1; padding:0.75rem 1rem; border-left:3px solid var(--warn, #e5a00d);">
+        <h3 style="margin:0 0 0.2rem;">Tekniska bevakningslägen (${watchlist.length})</h3>
+        <p class="muted" style="margin:0; font-size:0.85rem;">Dessa aktier har gett en teknisk signal idag men passerar inte den statistiska spärren eller marknadsregimen. Använd enbart som bevakning och kontext.</p>
+      </div>`;
+    html += watchlist.map(renderOppCard).join("");
+  }
+
+  container.innerHTML = html;
 }
 
 // ---------- TOPP 10 UTDELNING ----------

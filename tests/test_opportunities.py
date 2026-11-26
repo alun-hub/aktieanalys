@@ -43,6 +43,15 @@ class TestTradeLevels(unittest.TestCase):
         self.assertEqual(levels["target_price"], round(50.0 + 6.5 * 1.0, 2))
         self.assertTrue(levels["risk_reward_ratio"] > 1.0)
 
+    def test_calculate_trade_levels_leader(self):
+        close = 100.0
+        atr = 2.0
+        levels = calculate_trade_levels(close, atr, strategy="leader")
+        self.assertEqual(levels["stop_loss"], round(100.0 - 3.0 * 2.0, 2))
+        self.assertEqual(levels["tp1"], round(100.0 + 3.0 * 2.0, 2))
+        self.assertEqual(levels["target_price"], round(100.0 + 6.0 * 2.0, 2))
+        self.assertEqual(levels["risk_reward_ratio"], 2.0)
+
 
 class TestScanOpportunities(unittest.TestCase):
     def setUp(self):
@@ -169,6 +178,23 @@ class TestScanOpportunities(unittest.TestCase):
         mock_get_db.return_value = conn
         self.df_history.to_sql("history", conn, index=False)
         self.assertEqual(len(scan_opportunities(market="omxs", strategy_filter="dip")), 0)
+
+    @patch("src.core.signals.get_strategy_prior", return_value={"n": 100, "mean_ret": -2.0, "win_rate": 40.0})
+    @patch("src.core.regime.regime_entry_mask", return_value=pd.Series(dtype=bool))
+    @patch("src.core.signals.get_db")
+    @patch("src.core.signals.OMXS_50", {"ABB.ST": "ABB"})
+    @patch("src.core.signals.NASDAQ_100", {})
+    def test_include_watchlist_returns_unqualified_with_reason(self, mock_get_db, _mask, mock_prior):
+        conn = sqlite3.connect(":memory:")
+        mock_get_db.return_value = conn
+        self.df_history.to_sql("history", conn, index=False)
+
+        opps = scan_opportunities(market="omxs", strategy_filter="dip", include_watchlist=True)
+        self.assertEqual(len(opps), 1)
+        self.assertFalse(opps[0]["qualified"])
+        self.assertIn("negativt", opps[0]["watchlist_reason"])
+        # Bekräfta att prior hämtas per marknad (omxs)
+        mock_prior.assert_called_with("dip", market="omxs", force_refresh=False)
 
 
 class TestBlendEdge(unittest.TestCase):

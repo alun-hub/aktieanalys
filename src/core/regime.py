@@ -186,7 +186,7 @@ def regime_entry_mask(market: str, strategy: str) -> pd.Series:
         return pd.Series(dtype=bool)
     bear = idx["ma200"].notna() & (idx["close"] < idx["ma200"])
     correction = ~bear & idx["ma50"].notna() & (idx["close"] < idx["ma50"])
-    if strategy == "dip":
+    if strategy in ("dip", "leader"):
         allowed = ~bear
     else:
         allowed = ~bear & ~correction

@@ -112,6 +112,19 @@ class TestSingleStockBacktest(unittest.TestCase):
         self.assertTrue(len(closed) >= 1)
         self.assertIn("Tids-exit", closed[0]["exit_reason"])
 
+    def test_tp1_moves_stop_to_breakeven(self):
+        self.df["entry_sig"] = False
+        self.df.loc[self.df.index[10], "entry_sig"] = True
+        # Fylls på dag 11 vid open ~102.2, atr = 2.0 -> tp1 = 106.6, target = 109.2
+        self.df.loc[self.df.index[12], "high"] = 107.0   # når TP1 men inte TP2
+        self.df.loc[self.df.index[13], "low"] = 101.0    # faller tillbaka under entry -> BE-stopp
+        self.df.loc[self.df.index[13], "open"] = 103.0
+        trades, _, _ = simulate_stock_trades(self.df, strategy="dip", fee_pct=0.0)
+        closed = [t for t in trades if not t["open"]]
+        self.assertTrue(len(closed) >= 1)
+        self.assertEqual(closed[0]["exit_reason"], "Breakeven-stopp (efter TP1)")
+        self.assertGreater(closed[0]["profit"], 0.0)
+
     def test_run_single_stock_backtest_missing_symbol(self):
         res = run_single_stock_backtest("NON_EXISTENT_SYMBOL_XYZ")
         self.assertIn("error", res)

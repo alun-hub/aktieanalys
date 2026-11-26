@@ -30,8 +30,9 @@ def _warm_caches():
         from src.core.signals import get_strategy_prior
         from src.core.relative_strength import get_universe_momentum
         get_universe_momentum()
-        for strat in ("dip", "momentum", "trend"):
-            get_strategy_prior(strat)
+        for strat in ("leader", "dip", "momentum", "trend"):
+            for mkt in ("omxs", "nasdaq"):
+                get_strategy_prior(strat, market=mkt)
     except Exception as e:
         print(f"Cache-uppvärmning misslyckades: {e}", flush=True)
 

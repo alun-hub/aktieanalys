@@ -27,7 +27,19 @@ class TestAPIEndpoints(unittest.TestCase):
         data = res.get_json()
         self.assertIn("opportunities", data)
         self.assertIn("total", data)
+        self.assertIn("strategy_priors_by_market", data)
         mock_scan.assert_called_with(market="omxs", strategy_filter="dip", force_refresh=True)
+
+    @patch("src.api.routes.scan_opportunities")
+    def test_opportunities_route_with_watchlist(self, mock_scan):
+        mock_scan.return_value = [{"symbol": "ABB.ST", "name": "ABB", "score": 1.0, "qualified": False}]
+        res = self.client.get("/api/opportunities?market=all&include_watchlist=1")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["qualified_count"], 0)
+        self.assertEqual(data["watchlist_count"], 1)
+        self.assertIn("regimes", data)
+        mock_scan.assert_called_with(market="all", strategy_filter="all", force_refresh=False, include_watchlist=True)
 
     def test_backtest_stock_route(self):
         res = self.client.post("/api/backtest/stock", json={"symbol": "INVE-B.ST", "strategy": "dip", "years": 3})

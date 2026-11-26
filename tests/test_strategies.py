@@ -63,6 +63,35 @@ class TestStrategies(unittest.TestCase):
         res = prep_strategy_signals(self.df, "dip")
         self.assertFalse(bool(res.iloc[-1]["entry_sig"]))
 
+    def test_leader_strategy_signals_on_strong_12_1_momentum(self):
+        n = 280
+        dates = pd.date_range("2023-01-01", periods=n)
+        prices = [100.0 + i * 0.4 for i in range(n)]  # > +90% över 252 dagar
+        df = pd.DataFrame({
+            "open": [p - 0.5 for p in prices],
+            "high": [p + 1.5 for p in prices],
+            "low": [p - 1.5 for p in prices],
+            "close": prices,
+            "volume": [10000] * n,
+            "ma50": [p - 2.0 for p in prices],
+            "ma200": [p - 20.0 for p in prices],
+            "rsi": [48.0] * n,
+            "atr": [2.0] * n,
+        }, index=dates)
+        res = prep_strategy_signals(df, "leader")
+        self.assertTrue(bool(res.iloc[-1]["entry_sig"]))
+
+        # Svagt momentum (+5% över 12 mån) ska inte trigga leader
+        flat = [100.0 + i * 0.01 for i in range(n)]
+        df_weak = df.copy()
+        df_weak["close"] = flat
+        df_weak["open"] = flat
+        df_weak["high"] = [p + 1.0 for p in flat]
+        df_weak["low"] = [p - 1.0 for p in flat]
+        df_weak["ma50"] = [p - 1.0 for p in flat]
+        df_weak["ma200"] = [p - 5.0 for p in flat]
+        self.assertFalse(bool(prep_strategy_signals(df_weak, "leader").iloc[-1]["entry_sig"]))
+
 
 if __name__ == "__main__":
     unittest.main()

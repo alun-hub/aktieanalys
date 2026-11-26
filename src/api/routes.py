@@ -44,11 +44,48 @@ def opportunities_route():
     market = request.args.get('market', 'all')
     strategy = request.args.get('strategy', 'all')
     refresh = request.args.get('refresh', '0') in ('1', 'true', 'True')
-    opps = scan_opportunities(market=market, strategy_filter=strategy, force_refresh=refresh)
-    regime = get_market_regime(market=market)
+    include_watchlist = request.args.get('include_watchlist', '0') in ('1', 'true', 'True')
+    if include_watchlist:
+        opps = scan_opportunities(
+            market=market, strategy_filter=strategy, force_refresh=refresh, include_watchlist=True
+        )
+    else:
+        opps = scan_opportunities(market=market, strategy_filter=strategy, force_refresh=refresh)
+
+    mkt_lower = (market or 'all').lower()
+    if mkt_lower == 'all':
+        regime_omx = get_market_regime(market='omxs')
+        regime_ndx = get_market_regime(market='nasdaq')
+        regime = regime_omx
+        regimes = {"omxs": regime_omx, "nasdaq": regime_ndx}
+    else:
+        regime = get_market_regime(market=market)
+        regimes = None
+
     from src.core.signals import get_strategy_prior
-    priors = {k: get_strategy_prior(k) for k in ("dip", "momentum", "trend")}
-    return jsonify({"opportunities": opps, "total": len(opps), "regime": regime, "strategy_priors": priors})
+    strat_keys = ("leader", "dip", "momentum", "trend")
+    if mkt_lower in ("omx", "omxs"):
+        priors = {k: get_strategy_prior(k, market="omxs") for k in strat_keys}
+        priors_by_market = {"omxs": priors}
+    elif mkt_lower in ("nasdaq", "us", "usa"):
+        priors = {k: get_strategy_prior(k, market="nasdaq") for k in strat_keys}
+        priors_by_market = {"nasdaq": priors}
+    else:
+        priors_omx = {k: get_strategy_prior(k, market="omxs") for k in strat_keys}
+        priors_ndx = {k: get_strategy_prior(k, market="nasdaq") for k in strat_keys}
+        priors = priors_omx
+        priors_by_market = {"omxs": priors_omx, "nasdaq": priors_ndx}
+
+    return jsonify({
+        "opportunities": opps,
+        "total": len(opps),
+        "qualified_count": sum(1 for o in opps if o.get("qualified", True)),
+        "watchlist_count": sum(1 for o in opps if o.get("qualified") is False),
+        "regime": regime,
+        "regimes": regimes,
+        "strategy_priors": priors,
+        "strategy_priors_by_market": priors_by_market,
+    })
 
 
 @api_bp.route('/market_overview')

@@ -74,12 +74,23 @@ def _load_history(conn, symbols):
 TREND_SIGNAL_WINDOW = 10  # dagar efter trendstart som trendsignalen är aktiv
 
 STRATEGIES = {
+    "leader": {
+        "name": "Momentum-ledare vid rekyl",
+        "desc": "Starka 12–1 månaders vinnare i upptrend vid lugn rekyl/konsolidering (längre 60-dagarshorisont)",
+        "default_rsi_exit": 85,
+        "default_max_days": 60,
+        "atr_stop_mult": 3.0,
+        "tp1_atr_mult": 3.0,
+        "target_atr_mult": 6.0,
+    },
     "dip": {
         "name": "Kvalitets-dipp i upptrend",
         "desc": "Köp starka bolag i upptrend vid tillfällig rekyl (RSI <= 40 eller test av MA50)",
         "default_rsi_exit": 65,
         "default_max_days": 20,
-        "atr_stop_mult": 2.5,
+        "atr_stop_mult": 2.2,
+        "tp1_atr_mult": 2.2,
+        "target_atr_mult": 3.5,
     },
     "momentum": {
         "name": "Momentum & Utbrott",
@@ -87,13 +98,17 @@ STRATEGIES = {
         "default_rsi_exit": 78,
         "default_max_days": 25,
         "atr_stop_mult": 2.5,
+        "tp1_atr_mult": 2.5,
+        "target_atr_mult": 5.0,
     },
     "trend": {
         "name": "Långsiktig Trendföljare",
         "desc": "Går in när en ny trend startat (Golden Cross över MA200) och följer den",
         "default_rsi_exit": 85,
         "default_max_days": 252,
-        "atr_stop_mult": 3.5,
+        "atr_stop_mult": 3.0,
+        "tp1_atr_mult": 3.0,
+        "target_atr_mult": 6.5,
     }
 }
 
@@ -115,7 +130,23 @@ def prep_strategy_signals(g, strategy="dip", **custom_params):
         direction = np.sign(c.diff()).fillna(0)
         obv = (direction * vol).cumsum()
 
-    if strategy == "dip":
+    if strategy == "leader":
+        # 12–1 månaders momentum-ledare i etablerad upptrend vid lugn rekyl/konsolidering
+        base_252 = c.shift(252).replace(0, np.nan)
+        mom_12_1 = (c.shift(21) / base_252 - 1.0) * 100.0
+        strong_mom = (mom_12_1 >= 15.0).fillna(False)
+        in_uptrend = (
+            ma200.notna() & ma50.notna()
+            & (c > ma200) & (ma50 > ma200)
+            & (ma200 >= ma200.shift(20) * 0.995)
+        )
+        healthy_pullback = (rsi <= 52) | (g["low"] <= ma50 * 1.02)
+        not_falling_knife = (c >= ma50 * 0.96) & ((c > g["low"].shift(1)) | (c > g["open"]))
+        no_panic_dump = vol <= (prior_vol * 2.5).fillna(vol)
+        g["entry_sig"] = strong_mom & in_uptrend & healthy_pullback & not_falling_knife & no_panic_dump
+        g["entry_rank"] = mom_12_1.fillna(0.0)
+
+    elif strategy == "dip":
         # Upptrend + tillfällig rekyl + vändning
         in_uptrend = (ma200.notna()) & (c > ma200 * 0.99) & (ma200 >= ma200.shift(20) * 0.995)
         is_dipping = (rsi <= 40) | (g["low"] <= ma50 * 1.015)
@@ -608,7 +639,9 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
     strat_cfg = STRATEGIES.get(strategy, STRATEGIES["dip"])
     rsi_exit = strat_cfg.get("default_rsi_exit", 70)
     max_days = strat_cfg.get("default_max_days", 20)
-    atr_mult = strat_cfg.get("atr_stop_mult", 2.5)
+    atr_mult = strat_cfg.get("atr_stop_mult", 2.2)
+    tp1_mult = strat_cfg.get("tp1_atr_mult", atr_mult)
+    target_mult = strat_cfg.get("target_atr_mult", max(atr_mult * 1.8, 3.0))
 
     dates = list(df.index)
     if entry_allowed is not None and len(entry_allowed) > 0:
@@ -640,15 +673,17 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
                 cost_basis = qty * fill_px + _cost(qty * fill_px)
                 cash -= cost_basis
                 stop_loss = fill_px - atr_mult * pending_atr
-                # Target: 2.0x risk
-                risk = fill_px - stop_loss
-                target = fill_px + max(risk * 1.8, pending_atr * 3.0)
+                tp1 = fill_px + tp1_mult * pending_atr
+                target = fill_px + target_mult * pending_atr
                 position = {
                     "entry_date": date,
                     "entry_price": fill_px,
                     "qty": qty,
                     "cost_basis": cost_basis,
                     "stop_loss": stop_loss,
+                    "tp1": tp1,
+                    "tp1_hit": False,
+                    "realized_net": 0.0,
                     "target": target,
                     "days": -1,  # räknas upp till 0 nedan, så första fyllnadsdagen räknas inte som hållen dag
                 }
@@ -665,23 +700,33 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
             exit_price = px_close
             exit_reason = ""
 
-            # Stop loss
+            # Stop loss (eller breakeven-stopp efter delmål 1)
             if low <= position["stop_loss"]:
                 exit_now = True
                 exit_price = min(px_open, position["stop_loss"])
-                exit_reason = "Stop loss"
+                exit_reason = "Breakeven-stopp (efter TP1)" if position["tp1_hit"] else "Stop loss"
             # Vinstmål / RSI-exit
             elif rsi_val >= rsi_exit:
                 exit_now = True
                 exit_price = px_close
                 exit_reason = f"RSI-exit ({int(rsi_val)})"
-            # Target exit
+            # Target exit (Mål 2)
             elif high >= position["target"]:
                 exit_now = True
                 exit_price = position["target"]
                 exit_reason = "Målkurs nådd"
+            # Delmål 1: säkra 50% vinst och flytta stop-loss till breakeven (samma plan som calculate_trade_levels)
+            elif not position["tp1_hit"] and high >= position["tp1"] and position["qty"] >= 2:
+                sell_qty = position["qty"] // 2
+                gross_part = sell_qty * position["tp1"]
+                net_part = gross_part - _cost(gross_part)
+                cash += net_part
+                position["realized_net"] += net_part
+                position["qty"] -= sell_qty
+                position["stop_loss"] = max(position["stop_loss"], position["entry_price"])
+                position["tp1_hit"] = True
             # Max holding period
-            elif position["days"] >= max_days:
+            if not exit_now and position["days"] >= max_days:
                 exit_now = True
                 exit_price = px_close
                 exit_reason = f"Tids-exit ({max_days} d)"
@@ -691,8 +736,9 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
                 cost = _cost(gross)
                 net_val = gross - cost
                 cash += net_val
-                pnl = net_val - position["cost_basis"]
-                ret_pct = (net_val / position["cost_basis"] - 1.0) * 100.0
+                total_net = position["realized_net"] + net_val
+                pnl = total_net - position["cost_basis"]
+                ret_pct = (total_net / position["cost_basis"] - 1.0) * 100.0
 
                 trades.append({
                     "entry_date": position["entry_date"],
@@ -720,14 +766,15 @@ def simulate_stock_trades(df, strategy="dip", initial_capital=100_000.0, fee_pct
     if position:
         last_px = float(df.iloc[-1]["close"])
         gross = position["qty"] * last_px
-        pnl = gross - position["cost_basis"]
+        total_val = position["realized_net"] + gross
+        pnl = total_val - position["cost_basis"]
         trades.append({
             "entry_date": position["entry_date"],
             "exit_date": dates[-1],
             "entry_price": round(float(position["entry_price"]), 2),
             "exit_price": round(float(last_px), 2),
             "days_held": int(position["days"]),
-            "return_pct": round(float((gross / position["cost_basis"] - 1.0) * 100.0), 2),
+            "return_pct": round(float((total_val / position["cost_basis"] - 1.0) * 100.0), 2),
             "profit": round(float(pnl), 2),
             "exit_reason": "Öppen position",
             "open": True,
