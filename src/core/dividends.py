@@ -147,27 +147,30 @@ def _fetch_single_stock_dividend(sym: str, name: str, mkt: str, tech_row: dict) 
 
         raw_payout = info.get("payoutRatio")
         if raw_payout is not None:
-            payout_pct = float(raw_payout)
-            # yfinance returnerar decimalratio t.ex. 0.50 (50%) eller 2.5 (250%)
-            if payout_pct <= 10.0:
-                payout_pct = payout_pct * 100.0
+            p_f = float(raw_payout)
+            # yfinance returnerar alltid payoutRatio som decimalratio (t.ex. 0.50 = 50%, 12.0 = 1200%)
+            payout_pct = p_f * 100.0 if (p_f == p_f and abs(p_f) != float("inf")) else None
         else:
             payout_pct = None
 
         raw_pe = info.get("trailingPE")
         pe = float(raw_pe) if raw_pe is not None and raw_pe == raw_pe else None
 
-        # Beräkna utdelningskontinuitet via t.dividends
+        # Beräkna utdelningskontinuitet via t.dividends (kräver obrutna kalenderår t.o.m. föregående år)
         streak_years = None
         try:
             divs = getattr(t, "dividends", None)
             if divs is not None and not divs.empty and len(divs) >= 2:
                 annual = divs.groupby(divs.index.year).sum()
                 curr_year = datetime.datetime.now().year
-                past_years = [y for y in sorted(annual.index) if y < curr_year]
-                if len(past_years) >= 2:
+                past_years = [y for y in sorted(annual.index) if y < curr_year and float(annual.loc[y]) > 0]
+                if not past_years or past_years[-1] < curr_year - 1:
+                    streak_years = 0
+                elif len(past_years) >= 2:
                     streak = 0
                     for i in range(len(past_years) - 1, 0, -1):
+                        if past_years[i] - past_years[i - 1] != 1:
+                            break
                         curr_val = float(annual.loc[past_years[i]])
                         prev_val = float(annual.loc[past_years[i - 1]])
                         if curr_val >= prev_val * 0.98:

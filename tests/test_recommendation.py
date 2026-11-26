@@ -76,6 +76,23 @@ class TestSignalSelection(unittest.TestCase):
         self.assertNotEqual(r["strategy"], "Kvalitets-dipp")
         self.assertNotEqual(r["action"], "Köp")
 
+    def test_leader_signal_supported_and_100th_percentile_not_zero(self):
+        es = {"leader": edge(exp=2.1)}
+        r = rec(edge_summary=es, mom_pct=50.0, regime={"regime": "bull"})
+        self.assertEqual(r["action"], "Köp")
+        self.assertEqual(r["strategy"], "Momentum-ledare vid rekyl")
+
+        r100 = rec(mom_pct=100.0, regime={"regime": "bull"})
+        self.assertEqual(r100["action"], "Köp")
+        self.assertNotIn("0 % starkaste", r100["rationale"])
+        self.assertIn("1 % starkaste", r100["rationale"])
+
+    def test_crypto_returns_neutral_context_not_buy_or_sell(self):
+        r_up = rec(symbol="BTC-USD", is_crypto=True, tscore=85.0)
+        r_dn = rec(symbol="BTC-USD", is_crypto=True, tscore=15.0)
+        self.assertEqual(r_up["action"], "Behåll")
+        self.assertEqual(r_dn["action"], "Behåll")
+
 
 if __name__ == "__main__":
     unittest.main()

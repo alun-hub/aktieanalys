@@ -125,6 +125,14 @@ class TestSingleStockBacktest(unittest.TestCase):
         self.assertEqual(closed[0]["exit_reason"], "Breakeven-stopp (efter TP1)")
         self.assertGreater(closed[0]["profit"], 0.0)
 
+    def test_curve_stats_crypto_uses_365_days(self):
+        from src.core.backtest import _curve_stats
+        dates = pd.date_range("2025-01-01", periods=30).strftime("%Y-%m-%d").tolist()
+        vals = [100.0 + (2.0 if i % 2 == 0 else -1.0) for i in range(30)]
+        vol_252 = _curve_stats(dates, vals, annual_days=252)["volatility"]
+        vol_365 = _curve_stats(dates, vals, annual_days=365)["volatility"]
+        self.assertGreater(vol_365, vol_252)
+
     def test_run_single_stock_backtest_missing_symbol(self):
         res = run_single_stock_backtest("NON_EXISTENT_SYMBOL_XYZ")
         self.assertIn("error", res)

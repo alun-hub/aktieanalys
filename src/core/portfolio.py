@@ -195,33 +195,57 @@ def _holding_recommendation(symbol, kind, m, row):
     ma50 = m.get("ma50") or (row.get("ma50") if row else None)
     ma200 = m.get("ma200") or (row.get("ma200") if row else None)
     rsi = (row.get("rsi") if row else None)
+    atr = (row.get("atr") if row else None)
+    is_crypto = symbol.endswith("-USD")
 
-    score = None
-    if close and (ma50 or ma200):
-        score = trend_score(close, ma50, ma200, rsi or 50.0)
+    if close:
+        try:
+            from src.core.analysis import generate_recommendation
+            from src.core.relative_strength import momentum_12_1, momentum_percentile, MOM_LOOKBACK
+            from src.core.regime import get_market_regime
 
-    rec_key = (m.get("rec_key") or "").lower()
+            mom_pct = None
+            if not is_crypto:
+                conn = get_db()
+                try:
+                    crows = conn.execute(
+                        "SELECT close FROM history WHERE symbol = ? AND close IS NOT NULL "
+                        "ORDER BY date DESC LIMIT ?", (symbol, MOM_LOOKBACK + 5)
+                    ).fetchall()
+                finally:
+                    conn.close()
+                if len(crows) >= MOM_LOOKBACK + 1:
+                    mom_val = momentum_12_1([r[0] for r in reversed(crows)])
+                    if mom_val is not None:
+                        mom_pct = momentum_percentile(mom_val)
 
-    if score is not None:
-        if score >= 65:
-            if rec_key in ("sell", "underperform"):
-                return {"action": "Behåll", "badge": "hold", "horizon": "Bevaka MA50 (1–2 månader)", "reason": "Teknisk uppgång men svag analytikersyn"}
-            return {"action": "Köp", "badge": "buy", "horizon": "Medellång sikt (2–6 månader)", "reason": "Stark teknisk upptrend"}
-        elif score <= 38:
-            if rec_key in ("strong_buy", "buy"):
-                return {"action": "Behåll", "badge": "hold", "horizon": "1–3 månader (avvakta)", "reason": "Dipp under medelvärden men stark analytikerkonsensus"}
-            return {"action": "Sälj", "badge": "sell", "horizon": "Kliv av omgående", "reason": "Nedåttrend under medelvärden"}
-        else:
-            if rec_key in ("strong_buy", "buy"):
-                return {"action": "Köp", "badge": "buy", "horizon": "Lång sikt (6–12 månader)", "reason": "Konsolidering med positiv analytikerkonsensus"}
-            return {"action": "Behåll", "badge": "hold", "horizon": "1–3 månader", "reason": "Konsolidering / neutral trend"}
+            is_us = (symbol in NASDAQ_100) or (not is_crypto and fallback_currency(symbol) == "USD")
+            try:
+                regime = get_market_regime("nasdaq" if is_us else "omx")
+            except Exception:
+                regime = None
 
-    if rec_key in ("strong_buy", "buy"):
-        return {"action": "Köp", "badge": "buy", "horizon": "Lång sikt (6–12 månader)", "reason": "Analytikerkonsensus: Köp"}
-    elif rec_key in ("sell", "underperform"):
-        return {"action": "Sälj", "badge": "sell", "horizon": "Kliv av omgående", "reason": "Analytikerkonsensus: Sälj"}
+            tscore = trend_score(close, ma50, ma200, rsi or 50.0) if (ma50 or ma200) else 50.0
+            rec = generate_recommendation(
+                symbol=symbol, close=close, ma50=ma50, ma200=ma200,
+                rsi=rsi, atr=atr, tscore=tscore, valuation=None,
+                info={"recommendationKey": m.get("rec_key")},
+                edge_summary={}, is_crypto=is_crypto,
+                mom_pct=mom_pct, regime=regime,
+            )
+            return {
+                "action": rec.get("action", "Behåll"),
+                "badge": rec.get("badge", "hold"),
+                "horizon": rec.get("horizon", "1–3 månader"),
+                "reason": rec.get("rationale") or "Relativ momentum och marknadsregim",
+                "strategy": rec.get("strategy"),
+                "target_price": rec.get("target_price"),
+                "stop_loss": rec.get("stop_loss"),
+            }
+        except Exception:
+            pass
 
-    return {"action": "Behåll", "badge": "hold", "horizon": "Lång sikt", "reason": "Stabil nivå / saknar stark säljsignal"}
+    return {"action": "Behåll", "badge": "hold", "horizon": "Lång sikt", "reason": "Stabil nivå / saknar tydlig signal"}
 
 
 def _meta(symbol):
@@ -372,7 +396,7 @@ def portfolio_health():
 
             conn = get_db()
             hist_row = conn.execute(
-                "SELECT close, ma50, ma200, rsi FROM history WHERE symbol = ? AND close IS NOT NULL "
+                "SELECT close, ma50, ma200, rsi, atr FROM history WHERE symbol = ? AND close IS NOT NULL "
                 "ORDER BY date DESC LIMIT 1", (h["symbol"],)).fetchone()
             conn.close()
             rec = _holding_recommendation(h["symbol"], h["kind"], m, dict(hist_row) if hist_row else None)
@@ -493,18 +517,39 @@ def generate_sell_alerts() -> list[dict]:
             atr = float(row["atr"]) if row["atr"] is not None else close * 0.03
             avg_price = float(h.get("avg_price") or close)
 
-            stop_level = avg_price - (atr * 2.5)
+            # Trailing 60-dagars topp (Chandelier-stopp) + GAV-skydd så stoppen inte låser sig vid gammalt GAV
+            peak_60d = max(avg_price, close)
+            try:
+                peak_row = conn.execute(
+                    "SELECT MAX(close) AS peak FROM ("
+                    "SELECT close FROM history WHERE symbol = ? AND close IS NOT NULL ORDER BY date DESC LIMIT 60"
+                    ")",
+                    (sym,),
+                ).fetchone()
+                if peak_row is not None:
+                    p_val = peak_row["peak"] if hasattr(peak_row, "keys") and "peak" in peak_row.keys() else (
+                        peak_row.get("peak") if isinstance(peak_row, dict) else None
+                    )
+                    if p_val is not None:
+                        peak_60d = max(peak_60d, float(p_val))
+            except Exception:
+                pass
+
+            gav_stop = avg_price - (atr * 2.5)
+            trailing_stop = peak_60d - (atr * 3.0)
+            stop_level = max(gav_stop, trailing_stop)
 
             new_alert = None
 
             # 1. Stop loss triggad?
-            if close < stop_level and avg_price > 0:
+            if stop_level > 0 and close < stop_level and avg_price > 0:
+                stop_kind = "trailing ATR-stopp" if trailing_stop > gav_stop else "stop-loss"
                 new_alert = {
                     "symbol": sym,
                     "name": h.get("name") or sym,
                     "reason": "atr_stop",
                     "severity": "exit",
-                    "reason_text": f"Kursen ({close:.1f}) har brutit under stop-loss ({stop_level:.1f}). Begränsa nedsidan.",
+                    "reason_text": f"Kursen ({close:.1f}) har brutit under {stop_kind} ({stop_level:.1f}). Begränsa nedsidan.",
                 }
             # 2. Bear market för hela marknaden?
             elif regime == "bear":

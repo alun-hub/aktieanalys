@@ -167,3 +167,42 @@ class TestDividends(unittest.TestCase):
         self.assertIn("stocks", data)
         self.assertEqual(data["stocks"], [])
 
+    @patch("src.core.dividends.yf.Ticker")
+    def test_payout_ratio_extreme_and_streak_gap_detection(self, mock_ticker):
+        import datetime
+        import pandas as pd
+        from src.core.dividends import _fetch_single_stock_dividend
+
+        curr_y = datetime.datetime.now().year
+        # Inställd utdelning 3 år sedan -> bara de senaste 2 hela åren (curr_y-2, curr_y-1) ska ge streak = 1
+        div_dates = pd.to_datetime([
+            f"{curr_y - 5}-05-01",
+            f"{curr_y - 4}-05-01",
+            # curr_y - 3 saknas (inställd utdelning!)
+            f"{curr_y - 2}-05-01",
+            f"{curr_y - 1}-05-01",
+        ])
+        mock_t = MagicMock()
+        # payoutRatio = 12.0 i yfinance = 1200% (inte 12%)
+        mock_t.info = {"dividendYield": 10.0, "payoutRatio": 12.0, "trailingPE": 15.0}
+        mock_t.dividends = pd.Series([2.0, 2.5, 3.0, 3.5], index=div_dates)
+        mock_ticker.return_value = mock_t
+
+        res = _fetch_single_stock_dividend(
+            "TEST.ST", "Test", "OMX",
+            {"close": 100.0, "ma50": 95.0, "ma200": 90.0, "rsi": 50.0, "atr": 2.0},
+        )
+        self.assertIsNotNone(res)
+        self.assertEqual(res["payout_ratio"], 1200.0)
+        self.assertEqual(res["payout_score"], 10.0)
+        self.assertEqual(res["streak_years"], 1)
+
+        # Utdelning som upphörde för 2 år sedan ska ge streak_years = 0
+        old_dates = pd.to_datetime([f"{curr_y - 4}-05-01", f"{curr_y - 3}-05-01"])
+        mock_t.dividends = pd.Series([2.0, 2.5], index=old_dates)
+        res_old = _fetch_single_stock_dividend(
+            "TEST.ST", "Test", "OMX",
+            {"close": 100.0, "ma50": 95.0, "ma200": 90.0, "rsi": 50.0, "atr": 2.0},
+        )
+        self.assertEqual(res_old["streak_years"], 0)
+

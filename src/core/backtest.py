@@ -278,13 +278,14 @@ def _run_engine(hist, index_close, dates, params, market):
             close_position(sym, float(r["open"]), date, pending_exit.pop(sym))
 
         # 2. fyll väntande köpordrar på dagens öppning
-        for sym in pending_entry:
+        for sym, sig_atr in pending_entry:
             if len(holdings) >= MAX_HOLDINGS or sym in holdings:
                 continue
             r = row(sym, date)
-            if r is None or pd.isna(r["open"]) or pd.isna(r["atr"]):
+            if r is None or pd.isna(r["open"]):
                 continue
             px = float(r["open"])
+            stop_atr = sig_atr if (sig_atr is not None and not pd.isna(sig_atr)) else px * 0.03
             equity = cash + sum(h["qty"] * h["last_price"] for h in holdings.values())
             budget = min(cash, equity * POSITION_SIZE)
             # Krypto handlas i bråkdelar (annars blir qty 0 när kursen > budget, t.ex. BTC)
@@ -298,7 +299,7 @@ def _run_engine(hist, index_close, dates, params, market):
             cash -= gross + entry_cost
             holdings[sym] = {
                 "qty": qty, "entry_px": px, "entry_date": date,
-                "entry_cost": entry_cost, "stop": px - atr_mult * float(r["atr"]),
+                "entry_cost": entry_cost, "stop": px - atr_mult * stop_atr,
                 "days": 0, "last_price": px,
             }
         pending_entry = []
@@ -335,15 +336,18 @@ def _run_engine(hist, index_close, dates, params, market):
             and index_close.loc[date] > index_ma200.loc[date]
         slots_left = MAX_HOLDINGS - len(holdings) - len(pending_entry)
         if regime_ok and slots_left > 0 and cash > equity * MIN_CASH_FRACTION:
-            best_sym, best_rank = None, -np.inf
+            best_sym, best_rank, best_atr = None, -np.inf, None
+            pending_syms = {s for s, _ in pending_entry}
             for sym, g in hist.items():
-                if sym in holdings or sym in pending_entry or date not in g.index:
+                if sym in holdings or sym in pending_syms or date not in g.index:
                     continue
                 r = g.loc[date]
                 if bool(r["entry_sig"]) and not pd.isna(r["entry_rank"]) and r["entry_rank"] > best_rank:
-                    best_sym, best_rank = sym, float(r["entry_rank"])
+                    if pd.isna(r["atr"]):
+                        continue
+                    best_sym, best_rank, best_atr = sym, float(r["entry_rank"]), float(r["atr"])
             if best_sym:
-                pending_entry.append(best_sym)
+                pending_entry.append((best_sym, best_atr))
 
     # stäng kvarvarande positioner till sista markerade pris (redovisas som öppna)
     last_date = dates[-1]
@@ -370,13 +374,13 @@ def _years_between(d0, d1):
     return max((pd.to_datetime(d1) - pd.to_datetime(d0)).days / 365.25, 0.1)
 
 
-def _curve_stats(dates, values):
+def _curve_stats(dates, values, annual_days=TRADING_DAYS):
     values = np.asarray(values, dtype=float)
     years = _years_between(dates[0], dates[-1])
     total = float(values[-1] / values[0] - 1)
     cagr = float((values[-1] / values[0]) ** (1 / years) - 1)
     daily = np.diff(values) / values[:-1]
-    vol = float(np.std(daily) * np.sqrt(TRADING_DAYS)) if len(daily) > 1 else 0.0
+    vol = float(np.std(daily) * np.sqrt(annual_days)) if len(daily) > 1 else 0.0
     peak = np.maximum.accumulate(values)
     max_dd = float((values / peak - 1).min())
     return {
@@ -407,7 +411,8 @@ def _buy_and_hold_all(hist, dates, market):
     qty = np.array([(per - transaction_cost(per, market)) / float(hist[s].loc[start, "open"])
                     for s in px.columns])
     curve = list(map(float, px.values @ qty))
-    return curve, _curve_stats(dates, curve)
+    annual_days = 365 if market == "crypto" else TRADING_DAYS
+    return curve, _curve_stats(dates, curve, annual_days=annual_days)
 
 
 def _sample_chart(dates, strat_vals, bench_vals, n=45):
@@ -429,7 +434,8 @@ def _summarise(curve, trades, hist, index_close, market):
     strat_vals = [c[1] for c in curve]
     years = _years_between(dates[0], dates[-1])
 
-    stats = _curve_stats(dates, strat_vals)
+    annual_days = 365 if market == "crypto" else TRADING_DAYS
+    stats = _curve_stats(dates, strat_vals, annual_days=annual_days)
     closed = [t for t in trades if not t["open"]]
     open_tr = [t for t in trades if t["open"]]
     wins = [t for t in closed if t["return_pct"] > 0]
@@ -973,17 +979,26 @@ def run_portfolio_backtest(years: int = 10) -> dict:
             # 3. Omviktningskontroll (månadsvis eller regimbyte)
             should_rebalance = (i - last_rebalance_idx >= 21) or any(abs(target_w[k] - current_weights[k]) >= 0.15 for k in target_w)
             if should_rebalance:
-                turnover = sum(abs(target_w[k] - current_weights[k]) for k in target_w) / 2.0
-                rebalance_amount = equity_strategy * turnover
-                cost = transaction_cost(rebalance_amount, "nasdaq") if rebalance_amount > 100.0 else 0.0
+                # Kostnad på varje handlat ben (både sälj- och köpordrar betalar courtage + spread + FX)
+                cost = sum(
+                    transaction_cost(abs(target_w[k] - current_weights[k]) * equity_strategy, "nasdaq")
+                    for k in target_w
+                    if abs(target_w[k] - current_weights[k]) * equity_strategy > 100.0
+                )
                 equity_strategy -= cost
                 current_weights = target_w.copy()
                 last_rebalance_idx = i
                 rebalance_count += 1
 
-            # 4. Beräkna dagens avkastning
+            # 4. Beräkna dagens avkastning och låt vikterna driva med marknaden mellan ombalanseringar
             day_chg = pct_changes.loc[date]
-            strat_ret = sum(current_weights[k] * float(day_chg[asset_proxy[k]]) for k in current_weights)
+            new_vals = {k: current_weights[k] * (1.0 + float(day_chg[asset_proxy[k]])) for k in current_weights}
+            tot_w = sum(new_vals.values())
+            if tot_w > 0:
+                strat_ret = tot_w - 1.0
+                current_weights = {k: v / tot_w for k, v in new_vals.items()}
+            else:
+                strat_ret = 0.0
             vt_ret = float(day_chg["VT"])
             spy_ret = float(day_chg["SPY"])
 

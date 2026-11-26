@@ -83,6 +83,38 @@ class TestRegime(unittest.TestCase):
         volvo_alert = next(a for a in alerts if a["symbol"] == "VOLV-B.ST")
         self.assertEqual(volvo_alert["severity"], "exit")
 
+    @patch("src.core.regime.get_market_regime", return_value={"regime": "bull", "is_bull": True})
+    @patch("src.core.portfolio.list_holdings")
+    @patch("src.core.portfolio.get_db")
+    def test_sell_alert_trailing_atr_stop_protects_profit(self, mock_get_db, mock_list_holdings, _regime):
+        import sqlite3
+        from src.core.portfolio import generate_sell_alerts
+
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            "CREATE TABLE history (symbol TEXT, date TEXT, open REAL, high REAL, low REAL, "
+            "close REAL, volume INT, ma50 REAL, ma200 REAL, rsi REAL, atr REAL)"
+        )
+        conn.execute(
+            "CREATE TABLE sell_alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT, "
+            "created_at TEXT, reason TEXT, severity TEXT, acknowledged INT, acknowledged_at TEXT)"
+        )
+        # Köpt på GAV 100 kr, toppade på 300 kr, föll nu till 260 kr med ATR 10 (trailing stop = 300 - 30 = 270)
+        conn.execute("INSERT INTO history VALUES ('WIN.ST','2026-01-01',295,305,295,300,1000,280,250,60,10)")
+        conn.execute("INSERT INTO history VALUES ('WIN.ST','2026-01-02',265,268,258,260,1000,275,250,45,10)")
+        conn.commit()
+        mock_get_db.return_value = conn
+        mock_list_holdings.return_value = [
+            {"symbol": "WIN.ST", "name": "Vinnare AB", "kind": "aktie", "avg_price": 100.0}
+        ]
+
+        alerts = generate_sell_alerts()
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["reason"], "atr_stop")
+        self.assertEqual(alerts[0]["severity"], "exit")
+        self.assertIn("trailing ATR-stopp", alerts[0]["reason_text"])
+
 
 if __name__ == "__main__":
     unittest.main()

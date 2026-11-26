@@ -402,16 +402,23 @@ def generate_recommendation(symbol, close, ma50, ma200, rsi, atr, tscore, valuat
     #    per affär (krympt mot universumssnittet, efter kostnader, med marknadsregimen som filter).
     #    Signaler utan positiv förväntad avkastning ger inget köp.
     if edge_summary:
+        from src.core.backtest import STRATEGIES
         params = {
-            "dip": ("Kvalitets-dipp", "Kort sikt (2–4 veckor)", 3.2, 2.2,
+            "leader": (STRATEGIES["leader"]["name"], "Medellång sikt (2–3 månader)",
+                       STRATEGIES["leader"]["target_atr_mult"], STRATEGIES["leader"]["atr_stop_mult"],
+                       "Aktiv köpsignal i momentum-ledare vid rekyl: stark 12–1 månaders vinnare i upptrend."),
+            "dip": (STRATEGIES["dip"]["name"], "Kort sikt (2–4 veckor)",
+                    STRATEGIES["dip"]["target_atr_mult"], STRATEGIES["dip"]["atr_stop_mult"],
                     "Aktiv köpsignal i dipp-strategin: aktien rekylerar i en upptrend och visar tecken på vändning."),
-            "momentum": ("Momentum & Utbrott", "Kort/Medellång sikt (3–6 veckor)", 4.5, 2.5,
+            "momentum": (STRATEGIES["momentum"]["name"], "Kort/Medellång sikt (3–6 veckor)",
+                         STRATEGIES["momentum"]["target_atr_mult"], STRATEGIES["momentum"]["atr_stop_mult"],
                          "Aktivt momentumutbrott med ökad volym och positiv trendhierarki (Close > MA50 > MA200)."),
-            "trend": ("Långsiktig Trendföljare", "Lång sikt (6–12 månader)", 6.0, 3.0,
+            "trend": (STRATEGIES["trend"]["name"], "Lång sikt (6–12 månader)",
+                      STRATEGIES["trend"]["target_atr_mult"], STRATEGIES["trend"]["atr_stop_mult"],
                       "En ny långsiktig trend har precis startat (Golden Cross över 200-dagars medelvärde)."),
         }
         active = [(k, e) for k, e in edge_summary.items()
-                  if e.get("active_signal") and e.get("qualifies") and (e.get("expectancy_pct") or 0) > 0]
+                  if k in params and e.get("active_signal") and e.get("qualifies") and (e.get("expectancy_pct") or 0) > 0]
         if active:
             k, e = max(active, key=lambda ke: ke[1]["expectancy_pct"])
             name, horizon, tgt, stp, why = params[k]
@@ -428,38 +435,22 @@ def generate_recommendation(symbol, close, ma50, ma200, rsi, atr, tscore, valuat
                              "Det är ett historiskt genomsnitt, inte en garanti.",
             }
 
-    # 2. Krypto
+    # 2. Krypto – enbart trendkontext och volatilitetsnivåer, ingen köp-/säljsignal
     if is_crypto:
-        if tscore >= 60:
-            return {
-                "action": "Köp",
-                "badge": "buy",
-                "horizon": "Kortsiktig swing (1–4 veckor)",
-                "target_price": round(close + 3.0 * atr_val, 2),
-                "stop_loss": round(close - 2.5 * atr_val, 2),
-                "strategy": "Krypto Momentum",
-                "rationale": "Positivt momentum och stigande trend över glidande medelvärden.",
-            }
-        elif tscore <= 40:
-            return {
-                "action": "Sälj",
-                "badge": "sell",
-                "horizon": "Kliv av omgående",
-                "target_price": round(close - 3.0 * atr_val, 2),
-                "stop_loss": round(close + 2.0 * atr_val, 2),
-                "strategy": "Teknisk Riskminimering",
-                "rationale": "Svagt momentum och fallande trend under medelvärden i högvolatil tillgång.",
-            }
-        else:
-            return {
-                "action": "Behåll",
-                "badge": "hold",
-                "horizon": "Avvakta (1–2 veckor)",
-                "target_price": round(close + 2.0 * atr_val, 2),
-                "stop_loss": round(close - 2.0 * atr_val, 2),
-                "strategy": "Neutral konsolidering",
-                "rationale": "Konsoliderar i sidledes kanal utan tydlig trendriktning.",
-            }
+        trend_desc = "stigande trend över medelvärden" if tscore >= 60 else (
+            "fallande trend under medelvärden" if tscore <= 40 else "sidledes konsolidering"
+        )
+        return {
+            "action": "Behåll",
+            "badge": "hold",
+            "horizon": "Ingen köp-/säljsignal",
+            "target_price": round(close + 3.0 * atr_val, 2),
+            "stop_loss": round(close - 2.5 * atr_val, 2),
+            "strategy": "Krypto – endast trendkontext",
+            "confidence": "låg",
+            "rationale": f"Teknisk kontext visar {trend_desc}. Krypto saknar vinster och kassaflöden och "
+                         "teknisk trendpoäng ger ingen verifierad köp- eller säljsignal.",
+        }
 
     # 3. Aktier. Underlaget är relativ momentum (12–1 månader mot universumet) – den enda
     #    indikator som i våra egna tester hängt ihop med efterföljande överavkastning.
@@ -495,7 +486,7 @@ def generate_recommendation(symbol, close, ma50, ma200, rsi, atr, tscore, valuat
             "stop_loss": round(close - 2.5 * atr_val, 2),
             "strategy": "Relativ momentum",
             "confidence": "låg",
-            "rationale": f"Aktien ligger bland de {100 - int(mp)} % starkaste i universumet på momentum de senaste 12 månaderna "
+            "rationale": f"Aktien ligger bland de {max(1, round(100 - mp))} % starkaste i universumet på momentum de senaste 12 månaderna "
                          "(exkl. senaste månaden). Sådana aktier har historiskt slagit övriga svagt men återkommande – "
                          "effekten är liten och ingen garanti.",
         }
@@ -673,7 +664,7 @@ def analyze_any_stock(symbol):
         if not is_crypto and len(df) >= 100:
             from src.core.backtest import prep_strategy_signals
             from src.core.signals import compute_edge, entry_allowed_now
-            for s_key in ("dip", "momentum", "trend"):
+            for s_key in ("leader", "dip", "momentum", "trend"):
                 df_sig = prep_strategy_signals(df, strategy=s_key)
                 edge = compute_edge(df_sig, s_key, mkt_key)
                 raw_signal = bool(df_sig.iloc[-1].get("entry_sig", False))
